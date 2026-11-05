@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="AgentYattus.Api.Tests" />
+    <InternalsVisibleTo Include="AgentYattus.Evals" />
   </ItemGroup>
 
 </Project>

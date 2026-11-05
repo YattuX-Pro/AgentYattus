@@ -17,6 +17,9 @@ jobs:
       - run: dotnet build tests/AgentYattus.Client.Core.Tests
       - run: dotnet build src/AgentYattus.Desktop
       - run: dotnet build spikes/AgentLoop.Tests
+      - run: dotnet build evals/AgentYattus.Evals
       - run: dotnet test --project tests/AgentYattus.Api.Tests --no-build
       - run: dotnet test --project tests/AgentYattus.Client.Core.Tests --no-build
       - run: dotnet test --project spikes/AgentLoop.Tests --no-build
+      # Notation et coûts seulement : l'évaluation sur de vrais modèles est ignorée sans AGENTYATTUS_EVAL_MODELS.
+      - run: dotnet test --project evals/AgentYattus.Evals --no-build

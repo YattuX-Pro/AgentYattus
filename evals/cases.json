@@ -1,0 +1,21 @@
+[
+  {
+    "name": "question-appel-bloquant",
+    "goal": "Quelle méthode bloque un thread en attendant un appel asynchrone, et dans quel fichier ?",
+    "kind": "Question",
+    "mustMention": ["GetTotals", "OrderService.cs", ".Result"]
+  },
+  {
+    "name": "question-n-plus-1",
+    "goal": "Y a-t-il une requête N+1 dans ce projet ? Où ?",
+    "kind": "Question",
+    "mustMention": ["OrderRepository.cs", "GetOrders"]
+  },
+  {
+    "name": "revue-performance",
+    "goal": "Fais la revue de performance de ce projet.",
+    "kind": "Review",
+    "mustMention": [".Result", "N+1", "CancellationToken"],
+    "reportMustMention": [".Result", "OrderRepository.cs"]
+  }
+]

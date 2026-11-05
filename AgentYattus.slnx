@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/evals/">
+    <Project Path="evals/AgentYattus.Evals/AgentYattus.Evals.csproj" />
+  </Folder>
   <Folder Name="/spikes/">
     <Project Path="spikes/AgentLoop.Tests/AgentLoop.Tests.csproj" />
     <Project Path="spikes/AgentLoop/AgentLoop.csproj" />
