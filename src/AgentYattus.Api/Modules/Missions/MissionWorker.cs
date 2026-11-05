@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using AgentYattus.Api.Modules.Agents;
+using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Contracts;
 
 namespace AgentYattus.Api.Modules.Missions;
@@ -42,6 +43,7 @@ internal sealed class MissionWorker(
 // Dépendances inter-modules en paramètres du constructeur : le test d'architecture les voit.
 internal sealed class MissionRunner(
     MissionsDb db,
+    AuditLog audit,
     IAgentRunner agent,
     ILogger<MissionRunner> logger)
 {
@@ -69,6 +71,7 @@ internal sealed class MissionRunner(
         {
             mission.Status = newStatus;
             await db.SaveChangesAsync(cancellationToken);
+            await audit.AppendAsync(missionId, newStatus.ToString(), cancellationToken);
         }
     }
 }

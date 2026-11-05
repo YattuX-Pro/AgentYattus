@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Contracts;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace AgentYattus.Api.Tests;
 
@@ -51,7 +54,7 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     [Fact]
-    public async Task Mission_reaches_Completed()
+    public async Task Mission_reaches_Completed_with_audit()
     {
         var client = factory.CreateClient();
 
@@ -59,6 +62,10 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
 
         Assert.Equal(MissionStatus.Completed, await WaitForFinalStatusAsync(client, mission.Id));
         Assert.Contains("Écrire un test", factory.Runner.Goals);
+        using var scope = factory.Services.CreateScope();
+        var audit = await scope.ServiceProvider.GetRequiredService<AuditDb>().Events
+            .Where(e => e.MissionId == mission.Id).Select(e => e.Type).ToListAsync(Ct);
+        Assert.Equal(["Running", "Completed"], audit);
     }
 
     private static async Task<MissionDto> CreateAsync(HttpClient client, string goal)

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using AgentYattus.Api.Modules.Agents;
+using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Missions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -22,6 +23,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         builder.ConfigureServices(services =>
         {
             UseSqlite<MissionsDb>(services);
+            UseSqlite<AuditDb>(services);
             services.RemoveAll<IAgentRunner>();
             services.AddSingleton<IAgentRunner>(Runner);
         });
