@@ -77,6 +77,7 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
 
         Assert.Equal(MissionStatus.Failed, await client.WaitForFinalStatusAsync(failing.Id));
         Assert.Equal(MissionStatus.Completed, await client.WaitForFinalStatusAsync(next.Id));
+        Assert.Equal("Réponse à : Mission suivante", (await client.GetFromJsonAsync<MissionDto>($"/missions/{next.Id}", Ct))!.Result);
     }
 
     [Fact]

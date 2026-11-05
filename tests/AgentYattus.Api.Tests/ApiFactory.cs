@@ -57,11 +57,13 @@ public sealed class FakeAgentRunner : IAgentRunner
 
     public ConcurrentQueue<string> Goals { get; } = new();
 
-    public Task RunAsync(Guid missionId, string goal, CancellationToken cancellationToken)
+    public Task<string?> RunAsync(Guid missionId, string goal, CancellationToken cancellationToken)
     {
         Goals.Enqueue(goal);
         // Ce que lèvera un HttpClient en délai dépassé dans le vrai runner.
-        return goal == TimeoutGoal ? Task.FromException(new TaskCanceledException()) : Task.CompletedTask;
+        return goal == TimeoutGoal
+            ? Task.FromException<string?>(new TaskCanceledException())
+            : Task.FromResult<string?>($"Réponse à : {goal}");
     }
 }
 

@@ -29,7 +29,7 @@ internal sealed class AgentFrameworkRunner(
         "Tu es un agent d'analyse de code. Tu explores le workspace avec les outils list_files et read_file, " +
         "puis tu réponds en français, de façon concise, en citant les fichiers sur lesquels tu t'appuies.";
 
-    public async Task RunAsync(Guid missionId, string goal, CancellationToken cancellationToken)
+    public async Task<string?> RunAsync(Guid missionId, string goal, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         var model = chatClient ?? throw new InvalidOperationException(
@@ -57,11 +57,11 @@ internal sealed class AgentFrameworkRunner(
         if (toolTurns >= settings.MaxIterations)
             await audit.AppendAsync(missionId, "limite-de-tours", cancellationToken);
 
-        // ponytail: la réponse n'est que journalisée ; elle sera enregistrée avec la mission
-        // au premier changement de schéma, avec les migrations EF Core.
+        // Seulement des métadonnées : la réponse peut citer le contenu des fichiers lus, elle reste en base.
         logger.LogInformation(
-            "Mission {MissionId} : {Tokens} tokens. Réponse : {Answer}",
-            missionId, response.Usage?.TotalTokenCount, response.Text);
+            "Mission {MissionId} : {Tokens} tokens, réponse de {Length} caractères",
+            missionId, response.Usage?.TotalTokenCount, response.Text.Length);
+        return response.Text;
     }
 
     // Même montage que spikes/AgentLoop/FrameworkAgent.cs : on règle nous-mêmes la limite de tours.

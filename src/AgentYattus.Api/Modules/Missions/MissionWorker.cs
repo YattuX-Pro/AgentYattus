@@ -62,7 +62,7 @@ internal sealed class MissionRunner(
         var status = MissionStatus.Completed;
         try
         {
-            await agent.RunAsync(mission.Id, mission.Goal, cancellationToken);
+            mission.Result = await agent.RunAsync(mission.Id, mission.Goal, cancellationToken);
         }
         // Filtre sur le jeton, pas sur le type : un délai HTTP dépassé dans le runner est un échec.
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)

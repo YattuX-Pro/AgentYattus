@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using AgentYattus.Contracts;
 using static AgentYattus.Api.Tests.ScriptedChatClient;
 
@@ -16,6 +17,7 @@ public sealed class AgentRunnerTests
         var mission = await client.CreateMissionAsync("Que contient le workspace ?");
 
         Assert.Equal(MissionStatus.Completed, await client.WaitForFinalStatusAsync(mission.Id));
+        Assert.Equal("Un fichier : a.txt.", (await client.GetFromJsonAsync<MissionDto>($"/missions/{mission.Id}", TestContext.Current.CancellationToken))!.Result);
         Assert.Equal(["Running", "outil:list_files", "Completed"], await api.AuditOfAsync(mission.Id));
         Assert.Equal("Que contient le workspace ?", model.Requests[0].Last().Text);
         Assert.Contains("a.txt", model.Requests[1].SelectMany(m => m.Contents).OfType<Microsoft.Extensions.AI.FunctionResultContent>()

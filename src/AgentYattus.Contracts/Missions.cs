@@ -13,7 +13,8 @@ public enum MissionStatus
 
 public sealed record CreateMissionRequest(string Goal);
 
-public sealed record MissionDto(Guid Id, string Goal, MissionStatus Status, DateTimeOffset CreatedAt);
+/// <param name="Result">La réponse finale de l'agent, une fois la mission terminée.</param>
+public sealed record MissionDto(Guid Id, string Goal, MissionStatus Status, DateTimeOffset CreatedAt, string? Result = null);
 
 public sealed record MissionEventDto(Guid MissionId, MissionStatus Status, DateTimeOffset At);
 

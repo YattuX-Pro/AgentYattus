@@ -16,7 +16,7 @@ public static class MissionsModule
         services.AddSingleton<MissionQueue>();
         services.AddScoped<MissionRunner>();
         services.AddHostedService<MissionWorker>();
-        return services.AddModuleDb<MissionsDb>();
+        return services.AddModuleDb<MissionsDb>(MissionsDb.Schema);
     }
 
     public static IEndpointRouteBuilder MapMissionsEndpoints(this IEndpointRouteBuilder app)

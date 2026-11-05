@@ -5,7 +5,8 @@ namespace AgentYattus.Api.Modules.Agents;
 
 public interface IAgentRunner
 {
-    Task RunAsync(Guid missionId, string goal, CancellationToken cancellationToken);
+    /// <returns>La réponse finale de l'agent.</returns>
+    Task<string?> RunAsync(Guid missionId, string goal, CancellationToken cancellationToken);
 }
 
 public static class AgentsModule

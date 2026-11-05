@@ -6,7 +6,7 @@ public static class AuditModule
 {
     public static IServiceCollection AddAuditModule(this IServiceCollection services) =>
         services
-            .AddModuleDb<AuditDb>()
+            .AddModuleDb<AuditDb>(AuditDb.Schema)
             .AddScoped(sp => new AuditLog(sp.GetRequiredService<AuditDb>()));
 }
 
@@ -33,11 +33,13 @@ internal sealed class AuditEvent
 
 internal sealed class AuditDb(DbContextOptions<AuditDb> options) : DbContext(options)
 {
+    public const string Schema = "audit";
+
     public DbSet<AuditEvent> Events => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.HasDefaultSchema("audit");
+        modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.Entity<AuditEvent>().HasIndex(e => e.MissionId);
     }
 }

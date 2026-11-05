@@ -7,22 +7,34 @@ namespace AgentYattus.Api;
 
 internal static class Database
 {
-    public static IServiceCollection AddModuleDb<TDb>(this IServiceCollection services) where TDb : DbContext
+    public static IServiceCollection AddModuleDb<TDb>(this IServiceCollection services, string schema) where TDb : DbContext
     {
         services.AddDbContext<TDb>((sp, options) =>
-            options.UseNpgsql(sp.GetRequiredService<IConfiguration>().GetConnectionString("AgentYattus")));
-        return services.AddHostedService<SchemaCreator<TDb>>();
+            options.UseNpgsql(
+                sp.GetRequiredService<IConfiguration>().GetConnectionString("AgentYattus"),
+                // Chaque module garde l'historique de ses migrations dans son propre schéma.
+                npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory", schema)));
+        return services.AddHostedService<SchemaUpdater<TDb>>();
     }
 
-    // EnsureCreated ne crée rien si la base contient déjà des tables, même celles d'un autre module :
-    // chaque module crée donc ses propres tables.
-    // ponytail: pas de migrations, le schéma n'évolue pas ; passer aux migrations EF dès qu'une table change.
-    private sealed class SchemaCreator<TDb>(IServiceScopeFactory scopes, ILogger<TDb> logger) : IHostedService where TDb : DbContext
+    // PostgreSQL : on applique les migrations du module au démarrage.
+    // ponytail: SQLite (tests, futur mode local) crée encore ses tables sans migrations ;
+    // sa propre série de migrations viendra avec le mode local (ADR 0004).
+    private sealed class SchemaUpdater<TDb>(IServiceScopeFactory scopes, ILogger<TDb> logger) : IHostedService where TDb : DbContext
     {
         public async Task StartAsync(CancellationToken cancellationToken)
         {
             await using var scope = scopes.CreateAsyncScope();
-            var creator = scope.ServiceProvider.GetRequiredService<TDb>().GetService<IRelationalDatabaseCreator>();
+            var db = scope.ServiceProvider.GetRequiredService<TDb>();
+            if (db.Database.IsNpgsql())
+            {
+                await db.Database.MigrateAsync(cancellationToken);
+                return;
+            }
+
+            // EnsureCreated ne crée rien si la base contient déjà des tables, même celles d'un autre module :
+            // chaque module crée donc ses propres tables.
+            var creator = db.GetService<IRelationalDatabaseCreator>();
             if (!await creator.ExistsAsync(cancellationToken))
                 await creator.CreateAsync(cancellationToken);
             try
