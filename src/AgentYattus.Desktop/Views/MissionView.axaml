@@ -130,7 +130,7 @@
         <Grid x:Name="Main" ColumnDefinitions="*,Auto" ColumnSpacing="36">
 
           <!-- Déroulement : Objectif → Analyste → Vous → Rapport -->
-          <Grid ColumnDefinitions="Auto,*,Auto,*,Auto,*,Auto" HorizontalAlignment="Center" VerticalAlignment="Center">
+          <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto,*,Auto" HorizontalAlignment="Center" VerticalAlignment="Center">
 
             <StackPanel Grid.Column="0" Classes="node">
               <Panel Width="76" Height="76">
@@ -199,7 +199,26 @@
               </ItemsControl>
             </StackPanel>
 
-            <Border Grid.Column="3" Classes="link" Classes.human="{Binding HumanInvolved}" />
+            <!-- Revue : le Rédacteur prend le relais de l'Analyste, avant ta décision. -->
+            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Top">
+              <Border Classes="link done" Width="40" IsVisible="{Binding Mission.IsReview}" />
+              <StackPanel Classes="node" IsVisible="{Binding Mission.IsReview}">
+                <Panel Width="76" Height="76">
+                  <Ellipse Fill="{StaticResource Graphite}" Stroke="{StaticResource VertDeGris}" StrokeThickness="2" StrokeDashArray="4,2" />
+                  <Viewbox Width="30" Height="30">
+                    <Canvas Width="20" Height="20">
+                      <Path Data="M4 6h12M4 10h12M4 14h7" Stroke="{StaticResource Parchemin}" StrokeThickness="1.3" StrokeLineCap="Round" />
+                      <Ellipse Canvas.Left="13.2" Canvas.Top="12.2" Width="3.6" Height="3.6" Fill="{StaticResource VertDeGris}" />
+                    </Canvas>
+                  </Viewbox>
+                </Panel>
+                <StackPanel Spacing="1">
+                  <TextBlock Classes="nodeTitle" Text="Rédacteur" />
+                  <TextBlock Classes="nodeSub" Text="REPORT.md" />
+                </StackPanel>
+              </StackPanel>
+              <Border Classes="link" Classes.human="{Binding HumanInvolved}" Width="48" />
+            </StackPanel>
 
             <!-- Vous : losange laiton, qui pulse quand votre décision est attendue. -->
             <StackPanel Grid.Column="4" Classes="node">

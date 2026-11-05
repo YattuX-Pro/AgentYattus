@@ -8,6 +8,7 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
 {
     public Guid Id { get; } = mission.Id;
     public string Goal { get; } = mission.Goal;
+    public bool IsReview { get; } = mission.Kind == MissionKind.Review;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusLabel), nameof(IsActive), nameof(IsCompleted), nameof(IsFailed), nameof(IsAwaitingApproval), nameof(AgentLabel))]

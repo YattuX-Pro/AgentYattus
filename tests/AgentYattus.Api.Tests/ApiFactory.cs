@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Missions;
+using AgentYattus.Contracts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -57,7 +58,7 @@ public sealed class FakeAgentRunner : IAgentRunner
 
     public ConcurrentQueue<string> Goals { get; } = new();
 
-    public Task<AgentOutcome> RunAsync(Guid missionId, string goal, AgentResume? resume, CancellationToken cancellationToken)
+    public Task<AgentOutcome> RunAsync(Guid missionId, string goal, MissionKind kind, AgentResume? resume, CancellationToken cancellationToken)
     {
         Goals.Enqueue(goal);
         // Ce que lèvera un HttpClient en délai dépassé dans le vrai runner.

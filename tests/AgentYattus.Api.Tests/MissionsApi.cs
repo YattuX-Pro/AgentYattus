@@ -12,9 +12,9 @@ internal static class MissionsApi
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public static async Task<MissionDto> CreateMissionAsync(this HttpClient client, string goal)
+    public static async Task<MissionDto> CreateMissionAsync(this HttpClient client, string goal, MissionKind kind = MissionKind.Question)
     {
-        var response = await client.PostAsJsonAsync("/missions", new CreateMissionRequest(goal), Ct);
+        var response = await client.PostAsJsonAsync("/missions", new CreateMissionRequest(goal, kind), Ct);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<MissionDto>(Ct))!;
     }

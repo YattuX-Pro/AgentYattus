@@ -9,6 +9,7 @@ internal sealed class Mission
     public Guid Id { get; set; }
     public required string Goal { get; set; }
     public MissionStatus Status { get; set; }
+    public MissionKind Kind { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public string? Result { get; set; }
 
@@ -20,7 +21,8 @@ internal sealed class Mission
 
     public MissionDto ToDto() => new(
         Id, Goal, Status, CreatedAt, Result,
-        PendingApproval is null ? null : JsonSerializer.Deserialize<ApprovalDto>(PendingApproval, JsonSerializerOptions.Web));
+        PendingApproval is null ? null : JsonSerializer.Deserialize<ApprovalDto>(PendingApproval, JsonSerializerOptions.Web),
+        Kind);
 }
 
 internal sealed class MissionsDb(DbContextOptions<MissionsDb> options) : DbContext(options)
@@ -33,5 +35,6 @@ internal sealed class MissionsDb(DbContextOptions<MissionsDb> options) : DbConte
     {
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.Entity<Mission>().Property(m => m.Status).HasConversion<string>();
+        modelBuilder.Entity<Mission>().Property(m => m.Kind).HasConversion<string>().HasDefaultValue(MissionKind.Question);
     }
 }

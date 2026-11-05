@@ -6,9 +6,10 @@ namespace AgentYattus.Client.Core;
 
 public sealed class ApiClient(HttpClient http)
 {
-    public async Task<MissionDto> CreateMissionAsync(string goal, CancellationToken cancellationToken = default)
+    public async Task<MissionDto> CreateMissionAsync(
+        string goal, CancellationToken cancellationToken = default, MissionKind kind = MissionKind.Question)
     {
-        using var response = await http.PostAsJsonAsync("missions", new CreateMissionRequest(goal), cancellationToken);
+        using var response = await http.PostAsJsonAsync("missions", new CreateMissionRequest(goal, kind), cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<MissionDto>(cancellationToken))!;
     }

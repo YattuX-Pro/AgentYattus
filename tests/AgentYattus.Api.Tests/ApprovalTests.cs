@@ -10,18 +10,21 @@ public sealed class ApprovalTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
+    // Une revue : l'Analyste répond d'abord (sans outil), puis le Rédacteur demande à écrire.
+    private static Microsoft.Extensions.AI.ChatResponse Findings() => Text("haute · Program.cs:1 · constat · correction");
+
     private static Microsoft.Extensions.AI.ChatResponse WriteReport() =>
         ToolCall("write_file", new() { ["path"] = "REPORT.md", ["content"] = "# Rapport" }, callId: "call_write");
 
     [Fact]
     public async Task Approved_write_is_executed_and_the_mission_completes()
     {
-        var model = new ScriptedChatClient(WriteReport(), Text("Rapport écrit."));
+        var model = new ScriptedChatClient(Findings(), WriteReport(), Text("Rapport écrit."));
         await using var api = new ScriptedModelApiFactory(model);
         var client = api.CreateClient();
         var report = Path.Combine(api.Workspace, "REPORT.md");
 
-        var mission = await client.CreateMissionAsync("Écris le rapport");
+        var mission = await client.CreateMissionAsync("Écris le rapport", MissionKind.Review);
         var paused = await client.WaitForStatusAsync(mission.Id, MissionStatus.AwaitingApproval);
 
         var call = Assert.Single(paused.PendingApproval!.ToolCalls);
@@ -34,29 +37,31 @@ public sealed class ApprovalTests
 
         var done = await client.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
         Assert.Equal("# Rapport", await File.ReadAllTextAsync(report, Ct));
-        Assert.Equal("Rapport écrit.", done.Result);
+        Assert.StartsWith("Rapport écrit.", done.Result);
+        Assert.Contains("Program.cs:1", done.Result);
         Assert.Null(done.PendingApproval);
         Assert.Equal(
-            ["Running", "approbation-demandee:write_file", "AwaitingApproval", "decision:approuvee", "Running", "outil:write_file", "Completed"],
+            ["Running", "agent:analyste", "agent:redacteur", "approbation-demandee:write_file", "AwaitingApproval",
+             "decision:approuvee", "Running", "outil:write_file", "Completed"],
             await api.AuditOfAsync(mission.Id));
     }
 
     [Fact]
     public async Task Refused_write_is_not_executed_and_the_model_is_told()
     {
-        var model = new ScriptedChatClient(WriteReport(), Text("D'accord, je n'écris rien."));
+        var model = new ScriptedChatClient(Findings(), WriteReport(), Text("D'accord, je n'écris rien."));
         await using var api = new ScriptedModelApiFactory(model);
         var client = api.CreateClient();
 
-        var mission = await client.CreateMissionAsync("Écris le rapport");
+        var mission = await client.CreateMissionAsync("Écris le rapport", MissionKind.Review);
         var paused = await client.WaitForStatusAsync(mission.Id, MissionStatus.AwaitingApproval);
         await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(false, paused.PendingApproval!.Id), Ct);
 
         var done = await client.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
         Assert.False(File.Exists(Path.Combine(api.Workspace, "REPORT.md")));
-        Assert.Equal("D'accord, je n'écris rien.", done.Result);
+        Assert.StartsWith("D'accord, je n'écris rien.", done.Result);
         // Le modèle reçoit un résultat pour son appel refusé : il sait que l'écriture n'a pas eu lieu.
-        Assert.Contains(model.Requests[1].SelectMany(m => m.Contents).OfType<Microsoft.Extensions.AI.FunctionResultContent>(),
+        Assert.Contains(model.Requests[2].SelectMany(m => m.Contents).OfType<Microsoft.Extensions.AI.FunctionResultContent>(),
             result => result.CallId == "call_write");
         Assert.Contains("decision:refusee", await api.AuditOfAsync(mission.Id));
     }
@@ -66,11 +71,11 @@ public sealed class ApprovalTests
     {
         // Le faux modèle répond dans l'ordre des appels : la mission A demande d'écrire,
         // puis la mission B répond, puis A, une fois approuvée, conclut.
-        var model = new ScriptedChatClient(WriteReport(), Text("B terminée."), Text("A terminée."));
+        var model = new ScriptedChatClient(Findings(), WriteReport(), Text("B terminée."), Text("A terminée."));
         await using var api = new ScriptedModelApiFactory(model);
         var client = api.CreateClient();
 
-        var a = await client.CreateMissionAsync("A : écris le rapport");
+        var a = await client.CreateMissionAsync("A : écris le rapport", MissionKind.Review);
         var pausedA = await client.WaitForStatusAsync(a.Id, MissionStatus.AwaitingApproval);
         var b = await client.CreateMissionAsync("B : réponds");
 
@@ -78,20 +83,20 @@ public sealed class ApprovalTests
         Assert.Equal(MissionStatus.AwaitingApproval, (await client.GetFromJsonAsync<MissionDto>($"/missions/{a.Id}", Ct))!.Status);
 
         await client.PostAsJsonAsync($"/missions/{a.Id}/decision", new DecisionRequest(true, pausedA.PendingApproval!.Id), Ct);
-        Assert.Equal("A terminée.", (await client.WaitForStatusAsync(a.Id, MissionStatus.Completed)).Result);
+        Assert.StartsWith("A terminée.", (await client.WaitForStatusAsync(a.Id, MissionStatus.Completed)).Result);
     }
 
     [Fact]
     public async Task A_decision_is_accepted_only_once_and_only_for_the_approval_shown()
     {
-        var model = new ScriptedChatClient(WriteReport(), Text("fini"));
+        var model = new ScriptedChatClient(Findings(), WriteReport(), Text("fini"));
         await using var api = new ScriptedModelApiFactory(model);
         var client = api.CreateClient();
 
         var unknown = await client.PostAsJsonAsync($"/missions/{Guid.NewGuid()}/decision", new DecisionRequest(true, Guid.NewGuid()), Ct);
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
 
-        var mission = await client.CreateMissionAsync("Écris le rapport");
+        var mission = await client.CreateMissionAsync("Écris le rapport", MissionKind.Review);
         var paused = await client.WaitForStatusAsync(mission.Id, MissionStatus.AwaitingApproval);
         var approvalId = paused.PendingApproval!.Id;
         var stale = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(true, Guid.NewGuid()), Ct);

@@ -14,7 +14,15 @@ public enum MissionStatus
     AwaitingApproval,
 }
 
-public sealed record CreateMissionRequest(string Goal);
+/// <summary>Question : l'Analyste répond. Revue : l'Analyste rend ses constats, le Rédacteur écrit REPORT.md.</summary>
+[JsonConverter(typeof(JsonStringEnumConverter<MissionKind>))]
+public enum MissionKind
+{
+    Question,
+    Review,
+}
+
+public sealed record CreateMissionRequest(string Goal, MissionKind Kind = MissionKind.Question);
 
 /// <param name="Result">La réponse finale de l'agent, une fois la mission terminée.</param>
 /// <param name="PendingApproval">Les actions qui attendent une décision, quand le statut est AwaitingApproval.</param>
@@ -24,7 +32,8 @@ public sealed record MissionDto(
     MissionStatus Status,
     DateTimeOffset CreatedAt,
     string? Result = null,
-    ApprovalDto? PendingApproval = null);
+    ApprovalDto? PendingApproval = null,
+    MissionKind Kind = MissionKind.Question);
 
 /// <param name="Id">Identifie cette demande : une décision ne vaut que pour la demande que l'on a vue.</param>
 public sealed record ApprovalDto(Guid Id, IReadOnlyList<ToolCallDto> ToolCalls);

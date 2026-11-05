@@ -14,6 +14,10 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
     [ObservableProperty]
     public partial string? Error { get; set; }
 
+    /// <summary>Vrai : une revue à deux agents, qui se termine par REPORT.md soumis à ton approbation.</summary>
+    [ObservableProperty]
+    public partial bool WriteReport { get; set; }
+
     [ObservableProperty]
     public partial bool IsBackendConnected { get; set; }
 
@@ -29,7 +33,8 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         Error = null;
         try
         {
-            Missions.Insert(0, new MissionItem(await api.CreateMissionAsync(Goal, cancellationToken)));
+            var kind = WriteReport ? MissionKind.Review : MissionKind.Question;
+            Missions.Insert(0, new MissionItem(await api.CreateMissionAsync(Goal, cancellationToken, kind)));
             Goal = "";
         }
         // Délai dépassé ou réponse illisible ne doivent pas faire planter l'interface.
@@ -64,7 +69,12 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
     private void OpenMission(MissionItem mission) => MissionOpened?.Invoke(mission);
 
     [RelayCommand]
-    private void UseSuggestion(string suggestion) => Goal = suggestion;
+    private void UseSuggestion(string suggestion)
+    {
+        // Les suggestions sont des revues : elles se terminent par un rapport.
+        Goal = suggestion;
+        WriteReport = true;
+    }
 
     // Appelé sur le thread UI pour chaque événement du hub.
     public void Apply(MissionEventDto e)

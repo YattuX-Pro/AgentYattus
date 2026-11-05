@@ -82,6 +82,29 @@ public sealed class HomeViewModelTests
         Assert.Equal("À valider", vm.Missions[0].StatusLabel);
     }
 
+    [Fact]
+    public async Task A_suggestion_launches_a_two_agent_review()
+    {
+        string? body = null;
+        var handler = new StubHandler(request =>
+        {
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return new HttpResponseMessage(HttpStatusCode.Accepted)
+            {
+                Content = JsonContent.Create(new MissionDto(Guid.NewGuid(), "Audit de sécurité", MissionStatus.Pending,
+                    DateTimeOffset.UtcNow, Kind: MissionKind.Review)),
+            };
+        });
+        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
+
+        vm.UseSuggestionCommand.Execute("Audit de sécurité");
+        await vm.LaunchMissionCommand.ExecuteAsync(null);
+
+        Assert.True(vm.WriteReport);
+        Assert.Contains("\"kind\":\"Review\"", body);
+        Assert.True(vm.Missions[0].IsReview);
+    }
+
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>

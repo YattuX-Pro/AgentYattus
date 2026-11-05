@@ -8,7 +8,7 @@ namespace AgentYattus.Api.Modules.Agents;
 public interface IAgentRunner
 {
     /// <param name="resume">La conversation mise en pause et la décision humaine, ou null pour un premier passage.</param>
-    Task<AgentOutcome> RunAsync(Guid missionId, string goal, AgentResume? resume, CancellationToken cancellationToken);
+    Task<AgentOutcome> RunAsync(Guid missionId, string goal, MissionKind kind, AgentResume? resume, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -46,14 +46,12 @@ public static class AgentsModule
     {
         app.MapGet(AgentsProtocol.Path, (IOptions<AgentsOptions> options) =>
         {
-            var tools = WorkspaceTools.Catalog
-                .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval))
-                .ToArray();
-            return TypedResults.Ok(new[]
-            {
-                new AgentDto("Analyste", "Explore le workspace et répond en citant ses sources.",
-                    options.Value.Model, options.Value.MaxIterations, tools),
-            });
+            AgentDto Describe(AgentRole role) => new(role.Name, role.Summary, options.Value.Model, options.Value.MaxIterations,
+            [
+                .. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name))
+                    .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
+            ]);
+            return TypedResults.Ok(AgentRoles.All.Select(Describe).ToArray());
         });
         return app;
     }

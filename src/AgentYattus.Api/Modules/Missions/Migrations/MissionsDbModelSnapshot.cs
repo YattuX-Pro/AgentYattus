@@ -45,6 +45,12 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("Question");
+
                     b.Property<string>("PendingApproval")
                         .HasColumnType("text");
 

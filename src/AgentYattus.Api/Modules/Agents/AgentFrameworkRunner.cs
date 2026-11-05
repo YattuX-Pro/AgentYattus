@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using AgentYattus.Api.Modules.Audit;
+using AgentYattus.Contracts;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
@@ -19,6 +21,10 @@ internal sealed class AgentsOptions
     public int MaxIterations { get; set; } = 10;
 }
 
+/// <summary>
+/// Exécute une mission avec Agent Framework.
+/// Question : l'Analyste seul. Revue : l'Analyste rend ses constats, puis le Rédacteur écrit REPORT.md (soumis à approbation).
+/// </summary>
 // Dépendances inter-modules en paramètres du constructeur : le test d'architecture les voit.
 internal sealed class AgentFrameworkRunner(
     IOptions<AgentsOptions> options,
@@ -26,16 +32,11 @@ internal sealed class AgentFrameworkRunner(
     ILogger<AgentFrameworkRunner> logger,
     IChatClient? chatClient = null) : IAgentRunner
 {
-    private const string Instructions =
-        "Tu es un agent d'analyse de code. Tu explores le workspace avec les outils list_files et read_file, " +
-        "puis tu réponds en français, de façon concise, en citant les fichiers sur lesquels tu t'appuies. " +
-        "Si on te demande d'écrire un fichier, utilise write_file : un humain approuvera ou refusera l'écriture.";
-
     // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
 
     public async Task<AgentOutcome> RunAsync(
-        Guid missionId, string goal, AgentResume? resume, CancellationToken cancellationToken)
+        Guid missionId, string goal, MissionKind kind, AgentResume? resume, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         var model = chatClient ?? throw new InvalidOperationException(
@@ -43,10 +44,63 @@ internal sealed class AgentFrameworkRunner(
         if (string.IsNullOrWhiteSpace(settings.Workspace))
             throw new InvalidOperationException(
                 "Workspace absent. Lance : dotnet user-secrets set \"Agents:Workspace\" \"<dossier>\" --project src/AgentYattus.Api");
+        var tools = new WorkspaceTools(settings.Workspace).AsAIFunctions();
 
-        var history = resume is null ? [new ChatMessage(ChatRole.User, goal)] : Resume(resume);
-        var tools = new WorkspaceTools(settings.Workspace);
-        var agent = CreateAgent(model, tools.AsAIFunctions(), settings.MaxIterations);
+        Stage stage;
+        if (resume is not null)
+        {
+            stage = Stage.Parse(resume.Conversation);
+            stage.History.Add(new ChatMessage(ChatRole.User, AnswerPendingRequests(stage.History, resume.Approved)));
+        }
+        else if (kind == MissionKind.Question)
+        {
+            stage = new Stage(AgentRoles.Analyst.Key, [new ChatMessage(ChatRole.User, goal)], Findings: null);
+        }
+        else
+        {
+            // Revue, étape 1 : l'Analyste explore et rend ses constats. Il n'a aucun outil d'écriture : il ne s'arrête jamais.
+            await audit.AppendAsync(missionId, $"agent:{AgentRoles.Analyst.Key}", cancellationToken);
+            var analysis = await RunRoleAsync(missionId, AgentRoles.Analyst, model, tools, settings.MaxIterations,
+                [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], cancellationToken);
+            var findings = analysis.Text;
+
+            // Étape 2, le passage de relais : le Rédacteur part des constats, pas de zéro.
+            await audit.AppendAsync(missionId, $"agent:{AgentRoles.Writer.Key}", cancellationToken);
+            stage = new Stage(AgentRoles.Writer.Key, [new ChatMessage(ChatRole.User, AgentRoles.Handoff(goal, findings))], findings);
+        }
+
+        var role = AgentRoles.All.Single(r => r.Key == stage.Role);
+        var response = await RunRoleAsync(missionId, role, model, tools, settings.MaxIterations, stage.History, cancellationToken);
+
+        var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
+        if (requests.Count > 0)
+        {
+            // La boucle s'est arrêtée avant l'action sensible. On garde de quoi reprendre exactement ici.
+            stage.History.AddRange(response.Messages);
+            var calls = requests.Select(r => r.ToolCall).OfType<FunctionCallContent>()
+                .Select(c => new AgentToolCall(c.Name, JsonSerializer.Serialize(c.Arguments, Json)))
+                .ToList();
+            foreach (var call in calls)
+                await audit.AppendAsync(missionId, $"approbation-demandee:{call.Tool}", cancellationToken);
+            return new AgentOutcome(null, new AgentApproval(calls), stage.Serialize());
+        }
+
+        // Seulement des métadonnées : la réponse peut citer le contenu des fichiers lus, elle reste en base.
+        logger.LogInformation(
+            "Mission {MissionId} ({Role}) : {Tokens} tokens, réponse de {Length} caractères",
+            missionId, role.Key, response.Usage?.TotalTokenCount, response.Text.Length);
+        return new AgentOutcome(stage.Findings is null
+            ? response.Text
+            : $"{response.Text}\n\n---\nConstats de l'Analyste :\n{stage.Findings}");
+    }
+
+    private async Task<AgentResponse> RunRoleAsync(
+        Guid missionId, AgentRole role, IChatClient model, IReadOnlyList<AIFunction> allTools, int maxIterations,
+        List<ChatMessage> history, CancellationToken cancellationToken)
+    {
+        // Chaque rôle ne reçoit que ses outils : l'Analyste ne peut pas écrire, même s'il le demandait.
+        var tools = allTools.Where(t => role.Tools.Contains(t.Name)).ToList();
+        var agent = CreateAgent(role, model, tools, maxIterations);
         var response = await agent.RunAsync(history, cancellationToken: cancellationToken);
 
         var toolTurns = 0;
@@ -61,47 +115,26 @@ internal sealed class AgentFrameworkRunner(
 
         // Le framework ne signale pas la limite : il rappelle le modèle sans outils pour forcer une réponse.
         // Autant de tours d'outils que la limite veut dire que la réponse a été forcée (voir la leçon 08).
-        if (toolTurns >= settings.MaxIterations)
+        if (toolTurns >= maxIterations)
             await audit.AppendAsync(missionId, "limite-de-tours", cancellationToken);
 
-        var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
-        if (requests.Count > 0)
-        {
-            // La boucle s'est arrêtée avant l'action sensible. On garde toute la conversation pour la reprendre.
-            history.AddRange(response.Messages);
-            var calls = requests.Select(r => r.ToolCall).OfType<FunctionCallContent>()
-                .Select(c => new AgentToolCall(c.Name, JsonSerializer.Serialize(c.Arguments, Json)))
-                .ToList();
-            foreach (var call in calls)
-                await audit.AppendAsync(missionId, $"approbation-demandee:{call.Tool}", cancellationToken);
-            return new AgentOutcome(null, new AgentApproval(calls), JsonSerializer.Serialize(history, Json));
-        }
-
-        // Seulement des métadonnées : la réponse peut citer le contenu des fichiers lus, elle reste en base.
-        logger.LogInformation(
-            "Mission {MissionId} : {Tokens} tokens, réponse de {Length} caractères",
-            missionId, response.Usage?.TotalTokenCount, response.Text.Length);
-        return new AgentOutcome(response.Text);
+        return response;
     }
 
-    // On rejoue la conversation, suivie de la décision humaine pour chaque demande en attente.
+    // On ajoute la décision humaine à chaque demande encore sans réponse.
     // ponytail: une seule décision pour toutes les demandes d'un même tour ; le client les affiche toutes avant.
-    private static List<ChatMessage> Resume(AgentResume resume)
+    private static List<AIContent> AnswerPendingRequests(List<ChatMessage> history, bool approved)
     {
-        var history = JsonSerializer.Deserialize<List<ChatMessage>>(resume.Conversation, Json)
-            ?? throw new InvalidOperationException("Conversation en pause illisible.");
         var contents = history.SelectMany(m => m.Contents).ToList();
         var answered = contents.OfType<ToolApprovalResponseContent>().Select(r => r.RequestId).ToHashSet();
-        var pending = contents.OfType<ToolApprovalRequestContent>()
+        return contents.OfType<ToolApprovalRequestContent>()
             .Where(request => !answered.Contains(request.RequestId))
-            .Select(request => (AIContent)request.CreateResponse(resume.Approved))
+            .Select(request => (AIContent)request.CreateResponse(approved))
             .ToList();
-        history.Add(new ChatMessage(ChatRole.User, pending));
-        return history;
     }
 
     // Même montage que spikes/AgentLoop/FrameworkAgent.cs, plus la télémétrie : on règle nous-mêmes la limite de tours.
-    private static AIAgent CreateAgent(IChatClient model, IReadOnlyList<AIFunction> tools, int maxIterations)
+    private static AIAgent CreateAgent(AgentRole role, IChatClient model, IReadOnlyList<AIFunction> tools, int maxIterations)
     {
         var withTools = model.AsBuilder()
             .UseFunctionInvocation(configure: invoker =>
@@ -117,13 +150,36 @@ internal sealed class AgentFrameworkRunner(
 
         return new ChatClientAgent(withTools, new ChatClientAgentOptions
         {
-            Name = "analyste",
-            ChatOptions = new ChatOptions { Instructions = Instructions, Tools = [.. tools] },
+            Name = role.Key,
+            ChatOptions = new ChatOptions { Instructions = role.Instructions, Tools = [.. tools] },
             UseProvidedChatClientAsIs = true,
         })
             .AsBuilder()
             // Une trace parente par exécution de l'agent, qui regroupe tous ses appels au modèle.
             .UseOpenTelemetry(Telemetry.SourceName, otel => otel.EnableSensitiveData = false)
             .Build();
+    }
+
+    /// <summary>
+    /// L'état d'une mission en pause : quel rôle travaillait, sa conversation, et les constats de l'Analyste (revue).
+    /// Opaque pour le module Missions, qui le garde tel quel.
+    /// </summary>
+    private sealed record Stage(string Role, List<ChatMessage> History, string? Findings)
+    {
+        public string Serialize() => new JsonObject
+        {
+            ["role"] = Role,
+            ["findings"] = Findings,
+            ["history"] = JsonSerializer.SerializeToNode(History, Json),
+        }.ToJsonString();
+
+        public static Stage Parse(string json)
+        {
+            var node = JsonNode.Parse(json) ?? throw new InvalidOperationException("Conversation en pause illisible.");
+            return new Stage(
+                node["role"]?.GetValue<string>() ?? throw new InvalidOperationException("Rôle en pause absent."),
+                node["history"].Deserialize<List<ChatMessage>>(Json) ?? [],
+                node["findings"]?.GetValue<string>());
+        }
     }
 }

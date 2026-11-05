@@ -46,6 +46,7 @@ public static class MissionsModule
             Id = Guid.CreateVersion7(),
             Goal = request.Goal.Trim(),
             Status = MissionStatus.Pending,
+            Kind = request.Kind,
             CreatedAt = DateTimeOffset.UtcNow,
         };
         db.Missions.Add(mission);
