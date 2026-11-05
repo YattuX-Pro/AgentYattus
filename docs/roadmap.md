@@ -1,59 +1,70 @@
 # Feuille de route
 
-Un commit correspond à une étape vérifiable. On coche une ligne quand sa vérification passe **et** qu'elle est commitée.
-« Squelette » : le code existe et sa vérification passe, mais rien n'est encore commité.
+Un commit correspond à une étape vérifiable : son code, ses tests, et sa leçon pour débutant dans `docs/lecons/NN-nom.md`.
+Une ligne est cochée quand sa vérification passe **et** qu'elle est commitée.
 
-Méthode (depuis le 5 novembre 2026) : Claude écrit le code, commit par commit. Chaque commit est accompagné
-d'une leçon pour débutant dans `docs/lecons/NN-nom.md` : ce qui a été construit, pourquoi, comment le vérifier, et un quiz.
-À la fin, les leçons sont rassemblées dans un PDF qui sert de support de cours. Les mentions « toi » et « ensemble »
-ci-dessous datent de l'ancienne méthode.
+Méthode (depuis le 5 novembre 2026) : Claude écrit le code, phase par phase. Chaque commit est vérifié seul, sur une copie propre
+du dépôt. À la fin, les leçons sont rassemblées dans un PDF qui sert de support de cours.
 
 Calendrier indicatif (4 à 5 mois depuis le 24/10/2026) : MVP démontrable mi-février 2027, post-MVP jusqu'à mi-mars.
 
-## Phase 0 — Socle et boucle d'agent (→ 8 nov.)
+## Phase 0 — Socle et boucle d'agent
 
-- [ ] `chore: socle .NET 10` (squelette).
-- [ ] `docs: ADR 0001, clients Avalonia et MAUI` (squelette).
-- [ ] `feat(spike): boucle d'agent écrite à la main` (**toi**, `RunAsync`). Vérification : 17/17.
-- [ ] `docs(learning): 01, la boucle d'agent` (**toi**).
-- [ ] Lecture guidée du squelette (**toi**) : je pose les questions, tu réponds en lisant le code. Vérification : tu expliques le trajet d'une mission, de `POST /missions` jusqu'à la carte « Terminée ».
-- [ ] `docs: ADR 0002, licence du projet` (**toi**). Avant de publier le dépôt.
-- [ ] `ci: build et tests sur GitHub Actions` (squelette). Vérification : pipeline vert sur une pull request.
+- [x] 01 `chore: socle .NET 10`
+- [x] 02 `docs: ADR 0001, clients Avalonia et MAUI`
+- [x] 03 `feat(spike): outils de fichiers confinés au workspace`
+- [x] 04 `feat(spike): boucle d'agent écrite à la main`
+- [x] 05 `feat(spike): connexion à Claude Haiku`
+- [x] 06 `docs: ADR 0002, licence MIT`
+- [x] 07 `ci: build et tests sur GitHub Actions`
 
-## Phase 1 — Agent Framework (→ 22 nov.)
+## Phase 1 — Agent Framework
 
-- [ ] `feat(spike): la même mission avec Agent Framework` (**ensemble**). Vérification : les mêmes scénarios passent.
-- [ ] `docs: ADR 0003, architecture backend` (**toi** : décrire ce que le squelette a choisi et pourquoi).
-- [ ] `docs: ADR 0004, backend hybride local/serveur` (**toi**).
+- [x] 08 `feat(spike): la même mission avec Agent Framework`
+- [x] 09 `docs: ADR 0003, architecture backend`
+- [x] 10 `docs: ADR 0004, backend hybride local/serveur`
 
-## Phase 2 — Backend en monolithe modulaire (→ 20 déc.)
+## Phase 2 — Backend
 
-- [ ] `feat(api): hôte, /health, PostgreSQL, missions, exécuteur, audit, hub SignalR` (squelette, revu par le lead).
-- [ ] `test(architecture): frontières entre modules` (squelette).
-- [ ] `feat(agents): vrai runner sur Agent Framework` (**toi**, je relis ; reprend `WorkspaceTools`, remplace le runner provisoire). Vérification : tests avec `ScriptedChatClient`, puis une vraie mission Haiku.
-- [ ] `feat(missions): GET /missions` (**toi** : premier endpoint, sur le modèle de `GET /missions/{id}` ; la liste, pour que les clients ne montrent plus seulement leurs missions).
-- [ ] `chore(db): migrations EF Core` (avant le premier changement de schéma).
-- [ ] `feat(approvals): pause et reprise sur action sensible` (**ensemble**). La mission en pause libère l'exécuteur. Vérification : approuver écrit le fichier, refuser n'écrit rien.
-- [ ] `feat(observability): OpenTelemetry` (**ensemble**). Vérification : tokens et durée d'un appel visibles.
+- [x] 11 `feat(api): hôte, /health et contrats`
+- [x] 12 `feat(missions): PostgreSQL, créer et lire une mission`
+- [x] 13 `feat(missions): exécution en arrière-plan`
+- [x] 14 `feat(audit): journal des événements`
+- [x] 15 `feat(api): temps réel avec SignalR`
+- [x] 16 `test(architecture): frontières entre modules`
+- [x] 17 `feat(agents): vrai runner sur Agent Framework` (avec le refus des liens symboliques)
+- [x] 18 `feat(missions): GET /missions`
+- [x] 19 `chore(db): migrations EF Core`
+- [x] 20 `feat(approvals): pause et reprise sur action sensible`
+- [x] 21 `feat(observability): OpenTelemetry`
 
-## Phase 3 — Client desktop (→ 31 janv.)
+## Phase 3 — Client desktop
 
-- [ ] `feat(client-core): ApiClient, hub, HomeViewModel` (squelette).
-- [ ] `feat(desktop): coquille, jetons, écran Accueil` (squelette, conforme à la maquette).
-- [ ] `feat(desktop): écran Mission en direct` (graphe des agents, frise, SignalR).
-- [ ] `feat(desktop): carte d'approbation` (**toi**).
-- [ ] `feat(desktop): écrans Agents et Rapport`.
+- [x] 22 `feat(client-core): client API, hub et ViewModel d'accueil`
+- [x] 23 `feat(desktop): coquille, jetons de design et écran Accueil`
+- [x] 24 `feat(desktop): écran Mission en direct`
+- [x] 25 `feat(desktop): carte d'approbation`, puis `fix(approvals)` (décision liée à la demande affichée, lecture complète exigée)
+- [x] 26 `feat(desktop): écrans Agents et Rapports`
 
-## Phase 4 — MVP (→ 14 févr.)
+## Phase 4 — MVP
 
-- [ ] `feat: mission de revue à deux agents` (**toi** : prompts des rôles et passage de relais ; Analyste puis Rédacteur, REPORT.md soumis à approbation).
-- [ ] `test(eval): coût par mission réussie, par modèle` (**toi**, Haiku / Sonnet).
-- [ ] `docs: README et démo du MVP`. Vérification : la démo va de bout en bout, approbation comprise.
+- [x] 27 `feat: mission de revue à deux agents`
+- [x] 28 `test(eval): coût par mission réussie, par modèle` (l'évaluation payante reste à lancer)
+- [x] 29 `docs: sécurité, README et démo du MVP`
 
-## Après le MVP (→ mi-mars)
+## Authentification et gestion du LLM
 
-- [ ] `feat(mobile): squelette MAUI, accueil` (squelette, Android et iOS).
+- [x] 30 `feat(auth): Keycloak et API protégée par jeton` (ADR 0005)
+- [x] 31 `feat(desktop): connexion OpenID Connect avec PKCE`
+- [x] 32 `feat(llm): clés d'API chiffrées, choix du modèle et révocation` (ADR 0006)
+- [x] 33 `feat(desktop): écran Paramètres, modèle et clés d'API`
+
+## Ensuite
+
+- [ ] Lancer l'évaluation sur Haiku et Sonnet (payant, quelques dizaines de centimes) et choisir le modèle par défaut.
+- [ ] `feat(mobile): squelette MAUI` (le code existe, non commité ; à brancher sur la connexion OIDC avec `WebAuthenticator`).
 - [ ] `feat(mobile): écrans Mission et Décision`.
-- [ ] `feat(auth)`, puis déploiement serveur.
-- [ ] `feat(desktop): backend local en sidecar` (selon l'ADR 0004).
-- [ ] Reprise des missions après redémarrage, MCP, RAG : un plan chacun.
+- [ ] Déploiement serveur (HTTPS, Keycloak de production, trousseau Data Protection protégé).
+- [ ] `feat(desktop): backend local en sidecar` (ADR 0004).
+- [ ] Reprise des missions après redémarrage, MCP, RAG, compétences et mémoire des agents : un plan chacun.
+- [ ] Rassembler les leçons dans le PDF du cours.

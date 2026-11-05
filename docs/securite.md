@@ -25,14 +25,16 @@ Un modèle peut se tromper ou être manipulé. Chaque protection ci-dessous est 
 | Accès hors du workspace | `../../etc/passwd`, chemin absolu, lien symbolique vers `~/.ssh` | Résolution du chemin, comparaison avec la racine suivie d'un séparateur, refus de tout chemin qui traverse un lien | `WorkspaceTools.Resolve` |
 | Approbation détournée | On approuve une demande différente de celle affichée ; un contenu tronqué cache la partie dangereuse ; des caractères invisibles déguisent un nom de fichier | Identifiant de demande vérifié atomiquement par le serveur ; « Approuver » désactivé tant que tout n'a pas été affiché ; caractères non imprimables rendus visibles ; chemins cachés signalés | `MissionsModule.DecideAsync`, `ApprovalItem` |
 | Double décision | Deux appareils décident en même temps | Une seule requête SQL vérifie et écrit (`ExecuteUpdate`) ; la seconde reçoit 409 | `MissionsModule.DecideAsync` |
-| Accès réseau à l'API | Une autre machine pilote les agents | L'API n'écoute que sur la boucle locale (`AllowedHosts`) tant que l'authentification n'existe pas | `appsettings.json`, ADR 0004 |
+| Accès non authentifié | Un programme pilote les agents sans être connecté | Jeton Keycloak exigé sur toutes les routes sauf `/health` (politique par défaut) ; audience vérifiée ; l'API n'écoute encore que sur la boucle locale | `Authentication.cs`, ADR 0005 |
+| Vol ou fuite d'une clé d'API | La base est volée ; un écran ou un journal montre la clé | Clés chiffrées (Data Protection), trousseau hors de la base ; jamais renvoyées (4 derniers caractères) ; révocation qui efface ; gestion réservée à `llm-admin` | `Modules/Llm`, ADR 0006 |
 | Fuite de la clé d'API | Clé commitée dans le dépôt | Clé dans les user-secrets, hors du dépôt ; les tests retirent tout client de modèle et ne peuvent pas appeler le vrai service | `AgentsModule`, `ApiFactory` |
 
 ## Les limites connues
 
 Chacune est marquée `ponytail:` dans le code, avec le moment où elle sera traitée.
 
-- **Pas d'authentification** pour l'instant : d'où l'écoute sur la seule boucle locale.
+- **Jetons en mémoire** côté desktop (reconnexion à chaque lancement), et déconnexion locale seulement (la session Keycloak reste ouverte).
+- **Trousseau Data Protection non chiffré au repos** sur macOS et Linux par défaut : le protéger par un certificat ou un coffre en production.
 - **Une décision vaut pour toutes les demandes d'un même tour** (l'interface les affiche toutes avant).
 - Entre la vérification d'un chemin et sa lecture, un autre programme local pourrait remplacer un fichier par un lien (*TOCTOU*). Il faut déjà avoir la main sur la machine.
 - La file des missions est en mémoire : une mission en attente est perdue au redémarrage (ADR 0003).
