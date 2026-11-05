@@ -1,2 +1,6 @@
 <Solution>
+  <Folder Name="/spikes/">
+    <Project Path="spikes/AgentLoop.Tests/AgentLoop.Tests.csproj" />
+    <Project Path="spikes/AgentLoop/AgentLoop.csproj" />
+  </Folder>
 </Solution>
