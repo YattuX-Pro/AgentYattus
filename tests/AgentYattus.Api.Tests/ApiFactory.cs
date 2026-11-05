@@ -3,6 +3,9 @@ using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Missions;
 using AgentYattus.Contracts;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -29,7 +32,20 @@ public class ApiFactory : WebApplicationFactory<Program>
             // Jamais d'appel au vrai modèle pendant les tests, même si une clé est dans les user-secrets.
             services.RemoveAll<IChatClient>();
             ConfigureAgents(services);
+            ConfigureAuthentication(services);
         });
+
+    // Par défaut, un utilisateur de test connecté avec tous les rôles : les tests des missions ne parlent pas de jetons.
+    // AuthTests remplace ce comportement pour vérifier la vraie validation des jetons.
+    protected virtual void ConfigureAuthentication(IServiceCollection services) =>
+        services.AddAuthentication()
+            .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(TestAuthHandler.SchemeName, _ => { })
+            .Services.PostConfigure<AuthenticationOptions>(options =>
+            {
+                options.DefaultScheme = TestAuthHandler.SchemeName;
+                options.DefaultAuthenticateScheme = TestAuthHandler.SchemeName;
+                options.DefaultChallengeScheme = TestAuthHandler.SchemeName;
+            });
 
     // Par défaut, un faux exécuteur : les tests des missions ne font pas travailler d'agent.
     protected virtual void ConfigureAgents(IServiceCollection services)
@@ -49,6 +65,21 @@ public class ApiFactory : WebApplicationFactory<Program>
         await base.DisposeAsync();
         SqliteConnection.ClearAllPools();
         File.Delete(_dbPath);
+    }
+}
+
+public sealed class TestAuthHandler(
+    Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options,
+    Microsoft.Extensions.Logging.ILoggerFactory logger,
+    UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    public const string SchemeName = "Test";
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+    {
+        var identity = new ClaimsIdentity(
+            [new Claim("preferred_username", "test"), new Claim(ClaimTypes.Role, "llm-admin")], SchemeName, "preferred_username", ClaimTypes.Role);
+        return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
     }
 }
 

@@ -16,6 +16,18 @@ services:
       interval: 5s
       retries: 10
 
+  # Fournisseur d'identité (OpenID Connect). Développement seulement : HTTP, base intégrée, comptes de test.
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.1
+    command: ["start-dev", "--import-realm", "--http-port=8380"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./deploy/keycloak/agent-yattus-realm.json:/opt/keycloak/data/import/agent-yattus-realm.json:ro
+    ports:
+      - "127.0.0.1:8380:8380"
+
   # Tableau de bord des traces et métriques (OpenTelemetry) : http://localhost:18888
   # Sans authentification, donc joignable seulement depuis la machine.
   aspire-dashboard:

@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHealthChecks();
 builder.Services.AddTelemetry(builder.Configuration);
+builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment);
 builder.Services
     .AddMissionsModule()
     .AddAgentsModule(builder.Configuration)
@@ -14,7 +15,10 @@ builder.Services
 
 var app = builder.Build();
 
-app.MapHealthChecks("/health");
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapMissionsEndpoints();
 app.MapAgentsEndpoints();
 

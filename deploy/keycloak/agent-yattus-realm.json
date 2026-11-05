@@ -1,0 +1,69 @@
+{
+  "realm": "agent-yattus",
+  "enabled": true,
+  "displayName": "Agent Yattus",
+  "sslRequired": "external",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "bruteForceProtected": true,
+  "accessTokenLifespan": 300,
+  "ssoSessionIdleTimeout": 1800,
+  "roles": {
+    "realm": [
+      { "name": "llm-admin", "description": "Gère les clés d'API et le modèle utilisés par les agents." }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "agent-yattus-desktop",
+      "name": "Agent Yattus (desktop)",
+      "description": "Application native : client public, code d'autorisation avec PKCE, redirection vers la boucle locale (RFC 8252).",
+      "enabled": true,
+      "publicClient": true,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "implicitFlowEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://127.0.0.1/*"],
+      "webOrigins": [],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "post.logout.redirect.uris": "http://127.0.0.1/*"
+      },
+      "protocolMappers": [
+        {
+          "name": "audience agent-yattus-api",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "agent-yattus-api",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "dev",
+      "enabled": true,
+      "email": "dev@agent-yattus.local",
+      "emailVerified": true,
+      "firstName": "Dev",
+      "lastName": "Local",
+      "credentials": [{ "type": "password", "value": "agent-yattus-dev", "temporary": false }],
+      "realmRoles": ["default-roles-agent-yattus", "llm-admin"]
+    },
+    {
+      "username": "observateur",
+      "enabled": true,
+      "email": "observateur@agent-yattus.local",
+      "emailVerified": true,
+      "firstName": "Observateur",
+      "lastName": "Local",
+      "credentials": [{ "type": "password", "value": "agent-yattus-observateur", "temporary": false }],
+      "realmRoles": ["default-roles-agent-yattus"]
+    }
+  ]
+}

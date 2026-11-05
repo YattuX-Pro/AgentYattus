@@ -7,6 +7,9 @@ using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Missions;
 using AgentYattus.Contracts;
 using Anthropic;
+using System.Security.Claims;
+using System.Text.Encodings.Web;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -150,6 +153,15 @@ internal sealed class EvalApi(IChatClient chatClient, string model, string works
                 options.Workspace = workspace;
                 options.Model = model;
             });
+            // L'évaluation mesure les agents, pas l'authentification : un utilisateur local, connecté d'office.
+            services.AddAuthentication()
+                .AddScheme<AuthenticationSchemeOptions, EvalUser>(EvalUser.SchemeName, _ => { })
+                .Services.PostConfigure<AuthenticationOptions>(options =>
+                {
+                    options.DefaultScheme = EvalUser.SchemeName;
+                    options.DefaultAuthenticateScheme = EvalUser.SchemeName;
+                    options.DefaultChallengeScheme = EvalUser.SchemeName;
+                });
         });
 
     private void UseSqlite<TDb>(IServiceCollection services) where TDb : DbContext
@@ -164,4 +176,16 @@ internal sealed class EvalApi(IChatClient chatClient, string model, string works
         SqliteConnection.ClearAllPools();
         File.Delete(_dbPath);
     }
+}
+
+internal sealed class EvalUser(
+    Microsoft.Extensions.Options.IOptionsMonitor<AuthenticationSchemeOptions> options,
+    Microsoft.Extensions.Logging.ILoggerFactory logger,
+    UrlEncoder encoder) : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
+{
+    public const string SchemeName = "Eval";
+
+    protected override Task<AuthenticateResult> HandleAuthenticateAsync() =>
+        Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(
+            new ClaimsPrincipal(new ClaimsIdentity([new Claim("preferred_username", "eval")], SchemeName)), SchemeName)));
 }
