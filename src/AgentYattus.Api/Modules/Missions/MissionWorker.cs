@@ -2,6 +2,7 @@ using System.Threading.Channels;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Contracts;
+using Microsoft.AspNetCore.SignalR;
 
 namespace AgentYattus.Api.Modules.Missions;
 
@@ -14,6 +15,9 @@ internal sealed class MissionQueue
     public ChannelWriter<Guid> Writer => _channel.Writer;
     public ChannelReader<Guid> Reader => _channel.Reader;
 }
+
+// Serveur vers client uniquement : aucune méthode appelable.
+internal sealed class MissionsHub : Hub;
 
 // ponytail: une seule mission à la fois. Avant l'étape Approbations, une mission en pause doit
 // quitter le worker (état persisté, remise en file à l'approbation) au lieu d'attendre ici.
@@ -45,6 +49,7 @@ internal sealed class MissionRunner(
     MissionsDb db,
     AuditLog audit,
     IAgentRunner agent,
+    IHubContext<MissionsHub> hub,
     ILogger<MissionRunner> logger)
 {
     public async Task RunAsync(Guid missionId, CancellationToken cancellationToken)
@@ -72,6 +77,11 @@ internal sealed class MissionRunner(
             mission.Status = newStatus;
             await db.SaveChangesAsync(cancellationToken);
             await audit.AppendAsync(missionId, newStatus.ToString(), cancellationToken);
+            // ponytail: diffusion à tous les clients ; des groupes par mission quand il y aura plusieurs utilisateurs.
+            await hub.Clients.All.SendAsync(
+                MissionsHubProtocol.MissionEvent,
+                new MissionEventDto(missionId, newStatus, DateTimeOffset.UtcNow),
+                cancellationToken);
         }
     }
 }

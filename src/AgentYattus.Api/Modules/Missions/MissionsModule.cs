@@ -9,6 +9,7 @@ public static class MissionsModule
 
     public static IServiceCollection AddMissionsModule(this IServiceCollection services)
     {
+        services.AddSignalR();
         services.AddSingleton<MissionQueue>();
         services.AddScoped<MissionRunner>();
         services.AddHostedService<MissionWorker>();
@@ -20,6 +21,7 @@ public static class MissionsModule
         var missions = app.MapGroup("/missions");
         missions.MapPost("/", CreateAsync);
         missions.MapGet("/{id:guid}", GetAsync);
+        app.MapHub<MissionsHub>(MissionsHubProtocol.Path);
         return app;
     }
 

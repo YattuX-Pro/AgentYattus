@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Contracts;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -54,14 +56,31 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     [Fact]
-    public async Task Mission_reaches_Completed_with_audit()
+    public async Task Mission_reaches_Completed_with_audit_and_hub_events()
     {
-        var client = factory.CreateClient();
+        // Le hub diffuse à tous : on filtre sur l'id, d'autres tests de la classe ont pu lancer des missions.
+        var events = new ConcurrentQueue<MissionEventDto>();
+        await using var hub = new HubConnectionBuilder()
+            .WithUrl(new Uri(factory.Server.BaseAddress, MissionsHubProtocol.Path),
+                options => options.HttpMessageHandlerFactory = _ => factory.Server.CreateHandler())
+            .Build();
+        hub.On<MissionEventDto>(MissionsHubProtocol.MissionEvent, events.Enqueue);
+        await hub.StartAsync(Ct);
 
+        var client = factory.CreateClient();
         var mission = await CreateAsync(client, "Écrire un test");
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!events.Any(e => e.MissionId == mission.Id && e.Status == MissionStatus.Completed))
+        {
+            Assert.True(DateTime.UtcNow < deadline, "La mission n'a pas atteint Completed en 10 s.");
+            await Task.Delay(20, Ct);
+        }
 
         Assert.Equal(MissionStatus.Completed, await WaitForFinalStatusAsync(client, mission.Id));
         Assert.Contains("Écrire un test", factory.Runner.Goals);
+        Assert.Equal(
+            [MissionStatus.Running, MissionStatus.Completed],
+            events.Where(e => e.MissionId == mission.Id).Select(e => e.Status));
         using var scope = factory.Services.CreateScope();
         var audit = await scope.ServiceProvider.GetRequiredService<AuditDb>().Events
             .Where(e => e.MissionId == mission.Id).Select(e => e.Type).ToListAsync(Ct);
