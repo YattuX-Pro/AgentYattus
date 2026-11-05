@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AgentYattus.Api.Modules.Audit;
+using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Contracts;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -11,10 +12,6 @@ namespace AgentYattus.Api.Modules.Agents;
 internal sealed class AgentsOptions
 {
     public const string Section = "Agents";
-    public const string DefaultModel = "claude-haiku-5-5";
-
-    public string Model { get; set; } = DefaultModel;
-
     /// <summary>Dossier que l'agent a le droit de lire. Choisi côté serveur, jamais par le client.</summary>
     public string? Workspace { get; set; }
 
@@ -30,7 +27,7 @@ internal sealed class AgentFrameworkRunner(
     IOptions<AgentsOptions> options,
     AuditLog audit,
     ILogger<AgentFrameworkRunner> logger,
-    IChatClient? chatClient = null) : IAgentRunner
+    ILlmClientProvider llm) : IAgentRunner
 {
     // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
@@ -39,8 +36,10 @@ internal sealed class AgentFrameworkRunner(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, CancellationToken cancellationToken)
     {
         var settings = options.Value;
-        var model = chatClient ?? throw new InvalidOperationException(
-            "Clé d'API absente. Lance : dotnet user-secrets set \"Anthropic:ApiKey\" \"<ta-clé>\" --project src/AgentYattus.Api");
+        var client = await llm.GetAsync(cancellationToken) ?? throw new InvalidOperationException(
+            "Aucune clé d'API : ajoute-en une dans Paramètres › Modèle, ou lance " +
+            "dotnet user-secrets set \"Anthropic:ApiKey\" \"<ta-clé>\" --project src/AgentYattus.Api");
+        var model = client.Client;
         if (string.IsNullOrWhiteSpace(settings.Workspace))
             throw new InvalidOperationException(
                 "Workspace absent. Lance : dotnet user-secrets set \"Agents:Workspace\" \"<dossier>\" --project src/AgentYattus.Api");
@@ -87,8 +86,8 @@ internal sealed class AgentFrameworkRunner(
 
         // Seulement des métadonnées : la réponse peut citer le contenu des fichiers lus, elle reste en base.
         logger.LogInformation(
-            "Mission {MissionId} ({Role}) : {Tokens} tokens, réponse de {Length} caractères",
-            missionId, role.Key, response.Usage?.TotalTokenCount, response.Text.Length);
+            "Mission {MissionId} ({Role}, {Model}) : {Tokens} tokens, réponse de {Length} caractères",
+            missionId, role.Key, client.Model, response.Usage?.TotalTokenCount, response.Text.Length);
         return new AgentOutcome(stage.Findings is null
             ? response.Text
             : $"{response.Text}\n\n---\nConstats de l'Analyste :\n{stage.Findings}");

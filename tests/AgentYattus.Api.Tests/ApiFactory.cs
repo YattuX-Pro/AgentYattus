@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
+using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Missions;
 using AgentYattus.Contracts;
 using System.Security.Claims;
@@ -29,8 +30,10 @@ public class ApiFactory : WebApplicationFactory<Program>
         {
             UseSqlite<MissionsDb>(services);
             UseSqlite<AuditDb>(services);
+            UseSqlite<LlmDb>(services);
             // Jamais d'appel au vrai modèle pendant les tests, même si une clé est dans les user-secrets.
-            services.RemoveAll<IChatClient>();
+            services.RemoveAll<ILlmClientProvider>();
+            services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(null));
             ConfigureAgents(services);
             ConfigureAuthentication(services);
         });
@@ -75,10 +78,14 @@ public sealed class TestAuthHandler(
 {
     public const string SchemeName = "Test";
 
+    /// <summary>En-tête de test pour choisir les rôles de l'utilisateur (par défaut : llm-admin).</summary>
+    public const string RolesHeader = "X-Test-Roles";
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        var roles = Request.Headers.TryGetValue(RolesHeader, out var header) ? header.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries) : ["llm-admin"];
         var identity = new ClaimsIdentity(
-            [new Claim("preferred_username", "test"), new Claim(ClaimTypes.Role, "llm-admin")], SchemeName, "preferred_username", ClaimTypes.Role);
+            [new Claim("preferred_username", "test"), .. roles.Select(r => new Claim(ClaimTypes.Role, r))], SchemeName, "preferred_username", ClaimTypes.Role);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
     }
 }
@@ -99,6 +106,15 @@ public sealed class FakeAgentRunner : IAgentRunner
     }
 }
 
+/// <summary>Un fournisseur de modèle figé : le faux modèle des tests, ou aucun (« pas de clé »).</summary>
+public sealed class FixedLlmClientProvider(IChatClient? client, string model = "claude-haiku-5-5") : ILlmClientProvider
+{
+    public Task<LlmClient?> GetAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(client is null ? null : new LlmClient(client, model));
+
+    public Task<string> GetModelAsync(CancellationToken cancellationToken) => Task.FromResult(model);
+}
+
 /// <summary>Le vrai exécuteur Agent Framework, branché sur un faux modèle et un workspace temporaire.</summary>
 public sealed class ScriptedModelApiFactory(ScriptedChatClient? model, bool withWorkspace = true, int maxIterations = 10)
     : ApiFactory
@@ -110,8 +126,8 @@ public sealed class ScriptedModelApiFactory(ScriptedChatClient? model, bool with
     protected override void ConfigureAgents(IServiceCollection services)
     {
         File.WriteAllText(Path.Combine(_workspace, "a.txt"), "contenu A");
-        if (model is not null)
-            services.AddSingleton<IChatClient>(model);
+        services.RemoveAll<ILlmClientProvider>();
+        services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(model));
         // Enregistré après la lecture de la configuration : ces valeurs l'emportent sur les user-secrets.
         services.Configure<AgentsOptions>(options =>
         {

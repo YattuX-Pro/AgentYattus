@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using AgentYattus.Api;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
+using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Missions;
 using AgentYattus.Contracts;
 using Anthropic;
@@ -146,13 +147,10 @@ internal sealed class EvalApi(IChatClient chatClient, string model, string works
         {
             UseSqlite<MissionsDb>(services);
             UseSqlite<AuditDb>(services);
-            services.RemoveAll<IChatClient>();
-            services.AddSingleton(chatClient);
-            services.Configure<AgentsOptions>(options =>
-            {
-                options.Workspace = workspace;
-                options.Model = model;
-            });
+            UseSqlite<LlmDb>(services);
+            services.RemoveAll<ILlmClientProvider>();
+            services.AddSingleton<ILlmClientProvider>(new EvalModel(chatClient, model));
+            services.Configure<AgentsOptions>(options => options.Workspace = workspace);
             // L'évaluation mesure les agents, pas l'authentification : un utilisateur local, connecté d'office.
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, EvalUser>(EvalUser.SchemeName, _ => { })
@@ -188,4 +186,11 @@ internal sealed class EvalUser(
     protected override Task<AuthenticateResult> HandleAuthenticateAsync() =>
         Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(
             new ClaimsPrincipal(new ClaimsIdentity([new Claim("preferred_username", "eval")], SchemeName)), SchemeName)));
+}
+
+internal sealed class EvalModel(IChatClient client, string model) : ILlmClientProvider
+{
+    public Task<LlmClient?> GetAsync(CancellationToken cancellationToken) => Task.FromResult<LlmClient?>(new(client, model));
+
+    public Task<string> GetModelAsync(CancellationToken cancellationToken) => Task.FromResult(model);
 }

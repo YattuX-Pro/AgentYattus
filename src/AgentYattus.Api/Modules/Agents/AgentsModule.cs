@@ -1,6 +1,5 @@
+using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Contracts;
-using Anthropic;
-using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 
 namespace AgentYattus.Api.Modules.Agents;
@@ -29,24 +28,16 @@ public static class AgentsModule
     public static IServiceCollection AddAgentsModule(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<AgentsOptions>().BindConfiguration(AgentsOptions.Section);
-        services.AddScoped<IAgentRunner, AgentFrameworkRunner>();
-
-        // Sans clé, l'API démarre quand même (santé, lecture des missions) ; ce sont les missions qui échouent.
-        if (configuration["Anthropic:ApiKey"] is { Length: > 0 } apiKey)
-        {
-            var model = configuration[$"{AgentsOptions.Section}:Model"] ?? AgentsOptions.DefaultModel;
-            services.AddSingleton<IChatClient>(_ =>
-                new AnthropicClient { ApiKey = apiKey }.AsIChatClient(model, defaultMaxOutputTokens: 16_000));
-        }
-
-        return services;
+        // Le modèle et sa clé viennent du module Llm (choisis dans l'application) ; voir ILlmClientProvider.
+        return services.AddScoped<IAgentRunner, AgentFrameworkRunner>();
     }
 
     public static IEndpointRouteBuilder MapAgentsEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet(AgentsProtocol.Path, (IOptions<AgentsOptions> options) =>
+        app.MapGet(AgentsProtocol.Path, async (IOptions<AgentsOptions> options, ILlmClientProvider llm, CancellationToken cancellationToken) =>
         {
-            AgentDto Describe(AgentRole role) => new(role.Name, role.Summary, options.Value.Model, options.Value.MaxIterations,
+            var model = await llm.GetModelAsync(cancellationToken);
+            AgentDto Describe(AgentRole role) => new(role.Name, role.Summary, model, options.Value.MaxIterations,
             [
                 .. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name))
                     .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),

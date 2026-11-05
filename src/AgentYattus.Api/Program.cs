@@ -1,6 +1,7 @@
 using AgentYattus.Api;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
+using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Missions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -11,7 +12,8 @@ builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Enviro
 builder.Services
     .AddMissionsModule()
     .AddAgentsModule(builder.Configuration)
-    .AddAuditModule();
+    .AddAuditModule()
+    .AddLlmModule(builder.Configuration);
 
 var app = builder.Build();
 
@@ -21,5 +23,6 @@ app.UseAuthorization();
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapMissionsEndpoints();
 app.MapAgentsEndpoints();
+app.MapLlmEndpoints();
 
 app.Run();
