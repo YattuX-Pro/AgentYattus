@@ -1,0 +1,219 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="using:AgentYattus.Client.Core"
+             xmlns:contracts="using:AgentYattus.Contracts"
+             x:Class="AgentYattus.Desktop.Views.SettingsView"
+             x:DataType="core:SettingsViewModel"
+             Foreground="{StaticResource Parchemin}">
+
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Padding" Value="22" />
+      <Setter Property="CornerRadius" Value="20" />
+      <Setter Property="Background" Value="{StaticResource Graphite}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Filet}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <!-- Les modèles : une liste de cartes, celle choisie a un contour vert. -->
+    <Style Selector="ListBox.models">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.models ListBoxItem">
+      <Setter Property="Padding" Value="14,12" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+    <Style Selector="ListBox.models ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Nuit}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Filet}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="14" />
+    </Style>
+    <Style Selector="ListBox.models ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1C1F23" />
+    </Style>
+    <Style Selector="ListBox.models ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#145E9E92" />
+      <Setter Property="BorderBrush" Value="{StaticResource VertDeGris}" />
+    </Style>
+    <Style Selector="TextBox.field, TextBox.field:pointerover, TextBox.field:focus">
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <Style Selector="TextBox.field /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{StaticResource Obsidienne}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Filet}" />
+      <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="TextBox.field:focus /template/ Border#PART_BorderElement">
+      <Setter Property="Background" Value="{StaticResource Obsidienne}" />
+      <Setter Property="BorderBrush" Value="{StaticResource VertDeGris}" />
+    </Style>
+    <Style Selector="Button.action">
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.action /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#3A3F45" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <Style Selector="Button.action:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Nuit}" />
+    </Style>
+    <Style Selector="Button.action.primary /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource VertDeGris}" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{StaticResource Obsidienne}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.action.danger /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="#66D9654B" />
+      <Setter Property="Foreground" Value="{StaticResource Cinabre}" />
+    </Style>
+    <Style Selector="Button.action.danger:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#14D9654B" />
+    </Style>
+    <Style Selector="Button.action:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Filet}" />
+      <Setter Property="Foreground" Value="{StaticResource Cendre}" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer>
+    <StackPanel Margin="40,26,40,28" Spacing="18" MaxWidth="1100">
+      <StackPanel Spacing="4">
+        <TextBlock Classes="eyebrow" Text="PARAMÈTRES" />
+        <TextBlock Text="Modèle et clés d’API" FontSize="26" FontWeight="SemiBold" LetterSpacing="-0.5" />
+      </StackPanel>
+
+      <!-- Messages -->
+      <TextBlock Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="13" TextWrapping="Wrap"
+                 IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      <TextBlock Text="{Binding Info}" Foreground="{StaticResource VertDeGris}" FontSize="13" TextWrapping="Wrap"
+                 IsVisible="{Binding Info, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+      <Grid ColumnDefinitions="*,1.25*" ColumnSpacing="18">
+
+        <!-- Le modèle -->
+        <Border Classes="card" VerticalAlignment="Top">
+          <StackPanel Spacing="14">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="eyebrow" Text="MODÈLE · ANTHROPIC" />
+              <TextBlock Text="Utilisé par l’Analyste et le Rédacteur à partir de la mission suivante."
+                         FontSize="12.5" Foreground="{StaticResource Pierre}" TextWrapping="Wrap" />
+            </StackPanel>
+            <ListBox Classes="models" ItemsSource="{Binding Models}" SelectedItem="{Binding SelectedModel}">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="contracts:LlmModelDto">
+                  <Grid ColumnDefinitions="*,Auto">
+                    <StackPanel Spacing="2">
+                      <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Medium" />
+                      <TextBlock Classes="mono" Text="{Binding Id}" FontSize="11.5" Foreground="{StaticResource Cendre}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                      <TextBlock Classes="mono" FontSize="11.5" Foreground="{StaticResource Pierre}" HorizontalAlignment="Right"
+                                 Text="{Binding InputPricePerMillion, StringFormat='{}{0:0.00} $ entrée'}" />
+                      <TextBlock Classes="mono" FontSize="11.5" Foreground="{StaticResource Pierre}" HorizontalAlignment="Right"
+                                 Text="{Binding OutputPricePerMillion, StringFormat='{}{0:0.00} $ sortie'}" />
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <TextBlock Text="Prix publics par million de tokens." FontSize="11.5" Foreground="{StaticResource Cendre}" />
+          </StackPanel>
+        </Border>
+
+        <!-- Les clés -->
+        <Border Grid.Column="1" Classes="card" VerticalAlignment="Top">
+          <StackPanel Spacing="16">
+            <StackPanel Spacing="3">
+              <TextBlock Classes="eyebrow" Text="CLÉS D’API" />
+              <TextBlock Text="Chiffrées sur le serveur. Une clé n’est plus jamais affichée après son ajout : seulement ses 4 derniers caractères."
+                         FontSize="12.5" Foreground="{StaticResource Pierre}" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <TextBlock Text="Aucune clé pour l’instant." FontSize="13" Foreground="{StaticResource Cendre}"
+                       IsVisible="{Binding !Credentials.Count}" />
+            <ItemsControl ItemsSource="{Binding Credentials}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="contracts:LlmCredentialDto">
+                  <Border Padding="0,12" BorderBrush="{StaticResource Filet}" BorderThickness="0,1,0,0">
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                      <!-- Pastille : vert si active, cinabre si révoquée, gris sinon. -->
+                      <Panel Width="10" VerticalAlignment="Center">
+                        <Ellipse Width="8" Height="8" Fill="{StaticResource VertDeGris}" IsVisible="{Binding IsActive}" />
+                        <Ellipse Width="8" Height="8" Stroke="{StaticResource Cendre}" StrokeThickness="1.5"
+                                 IsVisible="{Binding !IsActive}" />
+                      </Panel>
+                      <StackPanel Grid.Column="1" Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                          <TextBlock Text="{Binding Label}" FontSize="14" FontWeight="Medium" />
+                          <TextBlock Classes="mono" Text="{Binding Last4, StringFormat='…{0}'}" FontSize="12.5" Foreground="{StaticResource Pierre}" />
+                        </StackPanel>
+                        <TextBlock Classes="mono" FontSize="11.5" Foreground="{StaticResource Cendre}">
+                          <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0} · ajoutée par {1} le {2:dd/MM/yyyy}">
+                              <Binding Path="Provider" />
+                              <Binding Path="CreatedBy" />
+                              <Binding Path="CreatedAt" />
+                            </MultiBinding>
+                          </TextBlock.Text>
+                        </TextBlock>
+                        <TextBlock Classes="mono" FontSize="11.5" Foreground="{StaticResource Cinabre}"
+                                   IsVisible="{Binding RevokedAt, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                   Text="{Binding RevokedAt, StringFormat='révoquée le {0:dd/MM/yyyy HH:mm}'}" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
+                                  IsVisible="{Binding RevokedAt, Converter={x:Static ObjectConverters.IsNull}}">
+                        <Border Height="24" Padding="9,0" CornerRadius="12" Background="#1A5E9E92" IsVisible="{Binding IsActive}">
+                          <TextBlock Text="Active" FontSize="11.5" Foreground="{StaticResource VertDeGris}" VerticalAlignment="Center" />
+                        </Border>
+                        <Button Classes="action" Content="Utiliser" IsVisible="{Binding !IsActive}"
+                                Command="{Binding $parent[UserControl].((core:SettingsViewModel)DataContext).UseCommand}" CommandParameter="{Binding}" />
+                        <Button Classes="action danger" Content="Révoquer"
+                                Command="{Binding $parent[UserControl].((core:SettingsViewModel)DataContext).AskRevokeCommand}" CommandParameter="{Binding}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Confirmation : révoquer est irréversible. -->
+            <Border Padding="14" CornerRadius="14" Background="#0FD9654B" BorderBrush="#66D9654B" BorderThickness="1"
+                    IsVisible="{Binding PendingRevoke, Converter={x:Static ObjectConverters.IsNotNull}}">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="3">
+                  <TextBlock FontSize="13.5" FontWeight="Medium" TextWrapping="Wrap"
+                             Text="{Binding PendingRevoke.Label, StringFormat='Révoquer « {0} » ?'}" />
+                  <TextBlock Text="La clé chiffrée est effacée du serveur. C’est définitif." FontSize="12" Foreground="{StaticResource Pierre}" TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                  <Button Classes="action" Content="Annuler" Command="{Binding CancelRevokeCommand}" />
+                  <Button Classes="action danger" Content="Révoquer" Command="{Binding ConfirmRevokeCommand}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+
+            <!-- Ajouter une clé -->
+            <Border Padding="16" CornerRadius="14" Background="{StaticResource Nuit}" BorderBrush="{StaticResource Filet}" BorderThickness="1">
+              <StackPanel Spacing="10">
+                <TextBlock Text="Ajouter une clé Anthropic" FontSize="13.5" FontWeight="Medium" />
+                <TextBox Classes="field" Text="{Binding NewLabel}" PlaceholderText="Libellé (ex. Clé perso)" MaxLength="60" />
+                <!-- Saisie masquée ; la valeur est effacée dès l'envoi. -->
+                <TextBox Classes="field" Text="{Binding NewKey}" PasswordChar="•" PlaceholderText="sk-ant-…" FontFamily="{StaticResource Mono}" />
+                <Button Classes="action primary" Content="Ajouter et chiffrer" Command="{Binding AddCommand}" HorizontalAlignment="Right" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+      </Grid>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

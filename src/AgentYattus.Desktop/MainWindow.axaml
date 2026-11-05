@@ -17,6 +17,7 @@
     <DataTemplate DataType="core:MissionViewModel"><views:MissionView /></DataTemplate>
     <DataTemplate DataType="core:AgentsViewModel"><views:AgentsView /></DataTemplate>
     <DataTemplate DataType="core:ReportsViewModel"><views:ReportsView /></DataTemplate>
+    <DataTemplate DataType="core:SettingsViewModel"><views:SettingsView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="Auto,*,Auto">
@@ -85,6 +86,12 @@
             <TextBlock Classes="mono" Text="{Binding UserName}" FontSize="12" />
           </StackPanel>
         </Border>
+        <!-- Paramètres : réservés aux administrateurs du LLM. -->
+        <Button Classes="square" Width="36" Height="36" Padding="0" Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Paramètres : modèle et clés d’API"
+                IsVisible="{Binding IsLlmAdmin}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+          <Path Data="M4 7h10M18 7h2M4 17h4M12 17h8M14 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M8 17a2 2 0 1 0 4 0a2 2 0 1 0-4 0"
+                Stroke="{StaticResource Pierre}" StrokeThickness="1.7" StrokeLineCap="Round" Width="15" Height="15" Stretch="Uniform" />
+        </Button>
         <Button Classes="square" Width="36" Height="36" Padding="0" Command="{Binding LogoutCommand}" ToolTip.Tip="Se déconnecter"
                 HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
           <Path Data="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4" Stroke="{StaticResource Pierre}"

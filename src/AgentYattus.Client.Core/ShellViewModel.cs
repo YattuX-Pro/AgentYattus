@@ -61,12 +61,13 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsAgentsSection), nameof(IsReportsSection))]
+    [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsAgentsSection), nameof(IsReportsSection), nameof(IsSettingsSection))]
     public partial ObservableObject Current { get; set; }
 
     public bool IsMissionsSection => Current is HomeViewModel or MissionViewModel;
     public bool IsAgentsSection => Current is AgentsViewModel;
     public bool IsReportsSection => Current is ReportsViewModel;
+    public bool IsSettingsSection => Current is SettingsViewModel;
 
     public async Task OpenMissionAsync(MissionItem mission)
     {
@@ -82,6 +83,14 @@ public sealed partial class ShellViewModel : ObservableObject
     private async Task ShowAgentsAsync()
     {
         var screen = new AgentsViewModel(_api);
+        Current = screen;
+        await screen.LoadAsync();
+    }
+
+    [RelayCommand]
+    private async Task ShowSettingsAsync()
+    {
+        var screen = new SettingsViewModel(_api);
         Current = screen;
         await screen.LoadAsync();
     }

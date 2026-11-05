@@ -34,6 +34,43 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<AgentDto>> GetAgentsAsync(CancellationToken cancellationToken = default) =>
         await http.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path.TrimStart('/'), cancellationToken) ?? [];
 
+    public async Task<LlmStatusDto> GetLlmStatusAsync(CancellationToken cancellationToken = default) =>
+        (await http.GetFromJsonAsync<LlmStatusDto>(LlmProtocol.Path.TrimStart('/'), cancellationToken))!;
+
+    /// <returns>Null si tout va bien, sinon le message d'erreur renvoyé par l'API.</returns>
+    public async Task<string?> AddLlmCredentialAsync(AddLlmCredentialRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync(LlmProtocol.Credentials.TrimStart('/'), request, cancellationToken);
+        return await ErrorOrNullAsync(response, cancellationToken);
+    }
+
+    public async Task RevokeLlmCredentialAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.DeleteAsync($"{LlmProtocol.Credentials.TrimStart('/')}/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<string?> UpdateLlmSettingsAsync(UpdateLlmSettingsRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PutAsJsonAsync(LlmProtocol.Settings.TrimStart('/'), request, cancellationToken);
+        return await ErrorOrNullAsync(response, cancellationToken);
+    }
+
+    // Une erreur de validation (400) devient un message lisible ; les autres erreurs restent des exceptions.
+    private static async Task<string?> ErrorOrNullAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.StatusCode != HttpStatusCode.BadRequest)
+        {
+            response.EnsureSuccessStatusCode();
+            return null;
+        }
+
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblem>(cancellationToken);
+        return string.Join(" ", problem?.Errors?.SelectMany(e => e.Value) ?? ["Requête refusée."]);
+    }
+
+    private sealed record ValidationProblem(Dictionary<string, string[]>? Errors);
+
     public async Task<MissionDto?> GetMissionAsync(Guid id, CancellationToken cancellationToken = default)
     {
         using var response = await http.GetAsync($"missions/{id}", cancellationToken);
