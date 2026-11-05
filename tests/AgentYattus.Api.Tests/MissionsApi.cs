@@ -32,6 +32,19 @@ internal static class MissionsApi
         }
     }
 
+    public static async Task<MissionDto> WaitForStatusAsync(this HttpClient client, Guid id, MissionStatus expected)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            var mission = (await client.GetFromJsonAsync<MissionDto>($"/missions/{id}", Ct))!;
+            if (mission.Status == expected)
+                return mission;
+            Assert.True(DateTime.UtcNow < deadline, $"Mission {id} en {mission.Status}, {expected} attendu.");
+            await Task.Delay(20, Ct);
+        }
+    }
+
     public static async Task<List<string>> AuditOfAsync(this WebApplicationFactory<Program> factory, Guid missionId)
     {
         using var scope = factory.Services.CreateScope();

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AgentYattus.Contracts;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,7 +12,14 @@ internal sealed class Mission
     public DateTimeOffset CreatedAt { get; set; }
     public string? Result { get; set; }
 
-    public MissionDto ToDto() => new(Id, Goal, Status, CreatedAt, Result);
+    // Mission en pause : la conversation de l'agent (opaque pour ce module), ce qui attend une décision, et la décision.
+    public string? Conversation { get; set; }
+    public string? PendingApproval { get; set; }
+    public bool? Decision { get; set; }
+
+    public MissionDto ToDto() => new(
+        Id, Goal, Status, CreatedAt, Result,
+        PendingApproval is null ? null : JsonSerializer.Deserialize<ApprovalDto>(PendingApproval, JsonSerializerOptions.Web));
 }
 
 internal sealed class MissionsDb(DbContextOptions<MissionsDb> options) : DbContext(options)

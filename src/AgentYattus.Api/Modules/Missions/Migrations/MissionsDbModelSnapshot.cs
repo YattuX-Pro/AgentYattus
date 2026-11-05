@@ -29,11 +29,20 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Conversation")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool?>("Decision")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Goal")
                         .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PendingApproval")
                         .HasColumnType("text");
 
                     b.Property<string>("Result")

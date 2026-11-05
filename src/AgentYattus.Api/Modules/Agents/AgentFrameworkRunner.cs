@@ -1,3 +1,4 @@
+using System.Text.Json;
 using AgentYattus.Api.Modules.Audit;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -27,9 +28,14 @@ internal sealed class AgentFrameworkRunner(
 {
     private const string Instructions =
         "Tu es un agent d'analyse de code. Tu explores le workspace avec les outils list_files et read_file, " +
-        "puis tu réponds en français, de façon concise, en citant les fichiers sur lesquels tu t'appuies.";
+        "puis tu réponds en français, de façon concise, en citant les fichiers sur lesquels tu t'appuies. " +
+        "Si on te demande d'écrire un fichier, utilise write_file : un humain approuvera ou refusera l'écriture.";
 
-    public async Task<string?> RunAsync(Guid missionId, string goal, CancellationToken cancellationToken)
+    // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
+    private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
+
+    public async Task<AgentOutcome> RunAsync(
+        Guid missionId, string goal, AgentResume? resume, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         var model = chatClient ?? throw new InvalidOperationException(
@@ -38,9 +44,10 @@ internal sealed class AgentFrameworkRunner(
             throw new InvalidOperationException(
                 "Workspace absent. Lance : dotnet user-secrets set \"Agents:Workspace\" \"<dossier>\" --project src/AgentYattus.Api");
 
+        var history = resume is null ? [new ChatMessage(ChatRole.User, goal)] : Resume(resume);
         var tools = new WorkspaceTools(settings.Workspace);
         var agent = CreateAgent(model, tools.AsAIFunctions(), settings.MaxIterations);
-        var response = await agent.RunAsync(goal, cancellationToken: cancellationToken);
+        var response = await agent.RunAsync(history, cancellationToken: cancellationToken);
 
         var toolTurns = 0;
         foreach (var message in response.Messages)
@@ -57,11 +64,40 @@ internal sealed class AgentFrameworkRunner(
         if (toolTurns >= settings.MaxIterations)
             await audit.AppendAsync(missionId, "limite-de-tours", cancellationToken);
 
+        var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
+        if (requests.Count > 0)
+        {
+            // La boucle s'est arrêtée avant l'action sensible. On garde toute la conversation pour la reprendre.
+            history.AddRange(response.Messages);
+            var calls = requests.Select(r => r.ToolCall).OfType<FunctionCallContent>()
+                .Select(c => new AgentToolCall(c.Name, JsonSerializer.Serialize(c.Arguments, Json)))
+                .ToList();
+            foreach (var call in calls)
+                await audit.AppendAsync(missionId, $"approbation-demandee:{call.Tool}", cancellationToken);
+            return new AgentOutcome(null, new AgentApproval(calls), JsonSerializer.Serialize(history, Json));
+        }
+
         // Seulement des métadonnées : la réponse peut citer le contenu des fichiers lus, elle reste en base.
         logger.LogInformation(
             "Mission {MissionId} : {Tokens} tokens, réponse de {Length} caractères",
             missionId, response.Usage?.TotalTokenCount, response.Text.Length);
-        return response.Text;
+        return new AgentOutcome(response.Text);
+    }
+
+    // On rejoue la conversation, suivie de la décision humaine pour chaque demande en attente.
+    // ponytail: une seule décision pour toutes les demandes d'un même tour ; le client les affiche toutes avant.
+    private static List<ChatMessage> Resume(AgentResume resume)
+    {
+        var history = JsonSerializer.Deserialize<List<ChatMessage>>(resume.Conversation, Json)
+            ?? throw new InvalidOperationException("Conversation en pause illisible.");
+        var contents = history.SelectMany(m => m.Contents).ToList();
+        var answered = contents.OfType<ToolApprovalResponseContent>().Select(r => r.RequestId).ToHashSet();
+        var pending = contents.OfType<ToolApprovalRequestContent>()
+            .Where(request => !answered.Contains(request.RequestId))
+            .Select(request => (AIContent)request.CreateResponse(resume.Approved))
+            .ToList();
+        history.Add(new ChatMessage(ChatRole.User, pending));
+        return history;
     }
 
     // Même montage que spikes/AgentLoop/FrameworkAgent.cs : on règle nous-mêmes la limite de tours.

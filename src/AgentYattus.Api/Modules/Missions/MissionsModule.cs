@@ -1,3 +1,4 @@
+using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,7 @@ public static class MissionsModule
         missions.MapGet("/", ListAsync);
         missions.MapPost("/", CreateAsync);
         missions.MapGet("/{id:guid}", GetAsync);
+        missions.MapPost("/{id:guid}/decision", DecideAsync);
         app.MapHub<MissionsHub>(MissionsHubProtocol.Path);
         return app;
     }
@@ -66,6 +68,24 @@ public static class MissionsModule
         // (SQLite ne sait pas trier sur un DateTimeOffset.)
         var page = await db.Missions.OrderByDescending(m => m.Id).Take(limit).ToListAsync(cancellationToken);
         return TypedResults.Ok(page.Select(m => m.ToDto()).ToArray());
+    }
+
+    private static async Task<Results<Accepted, NotFound, Conflict>> DecideAsync(
+        Guid id, DecisionRequest request, MissionsDb db, AuditLog audit, MissionQueue queue, CancellationToken cancellationToken)
+    {
+        // Une seule requête SQL qui vérifie et écrit en même temps : deux décisions simultanées
+        // ne peuvent pas passer toutes les deux.
+        var updated = await db.Missions
+            .Where(m => m.Id == id && m.Status == MissionStatus.AwaitingApproval && m.Decision == null)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(m => m.Decision, request.Approved), cancellationToken);
+        if (updated == 0)
+            return await db.Missions.AnyAsync(m => m.Id == id, cancellationToken)
+                ? TypedResults.Conflict()
+                : TypedResults.NotFound();
+
+        await audit.AppendAsync(id, request.Approved ? "decision:approuvee" : "decision:refusee", cancellationToken);
+        await queue.Writer.WriteAsync(id, cancellationToken);
+        return TypedResults.Accepted($"/missions/{id}");
     }
 
     private static async Task<Results<Ok<MissionDto>, NotFound>> GetAsync(

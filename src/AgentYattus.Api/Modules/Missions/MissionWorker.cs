@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Threading.Channels;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
@@ -19,8 +20,8 @@ internal sealed class MissionQueue
 // Serveur vers client uniquement : aucune méthode appelable.
 internal sealed class MissionsHub : Hub;
 
-// ponytail: une seule mission à la fois. Avant l'étape Approbations, une mission en pause doit
-// quitter le worker (état persisté, remise en file à l'approbation) au lieu d'attendre ici.
+// ponytail: une seule mission à la fois. Une mission en attente d'approbation ne bloque pas le worker :
+// son état est en base, et la décision la remet dans la file.
 internal sealed class MissionWorker(
     MissionQueue queue,
     IServiceScopeFactory scopes,
@@ -58,11 +59,36 @@ internal sealed class MissionRunner(
         if (mission is null)
             return;
 
+        AgentResume? resume = null;
+        if (mission.Status == MissionStatus.AwaitingApproval)
+        {
+            // Remise en file par une décision : on reprend là où l'agent s'était arrêté.
+            if (mission.Decision is not { } approved || mission.Conversation is null)
+                return;
+            resume = new AgentResume(mission.Conversation, approved);
+        }
+
+        mission.Conversation = null;
+        mission.PendingApproval = null;
+        mission.Decision = null;
         await SetStatusAsync(MissionStatus.Running);
         var status = MissionStatus.Completed;
         try
         {
-            mission.Result = await agent.RunAsync(mission.Id, mission.Goal, cancellationToken);
+            var outcome = await agent.RunAsync(mission.Id, mission.Goal, resume, cancellationToken);
+            if (outcome.Approval is { } approval)
+            {
+                // Pause : on enregistre de quoi reprendre, et le worker passe à la mission suivante.
+                mission.Conversation = outcome.Conversation;
+                mission.PendingApproval = JsonSerializer.Serialize(
+                    new ApprovalDto([.. approval.ToolCalls.Select(c => new ToolCallDto(c.Tool, c.Arguments))]),
+                    JsonSerializerOptions.Web);
+                status = MissionStatus.AwaitingApproval;
+            }
+            else
+            {
+                mission.Result = outcome.Answer;
+            }
         }
         // Filtre sur le jeton, pas sur le type : un délai HTTP dépassé dans le runner est un échec.
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)

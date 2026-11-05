@@ -5,9 +5,22 @@ namespace AgentYattus.Api.Modules.Agents;
 
 public interface IAgentRunner
 {
-    /// <returns>La réponse finale de l'agent.</returns>
-    Task<string?> RunAsync(Guid missionId, string goal, CancellationToken cancellationToken);
+    /// <param name="resume">La conversation mise en pause et la décision humaine, ou null pour un premier passage.</param>
+    Task<AgentOutcome> RunAsync(Guid missionId, string goal, AgentResume? resume, CancellationToken cancellationToken);
 }
+
+/// <summary>
+/// Soit l'agent a fini (<see cref="Answer"/>), soit il attend une décision humaine (<see cref="Approval"/>).
+/// Dans ce cas, <see cref="Conversation"/> est l'état à conserver tel quel pour reprendre plus tard.
+/// </summary>
+public sealed record AgentOutcome(string? Answer, AgentApproval? Approval = null, string? Conversation = null);
+
+/// <summary>Les actions que l'agent veut faire et qui attendent une décision humaine.</summary>
+public sealed record AgentApproval(IReadOnlyList<AgentToolCall> ToolCalls);
+
+public sealed record AgentToolCall(string Tool, string Arguments);
+
+public sealed record AgentResume(string Conversation, bool Approved);
 
 public static class AgentsModule
 {

@@ -57,13 +57,13 @@ public sealed class FakeAgentRunner : IAgentRunner
 
     public ConcurrentQueue<string> Goals { get; } = new();
 
-    public Task<string?> RunAsync(Guid missionId, string goal, CancellationToken cancellationToken)
+    public Task<AgentOutcome> RunAsync(Guid missionId, string goal, AgentResume? resume, CancellationToken cancellationToken)
     {
         Goals.Enqueue(goal);
         // Ce que lèvera un HttpClient en délai dépassé dans le vrai runner.
         return goal == TimeoutGoal
-            ? Task.FromException<string?>(new TaskCanceledException())
-            : Task.FromResult<string?>($"Réponse à : {goal}");
+            ? Task.FromException<AgentOutcome>(new TaskCanceledException())
+            : Task.FromResult(new AgentOutcome($"Réponse à : {goal}"));
     }
 }
 
@@ -72,6 +72,8 @@ public sealed class ScriptedModelApiFactory(ScriptedChatClient? model, bool with
     : ApiFactory
 {
     private readonly string _workspace = Directory.CreateTempSubdirectory("yattus-ws-").FullName;
+
+    public string Workspace => _workspace;
 
     protected override void ConfigureAgents(IServiceCollection services)
     {
