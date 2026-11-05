@@ -91,7 +91,8 @@ public sealed class MissionViewModelTests
     public async Task Approving_posts_the_decision_and_shows_exactly_what_will_be_written()
     {
         var content = string.Join("\n", Enumerable.Range(1, 10).Select(i => $"ligne {i}"));
-        var mission = new MissionDto(Id, "Rapport", MissionStatus.AwaitingApproval, T, null, new ApprovalDto(
+        var approvalId = Guid.NewGuid();
+        var mission = new MissionDto(Id, "Rapport", MissionStatus.AwaitingApproval, T, null, new ApprovalDto(approvalId,
             [new ToolCallDto("write_file", System.Text.Json.JsonSerializer.Serialize(new { path = "docs/REPORT.md", content }))]));
         HttpRequestMessage? decision = null;
         string? decisionBody = null;
@@ -114,19 +115,25 @@ public sealed class MissionViewModelTests
         Assert.Equal("docs/REPORT.md", item.Target);
         Assert.Equal(6, item.Preview.Count);
         Assert.Equal(4, item.MoreLines);
-        Assert.True(vm.ApproveCommand.CanExecute(null));
+        // Tant que les 4 dernières lignes n'ont pas été affichées, on ne peut pas approuver.
+        Assert.False(vm.ApproveCommand.CanExecute(null));
+        Assert.True(vm.NeedsFullReview);
+        Assert.True(vm.RefuseCommand.CanExecute(null));
 
+        vm.ShowAllCommand.Execute(null);
+        Assert.True(vm.ApproveCommand.CanExecute(null));
         await vm.ApproveCommand.ExecuteAsync(null);
 
         Assert.Equal($"http://api/missions/{Id}/decision", decision!.RequestUri!.ToString());
         Assert.Contains("\"approved\":true", decisionBody);
+        Assert.Contains($"\"approvalId\":\"{approvalId}\"", decisionBody);
     }
 
     [Fact]
     public async Task A_decision_already_taken_elsewhere_is_explained()
     {
         var mission = new MissionDto(Id, "Rapport", MissionStatus.AwaitingApproval, T, null,
-            new ApprovalDto([new ToolCallDto("write_file", "{\"path\":\"REPORT.md\",\"content\":\"x\"}")]));
+            new ApprovalDto(Guid.NewGuid(), [new ToolCallDto("write_file", "{\"path\":\"REPORT.md\",\"content\":\"x\"}")]));
         var handler = new StubHandler(request => request.Method == HttpMethod.Post
             ? new HttpResponseMessage(HttpStatusCode.Conflict)
             : new HttpResponseMessage(HttpStatusCode.OK)
@@ -140,7 +147,28 @@ public sealed class MissionViewModelTests
 
         await vm.RefuseCommand.ExecuteAsync(null);
 
-        Assert.Contains("déjà été prise", vm.Error);
+        Assert.Contains("plus d'actualité", vm.Error);
+    }
+
+    [Fact]
+    public void Hidden_characters_and_sensitive_locations_are_made_visible()
+    {
+        var item = ApprovalItem.From(new ToolCallDto("write_file",
+            System.Text.Json.JsonSerializer.Serialize(new { path = ".git/hooks/pre-commit", content = "echo ok\r\nsafe\u202Etxt.exe" })));
+
+        Assert.NotNull(item.Warning);
+        Assert.Equal("echo ok␍", item.Preview[0]);
+        Assert.Equal("safe⟪U+202E⟫txt.exe", item.Preview[1]);
+
+        // Séparateur de ligne Unicode, espace insécable, caractère invisible du bloc des étiquettes (hors plan de base).
+        var tricky = ApprovalItem.From(new ToolCallDto("write_file",
+            System.Text.Json.JsonSerializer.Serialize(new { path = "a.txt", content = "a\u2028b\u00A0c\U000E0041d" })));
+        Assert.Equal("a⟪U+2028⟫b⟪U+00A0⟫c⟪U+E0041⟫d", tricky.Preview[0]);
+
+        // Un caractère « vide » dans le nom du fichier est aussi marqué dans le titre.
+        var blank = ApprovalItem.From(new ToolCallDto("write_file",
+            System.Text.Json.JsonSerializer.Serialize(new { path = "rapport\u3164.md", content = "x" })));
+        Assert.Equal("Écrire rapport⟪U+3164⟫.md ?", blank.Title);
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler

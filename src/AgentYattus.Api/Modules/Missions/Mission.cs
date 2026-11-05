@@ -15,6 +15,7 @@ internal sealed class Mission
     // Mission en pause : la conversation de l'agent (opaque pour ce module), ce qui attend une décision, et la décision.
     public string? Conversation { get; set; }
     public string? PendingApproval { get; set; }
+    public Guid? ApprovalId { get; set; }
     public bool? Decision { get; set; }
 
     public MissionDto ToDto() => new(

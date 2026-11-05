@@ -120,12 +120,38 @@ dotnet run --project tests/AgentYattus.Client.Core.Tests
 
 Avec une vraie clé : lance « Écris un fichier NOTES.md qui résume le README », ouvre la mission, et décide.
 
+## 6 bis. Deux failles corrigées après une revue de sécurité
+
+Une revue de sécurité automatique a relevé deux faiblesses dans cette première version. Elles ont été corrigées dans le commit `fix(approvals)` qui suit.
+
+**1. La décision n'était pas liée à la demande affichée.** Scénario : tu regardes la demande A ; pendant ce temps, l'agent reprend après une autre décision et se met en pause pour une demande B ; ton clic « Approuver » valide B, que tu n'as jamais vue. C'est une faille de type *TOCTOU* (*time of check, time of use* : ce qu'on a vérifié n'est plus ce qu'on utilise).
+
+Correction : chaque pause reçoit un **identifiant**, envoyé au client avec la demande. La décision le renvoie, et le serveur vérifie qu'il correspond, dans la même requête SQL atomique :
+
+```csharp
+.Where(m => m.Id == id && m.Status == MissionStatus.AwaitingApproval && m.Decision == null
+            && m.ApprovalId == request.ApprovalId)
+```
+
+Une décision prise sur une demande périmée reçoit un **409**. L'écran recharge alors et montre la nouvelle demande.
+
+**2. On approuvait plus que ce qu'on avait vu.** L'aperçu montrait 6 lignes, mais « Approuver » validait tout le fichier. Corrections :
+
+- **« Approuver » reste grisé** tant que tout le contenu n'a pas été affiché (« Tout voir avant d'approuver ») ;
+- les **chemins sensibles** (fichiers et dossiers cachés, comme `.git/hooks/…`) sont signalés en cinabre ;
+- les lignes longues **passent à la ligne** au lieu d'être tronquées par « … » : rien n'est caché dans l'aperçu ;
+- les **caractères invisibles** sont rendus visibles : `\r` devient `␍`, et un caractère d'inversion de sens comme U+202E (qui peut faire afficher `exe.txt` pour un fichier `txt.exe`) devient `⟪U+202E⟫`. Le filtre parcourt le texte par **Rune** (un caractère Unicode complet, même hors du plan de base) et marque toute catégorie qui ne s'imprime pas : contrôles, formats, séparateurs de ligne et de paragraphe, espaces spéciales, sélecteurs de variante, bloc des étiquettes.
+
+**La leçon** : une interface d'approbation est un **dispositif de sécurité**. Elle doit garantir que l'on approuve **exactement** ce que l'on a vu, ni plus, ni autre chose.
+
 ## 7. Quiz
 
 1. Pourquoi afficher les arguments réels de l'outil plutôt qu'une description donnée par l'agent ?
 2. Que fait la carte pour un outil qu'elle ne connaît pas ?
 3. Que signifie un 409 sur la décision, et comment l'interface le présente-t-elle ?
 4. Pourquoi le message d'erreur disparaissait-il dans la première version ?
+5. Pourquoi la décision transporte-t-elle l'identifiant de la demande ?
+6. Pourquoi « Approuver » est-il grisé tant que tout le contenu n'a pas été affiché ?
 
 ## 8. Pour aller plus loin
 
@@ -139,5 +165,7 @@ Avec une vraie clé : lance « Écris un fichier NOTES.md qui résume le README 
 2. Elle affiche ses arguments bruts, pour ne jamais faire décider à l'aveugle.
 3. Que la décision a déjà été prise (par exemple depuis un autre appareil) ; l'interface l'explique en clair.
 4. Parce que le rechargement qui suivait remettait l'erreur à `null`.
+5. Pour qu'une décision ne vaille que pour la demande vue : si l'agent a entre-temps demandé autre chose, le serveur refuse (409).
+6. Parce qu'on n'approuve que ce qu'on a vu : un aperçu tronqué pourrait cacher la partie dangereuse.
 
 </details>

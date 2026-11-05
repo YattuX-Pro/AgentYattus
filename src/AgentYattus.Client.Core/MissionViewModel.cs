@@ -23,7 +23,21 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
     /// <summary>Les actions qui attendent ta décision : exactement ce qui sera exécuté si tu approuves.</summary>
     public ObservableCollection<ApprovalItem> PendingApproval { get; } = [];
 
+    private Guid? _approvalId;
+
     public bool IsDecisionPending => Mission.IsAwaitingApproval && PendingApproval.Count > 0;
+
+    /// <summary>
+    /// On ne peut approuver qu'après avoir vu tout ce qui sera exécuté : un aperçu tronqué ne suffit pas.
+    /// </summary>
+    public bool CanApprove => IsDecisionPending && (AllShown || PendingApproval.All(item => !item.HasMoreLines));
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanApprove), nameof(NeedsFullReview))]
+    [NotifyCanExecuteChangedFor(nameof(ApproveCommand))]
+    public partial bool AllShown { get; set; }
+
+    public bool NeedsFullReview => IsDecisionPending && !CanApprove;
 
     /// <summary>Les outils utilisés par l'agent, avec leur nombre d'appels : « read_file 3 ».</summary>
     public ObservableCollection<ToolUsage> Tools { get; } = [];
@@ -49,10 +63,16 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
             {
                 Mission.Status = dto.Status;
                 Result = dto.Result;
+                // Une nouvelle demande doit être relue en entier, même si la précédente l'avait été.
+                if (dto.PendingApproval?.Id != _approvalId)
+                    AllShown = false;
+                _approvalId = dto.PendingApproval?.Id;
                 PendingApproval.Clear();
                 foreach (var call in dto.PendingApproval?.ToolCalls ?? [])
                     PendingApproval.Add(ApprovalItem.From(call));
                 OnPropertyChanged(nameof(IsDecisionPending));
+                OnPropertyChanged(nameof(CanApprove));
+                OnPropertyChanged(nameof(NeedsFullReview));
                 ApproveCommand.NotifyCanExecuteChanged();
                 RefuseCommand.NotifyCanExecuteChanged();
             }
@@ -85,8 +105,11 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
         }
     }
 
-    [RelayCommand(CanExecute = nameof(IsDecisionPending))]
+    [RelayCommand(CanExecute = nameof(CanApprove))]
     private Task ApproveAsync(CancellationToken cancellationToken) => DecideAsync(true, cancellationToken);
+
+    [RelayCommand]
+    private void ShowAll() => AllShown = true;
 
     [RelayCommand(CanExecute = nameof(IsDecisionPending))]
     private Task RefuseAsync(CancellationToken cancellationToken) => DecideAsync(false, cancellationToken);
@@ -95,11 +118,13 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
     {
         try
         {
-            var accepted = await api.DecideAsync(Mission.Id, approved, cancellationToken);
+            if (_approvalId is not { } approvalId)
+                return;
+            var accepted = await api.DecideAsync(Mission.Id, approvalId, approved, cancellationToken);
             await LoadAsync(cancellationToken);
             // Après le rechargement, qui efface l'erreur précédente.
             if (!accepted)
-                Error = "Cette décision a déjà été prise, peut-être depuis un autre appareil.";
+                Error = "Cette demande n'est plus d'actualité : décision déjà prise ailleurs, ou nouvelle demande à relire.";
         }
         catch (Exception ex) when (ex is HttpRequestException
                                    || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
@@ -117,13 +142,15 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
 public sealed record ToolUsage(string Name, int Count);
 
 /// <summary>
-/// Une action en attente, prête à afficher : « Écrire REPORT.md ? », les premières lignes du contenu,
-/// et le nombre de lignes restantes.
+/// Une action en attente, prête à afficher : « Écrire REPORT.md ? », le chemin complet, le début du contenu
+/// et, sur demande, tout le contenu. Les caractères invisibles sont rendus visibles.
 /// </summary>
-public sealed record ApprovalItem(string Tool, string Title, string? Target, IReadOnlyList<string> Preview, int MoreLines)
+public sealed record ApprovalItem(
+    string Tool, string Title, string? Target, IReadOnlyList<string> Preview, IReadOnlyList<string> AllLines, string? Warning)
 {
     private const int PreviewLines = 6;
 
+    public int MoreLines => AllLines.Count - Preview.Count;
     public bool HasMoreLines => MoreLines > 0;
 
     public static ApprovalItem From(ToolCallDto call)
@@ -145,12 +172,55 @@ public sealed record ApprovalItem(string Tool, string Title, string? Target, IRe
 
         if (call.Tool == "write_file" && Text("path") is { } path)
         {
-            var lines = (Text("content") ?? "").Split('\n');
-            return new ApprovalItem(call.Tool, $"Écrire {Path.GetFileName(path)} ?", path,
-                [.. lines.Take(PreviewLines)], Math.Max(0, lines.Length - PreviewLines));
+            var lines = (Text("content") ?? "").Split('\n').Select(Visible).ToList();
+            return new ApprovalItem(call.Tool, $"Écrire {Visible(Path.GetFileName(path))} ?", Visible(path),
+                [.. lines.Take(PreviewLines)], lines, SensitiveLocation(path));
         }
 
-        return new ApprovalItem(call.Tool, $"Autoriser {call.Tool} ?", null, [call.Arguments], 0);
+        var raw = Visible(call.Arguments);
+        return new ApprovalItem(call.Tool, $"Autoriser {call.Tool} ?", null, [raw], [raw], null);
+    }
+
+    // Tout ce qui ne s'imprime pas pourrait faire afficher autre chose que ce qui sera écrit (retour chariot,
+    // inversion de sens, caractères invisibles…) : on le remplace par une marque visible. On travaille par Rune
+    // (caractère Unicode complet) pour traiter aussi les caractères hors du plan de base, comme le bloc des étiquettes.
+    private static string Visible(string text)
+    {
+        var builder = new System.Text.StringBuilder(text.Length);
+        foreach (var rune in text.EnumerateRunes())
+        {
+            if (rune.Value == '\t')
+                builder.Append("    ");
+            else if (rune.Value == '\r')
+                builder.Append('␍');
+            else if (rune.Value == ' ' || !IsHidden(rune))
+                builder.Append(rune.ToString());
+            else
+                builder.Append($"⟪U+{rune.Value:X4}⟫");
+        }
+
+        return builder.ToString();
+    }
+
+    private static bool IsHidden(System.Text.Rune rune) =>
+        System.Text.Rune.GetUnicodeCategory(rune) is System.Globalization.UnicodeCategory.Control
+            or System.Globalization.UnicodeCategory.Format
+            or System.Globalization.UnicodeCategory.LineSeparator
+            or System.Globalization.UnicodeCategory.ParagraphSeparator
+            or System.Globalization.UnicodeCategory.SpaceSeparator
+            or System.Globalization.UnicodeCategory.PrivateUse
+            or System.Globalization.UnicodeCategory.OtherNotAssigned
+            or System.Globalization.UnicodeCategory.Surrogate
+        || rune.Value is >= 0xFE00 and <= 0xFE0F or >= 0xE0100 and <= 0xE01EF // sélecteurs de variante
+        // Caractères qui s'affichent vides sans être des espaces (remplissages hangul, braille vide, etc.).
+        || rune.Value is 0x034F or 0x115F or 0x1160 or 0x17B4 or 0x17B5 or 0x180E or 0x2800 or 0x3164 or 0xFFA0;
+
+    private static string? SensitiveLocation(string path)
+    {
+        var parts = path.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Any(p => p.StartsWith('.') && p is not "." and not "..")
+            ? "Emplacement sensible : fichier ou dossier caché (configuration, .git…)."
+            : null;
     }
 }
 

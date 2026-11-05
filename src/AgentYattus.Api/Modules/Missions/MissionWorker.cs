@@ -70,6 +70,7 @@ internal sealed class MissionRunner(
 
         mission.Conversation = null;
         mission.PendingApproval = null;
+        mission.ApprovalId = null;
         mission.Decision = null;
         await SetStatusAsync(MissionStatus.Running);
         var status = MissionStatus.Completed;
@@ -80,8 +81,10 @@ internal sealed class MissionRunner(
             {
                 // Pause : on enregistre de quoi reprendre, et le worker passe à la mission suivante.
                 mission.Conversation = outcome.Conversation;
+                // Chaque pause a son identifiant : une décision prise sur une demande précédente ne peut pas valoir pour celle-ci.
+                mission.ApprovalId = Guid.CreateVersion7();
                 mission.PendingApproval = JsonSerializer.Serialize(
-                    new ApprovalDto([.. approval.ToolCalls.Select(c => new ToolCallDto(c.Tool, c.Arguments))]),
+                    new ApprovalDto(mission.ApprovalId.Value, [.. approval.ToolCalls.Select(c => new ToolCallDto(c.Tool, c.Arguments))]),
                     JsonSerializerOptions.Web);
                 status = MissionStatus.AwaitingApproval;
             }

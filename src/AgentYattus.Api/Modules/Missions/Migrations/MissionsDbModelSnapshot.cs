@@ -29,6 +29,9 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("ApprovalId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Conversation")
                         .HasColumnType("text");
 

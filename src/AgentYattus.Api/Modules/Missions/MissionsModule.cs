@@ -75,9 +75,10 @@ public static class MissionsModule
         Guid id, DecisionRequest request, MissionsDb db, AuditLog audit, MissionQueue queue, CancellationToken cancellationToken)
     {
         // Une seule requête SQL qui vérifie et écrit en même temps : deux décisions simultanées
-        // ne peuvent pas passer toutes les deux.
+        // ne peuvent pas passer toutes les deux, et une décision ne vaut que pour la demande affichée.
         var updated = await db.Missions
-            .Where(m => m.Id == id && m.Status == MissionStatus.AwaitingApproval && m.Decision == null)
+            .Where(m => m.Id == id && m.Status == MissionStatus.AwaitingApproval && m.Decision == null
+                        && m.ApprovalId == request.ApprovalId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(m => m.Decision, request.Approved), cancellationToken);
         if (updated == 0)
             return await db.Missions.AnyAsync(m => m.Id == id, cancellationToken)

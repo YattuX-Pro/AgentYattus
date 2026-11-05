@@ -29,7 +29,7 @@ public sealed class ApprovalTests
         Assert.Contains("REPORT.md", call.Arguments);
         Assert.False(File.Exists(report), "Rien ne doit être écrit avant la décision.");
 
-        var decision = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(true), Ct);
+        var decision = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(true, paused.PendingApproval.Id), Ct);
         Assert.Equal(HttpStatusCode.Accepted, decision.StatusCode);
 
         var done = await client.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
@@ -49,8 +49,8 @@ public sealed class ApprovalTests
         var client = api.CreateClient();
 
         var mission = await client.CreateMissionAsync("Écris le rapport");
-        await client.WaitForStatusAsync(mission.Id, MissionStatus.AwaitingApproval);
-        await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(false), Ct);
+        var paused = await client.WaitForStatusAsync(mission.Id, MissionStatus.AwaitingApproval);
+        await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(false, paused.PendingApproval!.Id), Ct);
 
         var done = await client.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
         Assert.False(File.Exists(Path.Combine(api.Workspace, "REPORT.md")));
@@ -71,35 +71,39 @@ public sealed class ApprovalTests
         var client = api.CreateClient();
 
         var a = await client.CreateMissionAsync("A : écris le rapport");
-        await client.WaitForStatusAsync(a.Id, MissionStatus.AwaitingApproval);
+        var pausedA = await client.WaitForStatusAsync(a.Id, MissionStatus.AwaitingApproval);
         var b = await client.CreateMissionAsync("B : réponds");
 
         Assert.Equal("B terminée.", (await client.WaitForStatusAsync(b.Id, MissionStatus.Completed)).Result);
         Assert.Equal(MissionStatus.AwaitingApproval, (await client.GetFromJsonAsync<MissionDto>($"/missions/{a.Id}", Ct))!.Status);
 
-        await client.PostAsJsonAsync($"/missions/{a.Id}/decision", new DecisionRequest(true), Ct);
+        await client.PostAsJsonAsync($"/missions/{a.Id}/decision", new DecisionRequest(true, pausedA.PendingApproval!.Id), Ct);
         Assert.Equal("A terminée.", (await client.WaitForStatusAsync(a.Id, MissionStatus.Completed)).Result);
     }
 
     [Fact]
-    public async Task A_decision_is_refused_when_nothing_is_awaiting_and_accepted_only_once()
+    public async Task A_decision_is_accepted_only_once_and_only_for_the_approval_shown()
     {
         var model = new ScriptedChatClient(WriteReport(), Text("fini"));
         await using var api = new ScriptedModelApiFactory(model);
         var client = api.CreateClient();
 
-        var unknown = await client.PostAsJsonAsync($"/missions/{Guid.NewGuid()}/decision", new DecisionRequest(true), Ct);
+        var unknown = await client.PostAsJsonAsync($"/missions/{Guid.NewGuid()}/decision", new DecisionRequest(true, Guid.NewGuid()), Ct);
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
 
         var mission = await client.CreateMissionAsync("Écris le rapport");
-        await client.WaitForStatusAsync(mission.Id, MissionStatus.AwaitingApproval);
-        var first = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(true), Ct);
-        var second = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(false), Ct);
+        var paused = await client.WaitForStatusAsync(mission.Id, MissionStatus.AwaitingApproval);
+        var approvalId = paused.PendingApproval!.Id;
+        var stale = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(true, Guid.NewGuid()), Ct);
+        var first = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(true, approvalId), Ct);
+        var second = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(false, approvalId), Ct);
 
+        // Une décision qui porte sur une autre demande que celle en attente est refusée.
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
         Assert.Equal(HttpStatusCode.Accepted, first.StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, second.StatusCode);
         await client.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
-        var late = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(true), Ct);
+        var late = await client.PostAsJsonAsync($"/missions/{mission.Id}/decision", new DecisionRequest(true, approvalId), Ct);
         Assert.Equal(HttpStatusCode.Conflict, late.StatusCode);
     }
 }

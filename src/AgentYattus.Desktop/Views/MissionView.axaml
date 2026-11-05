@@ -66,6 +66,11 @@
       <Setter Property="Background" Value="#E4C888" />
       <Setter Property="Foreground" Value="#17140C" />
     </Style>
+    <!-- Après les autres styles du bouton : avec Avalonia, le dernier style applicable l'emporte. -->
+    <Style Selector="Button.approve:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#3D3A30" />
+      <Setter Property="Foreground" Value="#8C8677" />
+    </Style>
     <Style Selector="Button.refuse /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="#3A3F45" />
@@ -270,23 +275,42 @@
                       <StackPanel Spacing="4">
                         <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold" LetterSpacing="-0.4" TextWrapping="Wrap" />
                         <TextBlock Classes="mono" Text="{Binding Target}" FontSize="12" Foreground="{StaticResource Pierre}"
+                                   TextWrapping="Wrap"
                                    IsVisible="{Binding Target, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                        <TextBlock Text="{Binding Warning}" FontSize="12" Foreground="{StaticResource Cinabre}" TextWrapping="Wrap"
+                                   IsVisible="{Binding Warning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                       </StackPanel>
                       <!-- Le contenu, comme un diff : chaque ligne ajoutée commence par « + ». -->
                       <Border Padding="12,10" CornerRadius="12" Background="{StaticResource Obsidienne}"
                               BorderBrush="{StaticResource Filet}" BorderThickness="1">
                         <StackPanel>
-                          <ItemsControl ItemsSource="{Binding Preview}">
+                          <!-- Aperçu tant que tout n'a pas été affiché ; ensuite, tout le contenu, défilable. -->
+                          <ItemsControl ItemsSource="{Binding Preview}"
+                                        IsVisible="{Binding !$parent[UserControl].((core:MissionViewModel)DataContext).AllShown}">
                             <ItemsControl.ItemTemplate>
                               <DataTemplate x:DataType="x:String">
                                 <StackPanel Orientation="Horizontal">
                                   <TextBlock Classes="mono" Text="+ " FontSize="12" LineHeight="21" Foreground="{StaticResource VertDeGris}" />
+                                  <!-- Pas de troncature : une ligne longue passe à la ligne, rien n'est caché. -->
                                   <TextBlock Classes="mono" Text="{Binding}" FontSize="12" LineHeight="21" Foreground="{StaticResource Parchemin}"
-                                             TextTrimming="CharacterEllipsis" MaxWidth="300" />
+                                             TextWrapping="Wrap" MaxWidth="300" />
                                 </StackPanel>
                               </DataTemplate>
                             </ItemsControl.ItemTemplate>
                           </ItemsControl>
+                          <ScrollViewer MaxHeight="280"
+                                        IsVisible="{Binding $parent[UserControl].((core:MissionViewModel)DataContext).AllShown}">
+                            <ItemsControl ItemsSource="{Binding AllLines}">
+                              <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="x:String">
+                                  <StackPanel Orientation="Horizontal">
+                                    <TextBlock Classes="mono" Text="+ " FontSize="12" LineHeight="21" Foreground="{StaticResource VertDeGris}" />
+                                    <TextBlock Classes="mono" Text="{Binding}" FontSize="12" LineHeight="21" TextWrapping="Wrap" MaxWidth="290" />
+                                  </StackPanel>
+                                </DataTemplate>
+                              </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                          </ScrollViewer>
                           <TextBlock Classes="mono" FontSize="12" LineHeight="21" Foreground="{StaticResource Cendre}"
                                      IsVisible="{Binding HasMoreLines}"
                                      Text="{Binding MoreLines, StringFormat='  +{0} lignes'}" />
@@ -296,6 +320,9 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+              <!-- Tant que tout n'a pas été lu, Approuver reste grisé. -->
+              <Button Classes="refuse" Command="{Binding ShowAllCommand}" IsVisible="{Binding NeedsFullReview}"
+                      Content="Tout voir avant d’approuver" />
               <Grid ColumnDefinitions="*,1.4*" ColumnSpacing="10">
                 <Button Classes="refuse" Content="Refuser" Command="{Binding RefuseCommand}" />
                 <Button Grid.Column="1" Classes="approve" Content="Approuver" Command="{Binding ApproveCommand}" />

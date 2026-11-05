@@ -20,9 +20,10 @@ public sealed class ApiClient(HttpClient http)
         await http.GetFromJsonAsync<AuditEntryDto[]>($"missions/{missionId}/events", cancellationToken) ?? [];
 
     /// <returns>Faux si la décision n'est plus possible : déjà prise, ou la mission n'attend rien (409).</returns>
-    public async Task<bool> DecideAsync(Guid missionId, bool approved, CancellationToken cancellationToken = default)
+    public async Task<bool> DecideAsync(Guid missionId, Guid approvalId, bool approved, CancellationToken cancellationToken = default)
     {
-        using var response = await http.PostAsJsonAsync($"missions/{missionId}/decision", new DecisionRequest(approved), cancellationToken);
+        using var response = await http.PostAsJsonAsync(
+            $"missions/{missionId}/decision", new DecisionRequest(approved, approvalId), cancellationToken);
         if (response.StatusCode == HttpStatusCode.Conflict)
             return false;
         response.EnsureSuccessStatusCode();
