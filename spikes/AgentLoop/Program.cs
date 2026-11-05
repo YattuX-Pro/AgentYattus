@@ -3,10 +3,11 @@ using Anthropic;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 
-// Usage : dotnet run --project spikes/AgentLoop -- <dossier-workspace> "<objectif>"
+// Usage : dotnet run --project spikes/AgentLoop -- <dossier-workspace> "<objectif>" [--framework]
+// --framework : la boucle d'Agent Framework au lieu de la boucle écrite à la main.
 if (args.Length < 2)
 {
-    Console.Error.WriteLine("Usage : dotnet run --project spikes/AgentLoop -- <dossier-workspace> \"<objectif>\"");
+    Console.Error.WriteLine("Usage : dotnet run --project spikes/AgentLoop -- <dossier-workspace> \"<objectif>\" [--framework]");
     return 1;
 }
 
@@ -27,29 +28,45 @@ Console.CancelKeyPress += (_, e) =>
 };
 
 var tools = new WorkspaceTools(args[0]);
+
+if (args.Contains("--framework"))
+{
+    var agent = FrameworkAgent.Create(chatClient, tools.AsAIFunctions(), maxIterations: 10);
+    var response = await agent.RunAsync(args[1], cancellationToken: cancellation.Token);
+    PrintSteps(response.Messages);
+    Console.WriteLine();
+    Console.WriteLine($"Agent Framework · {response.Usage?.TotalTokenCount ?? 0} tokens");
+    Console.WriteLine(response.Text);
+    return 0;
+}
+
 var loop = new AgentLoop(chatClient, tools.AsAIFunctions(), maxIterations: 10);
 var result = await loop.RunAsync(args[1], cancellation.Token);
-
-foreach (var content in result.History.SelectMany(message => message.Contents))
-{
-    var line = content switch
-    {
-        FunctionCallContent call => $"→ {call.Name}({string.Join(", ", call.Arguments?.Select(a => $"{a.Key}: {a.Value}") ?? [])})",
-        FunctionResultContent toolResult => $"← {Truncate(toolResult.Result?.ToString(), 160)}",
-        TextReasoningContent => "· réflexion du modèle (contenu non affiché)",
-        _ => null,
-    };
-
-    if (line is not null)
-    {
-        Console.WriteLine(line);
-    }
-}
+PrintSteps(result.History);
 
 Console.WriteLine();
 Console.WriteLine($"Statut : {result.Status} · {result.Iterations} appel(s) au modèle · {result.TotalTokens} tokens");
 Console.WriteLine(result.FinalText);
 return 0;
+
+static void PrintSteps(IEnumerable<ChatMessage> messages)
+{
+    foreach (var content in messages.SelectMany(message => message.Contents))
+    {
+        var line = content switch
+        {
+            FunctionCallContent call => $"→ {call.Name}({string.Join(", ", call.Arguments?.Select(a => $"{a.Key}: {a.Value}") ?? [])})",
+            FunctionResultContent toolResult => $"← {Truncate(toolResult.Result?.ToString(), 160)}",
+            TextReasoningContent => "· réflexion du modèle (contenu non affiché)",
+            _ => null,
+        };
+
+        if (line is not null)
+        {
+            Console.WriteLine(line);
+        }
+    }
+}
 
 static string Truncate(string? text, int max) =>
     text is null ? "" : text.Length <= max ? text : string.Concat(text.AsSpan(0, max), "…");
