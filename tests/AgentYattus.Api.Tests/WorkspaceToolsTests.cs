@@ -46,6 +46,15 @@ public sealed class WorkspaceToolsTests : IDisposable
     }
 
     [Fact]
+    public void The_catalog_shown_to_users_matches_the_real_tools()
+    {
+        var tools = new WorkspaceTools(_workspace).AsAIFunctions();
+
+        Assert.Equal(WorkspaceTools.Catalog.Select(t => (t.Name, t.RequiresApproval)),
+            tools.Select(t => (t.Name, t is Microsoft.Extensions.AI.ApprovalRequiredAIFunction)));
+    }
+
+    [Fact]
     public async Task ReadFile_still_reads_regular_files()
     {
         var tools = new WorkspaceTools(_workspace);

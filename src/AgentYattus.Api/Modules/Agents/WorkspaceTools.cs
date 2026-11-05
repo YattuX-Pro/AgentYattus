@@ -24,13 +24,20 @@ internal sealed class WorkspaceTools
         _maxFileBytes = maxFileBytes;
     }
 
+    /// <summary>Les outils, décrits sans workspace : ce que l'écran Agents affiche.</summary>
+    public static IReadOnlyList<(string Name, string Description, bool RequiresApproval)> Catalog { get; } =
+    [
+        ("list_files", "Liste les fichiers et dossiers d'un dossier du workspace.", false),
+        ("read_file", "Lit le contenu texte d'un fichier du workspace.", false),
+        ("write_file", "Crée ou remplace un fichier texte du workspace. Un humain doit approuver chaque écriture.", true),
+    ];
+
     public IReadOnlyList<AIFunction> AsAIFunctions() =>
     [
-        AIFunctionFactory.Create(ListFiles, "list_files", "Liste les fichiers et dossiers d'un dossier du workspace."),
-        AIFunctionFactory.Create(ReadFile, "read_file", "Lit le contenu texte d'un fichier du workspace."),
+        AIFunctionFactory.Create(ListFiles, Catalog[0].Name, Catalog[0].Description),
+        AIFunctionFactory.Create(ReadFile, Catalog[1].Name, Catalog[1].Description),
         // Écrire modifie le disque de l'utilisateur : la boucle s'arrête et demande son accord avant chaque appel.
-        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(
-            WriteFile, "write_file", "Crée ou remplace un fichier texte du workspace. Un humain doit approuver chaque écriture.")),
+        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteFile, Catalog[2].Name, Catalog[2].Description)),
     ];
 
     public string[] ListFiles([Description("Chemin du dossier, relatif à la racine du workspace.")] string path = ".")

@@ -1,0 +1,115 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="using:AgentYattus.Client.Core"
+             xmlns:contracts="using:AgentYattus.Contracts"
+             x:Class="AgentYattus.Desktop.Views.ReportsView"
+             x:DataType="core:ReportsViewModel"
+             Foreground="{StaticResource Parchemin}">
+
+  <UserControl.Styles>
+    <Style Selector="ListBox.reports">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="ListBox.reports ListBoxItem">
+      <Setter Property="Padding" Value="14,12" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+      <Setter Property="CornerRadius" Value="14" />
+    </Style>
+    <Style Selector="ListBox.reports ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="14" />
+    </Style>
+    <Style Selector="ListBox.reports ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1C1F23" />
+    </Style>
+    <Style Selector="ListBox.reports ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Graphite}" />
+    </Style>
+    <Style Selector="Border.stat">
+      <Setter Property="Padding" Value="18,16" />
+      <Setter Property="CornerRadius" Value="18" />
+      <Setter Property="Background" Value="{StaticResource Graphite}" />
+      <Setter Property="BorderBrush" Value="{StaticResource Filet}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="TextBlock.statValue">
+      <Setter Property="FontSize" Value="32" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LetterSpacing" Value="-0.6" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.statLabel">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid ColumnDefinitions="300,*" Margin="40,26,40,28" ColumnSpacing="28">
+
+    <!-- Les rapports, du plus récent au plus ancien -->
+    <DockPanel>
+      <TextBlock DockPanel.Dock="Top" Classes="eyebrow" Text="RAPPORTS" Margin="0,0,0,14" />
+      <TextBlock DockPanel.Dock="Top" Text="Aucune mission terminée pour l’instant." FontSize="13" Foreground="{StaticResource Cendre}"
+                 IsVisible="{Binding !Reports.Count}" />
+      <ListBox Classes="reports" ItemsSource="{Binding Reports}" SelectedItem="{Binding Selected}">
+        <ListBox.ItemTemplate>
+          <DataTemplate x:DataType="contracts:MissionDto">
+            <StackPanel Spacing="3">
+              <TextBlock Text="{Binding Goal}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+              <TextBlock Classes="mono" Text="{Binding CreatedAt, StringFormat='{}{0:dd/MM HH:mm}'}" FontSize="11.5" Foreground="{StaticResource Cendre}" />
+            </StackPanel>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
+
+    <!-- Le rapport choisi -->
+    <ScrollViewer Grid.Column="1" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <StackPanel Spacing="22" MaxWidth="900" HorizontalAlignment="Left">
+        <StackPanel Orientation="Horizontal" Spacing="14">
+          <TextBlock Text="{Binding Selected.Goal}" FontSize="26" FontWeight="SemiBold" LetterSpacing="-0.5" TextWrapping="Wrap" MaxWidth="700" />
+          <Border Height="26" Padding="10,0" CornerRadius="13" Background="#12ECE6D8" VerticalAlignment="Center">
+            <TextBlock Text="Terminée" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" />
+          </Border>
+        </StackPanel>
+
+        <!-- Ce qui a été exécuté, d'après le journal d'audit -->
+        <StackPanel Spacing="12" IsVisible="{Binding Stats, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Classes="eyebrow" Text="EXÉCUTÉ · SOURCE BACKEND" />
+          <UniformGrid Columns="3">
+            <Border Classes="stat" Margin="0,0,12,0">
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <Ellipse Width="10" Height="10" Fill="{StaticResource VertDeGris}" VerticalAlignment="Center" />
+                <TextBlock Classes="statValue" Text="{Binding Stats.Reads}" />
+                <TextBlock Classes="statLabel" Text="lectures" />
+              </StackPanel>
+            </Border>
+            <Border Classes="stat" Margin="0,0,12,0" Background="#0DD8B86E" BorderBrush="#57D8B86E">
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" Fill="{StaticResource Laiton}" RenderTransform="rotate(45deg)" VerticalAlignment="Center" />
+                <TextBlock Classes="statValue" Text="{Binding Stats.Approved}" />
+                <TextBlock Classes="statLabel" Text="écritures approuvées" />
+              </StackPanel>
+            </Border>
+            <Border Classes="stat" Background="#0DD9654B" BorderBrush="#4DD9654B">
+              <StackPanel Orientation="Horizontal" Spacing="14">
+                <Path Data="M6 6l12 12M18 6L6 18" Stroke="{StaticResource Cinabre}" StrokeThickness="3.5" StrokeLineCap="Round"
+                      Width="12" Height="12" Stretch="Uniform" VerticalAlignment="Center" />
+                <TextBlock Classes="statValue" Text="{Binding Stats.Refused}" />
+                <TextBlock Classes="statLabel" Text="refus" />
+              </StackPanel>
+            </Border>
+          </UniformGrid>
+        </StackPanel>
+
+        <Border Padding="22,20" CornerRadius="20" Background="{StaticResource Graphite}" BorderBrush="{StaticResource Filet}" BorderThickness="1">
+          <StackPanel Spacing="10">
+            <TextBlock Classes="eyebrow" Text="RÉPONSE DE L’AGENT" />
+            <SelectableTextBlock Text="{Binding Selected.Result}" TextWrapping="Wrap" FontSize="14" LineHeight="22" />
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

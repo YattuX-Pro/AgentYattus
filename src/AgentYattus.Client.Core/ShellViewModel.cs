@@ -20,10 +20,12 @@ public sealed partial class ShellViewModel : ObservableObject
     public HomeViewModel Home { get; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsMissionsSection))]
+    [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsAgentsSection), nameof(IsReportsSection))]
     public partial ObservableObject Current { get; set; }
 
     public bool IsMissionsSection => Current is HomeViewModel or MissionViewModel;
+    public bool IsAgentsSection => Current is AgentsViewModel;
+    public bool IsReportsSection => Current is ReportsViewModel;
 
     public async Task OpenMissionAsync(MissionItem mission)
     {
@@ -34,6 +36,22 @@ public sealed partial class ShellViewModel : ObservableObject
 
     [RelayCommand]
     private void GoHome() => Current = Home;
+
+    [RelayCommand]
+    private async Task ShowAgentsAsync()
+    {
+        var screen = new AgentsViewModel(_api);
+        Current = screen;
+        await screen.LoadAsync();
+    }
+
+    [RelayCommand]
+    private async Task ShowReportsAsync()
+    {
+        var screen = new ReportsViewModel(_api);
+        Current = screen;
+        await screen.LoadAsync();
+    }
 
     /// <summary>Appelé sur le thread UI pour chaque événement du hub.</summary>
     public async Task ApplyAsync(MissionEventDto e)

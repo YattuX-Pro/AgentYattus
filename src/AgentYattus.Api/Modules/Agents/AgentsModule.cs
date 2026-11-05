@@ -1,5 +1,7 @@
+using AgentYattus.Contracts;
 using Anthropic;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 
 namespace AgentYattus.Api.Modules.Agents;
 
@@ -38,5 +40,21 @@ public static class AgentsModule
         }
 
         return services;
+    }
+
+    public static IEndpointRouteBuilder MapAgentsEndpoints(this IEndpointRouteBuilder app)
+    {
+        app.MapGet(AgentsProtocol.Path, (IOptions<AgentsOptions> options) =>
+        {
+            var tools = WorkspaceTools.Catalog
+                .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval))
+                .ToArray();
+            return TypedResults.Ok(new[]
+            {
+                new AgentDto("Analyste", "Explore le workspace et répond en citant ses sources.",
+                    options.Value.Model, options.Value.MaxIterations, tools),
+            });
+        });
+        return app;
     }
 }

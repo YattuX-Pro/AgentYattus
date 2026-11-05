@@ -16,5 +16,6 @@ var app = builder.Build();
 
 app.MapHealthChecks("/health");
 app.MapMissionsEndpoints();
+app.MapAgentsEndpoints();
 
 app.Run();
