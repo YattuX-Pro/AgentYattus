@@ -41,6 +41,33 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     [Fact]
+    public async Task List_returns_the_most_recent_missions_first()
+    {
+        await using var api = new ApiFactory();
+        var client = api.CreateClient();
+        var created = new List<MissionDto>();
+        foreach (var goal in new[] { "première", "deuxième", "troisième" })
+        {
+            created.Add(await client.CreateMissionAsync(goal));
+            await Task.Delay(5, Ct); // l'horodatage des identifiants v7 est à la milliseconde
+        }
+
+        var page = await client.GetFromJsonAsync<MissionDto[]>("/missions?limit=2", Ct);
+
+        Assert.Equal(new[] { created[2].Id, created[1].Id }, page!.Select(m => m.Id));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(101)]
+    public async Task List_refuses_a_limit_out_of_range(int limit)
+    {
+        var response = await factory.CreateClient().GetAsync($"/missions?limit={limit}", Ct);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Runner_timeout_marks_mission_Failed_and_worker_keeps_running()
     {
         var client = factory.CreateClient();
