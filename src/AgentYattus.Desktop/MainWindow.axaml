@@ -12,6 +12,7 @@
 
   <!-- Chaque type de ViewModel s'affiche avec sa vue : la coquille ne connaît que « l'écran courant ». -->
   <Window.DataTemplates>
+    <DataTemplate DataType="core:LoginViewModel"><views:LoginView /></DataTemplate>
     <DataTemplate DataType="core:HomeViewModel"><views:HomeView /></DataTemplate>
     <DataTemplate DataType="core:MissionViewModel"><views:MissionView /></DataTemplate>
     <DataTemplate DataType="core:AgentsViewModel"><views:AgentsView /></DataTemplate>
@@ -46,7 +47,8 @@
         <TextBlock Text="Agent Yattus" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
       </StackPanel>
 
-      <Border Grid.Column="1" Padding="4" CornerRadius="12" Background="#EB16181B" BorderBrush="{StaticResource Filet}" BorderThickness="1">
+      <Border Grid.Column="1" Padding="4" CornerRadius="12" Background="#EB16181B" BorderBrush="{StaticResource Filet}" BorderThickness="1"
+              IsVisible="{Binding IsAuthenticated}">
         <StackPanel Orientation="Horizontal" Spacing="2">
           <Button Classes="tab" Classes.active="{Binding IsMissionsSection}" Command="{Binding GoHomeCommand}">
             <ContentControl Foreground="{Binding $parent[Button].Foreground}">
@@ -74,6 +76,21 @@
           </Button>
         </StackPanel>
       </Border>
+      <!-- L'utilisateur connecté, et la déconnexion. -->
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center"
+                  IsVisible="{Binding IsAuthenticated}">
+        <Border Height="30" Padding="10,0" CornerRadius="15" Background="#EB16181B" BorderBrush="{StaticResource Filet}" BorderThickness="1">
+          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
+            <Ellipse Width="7" Height="7" Fill="{StaticResource VertDeGris}" />
+            <TextBlock Classes="mono" Text="{Binding UserName}" FontSize="12" />
+          </StackPanel>
+        </Border>
+        <Button Classes="square" Width="36" Height="36" Padding="0" Command="{Binding LogoutCommand}" ToolTip.Tip="Se déconnecter"
+                HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+          <Path Data="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H4" Stroke="{StaticResource Pierre}"
+                StrokeThickness="1.7" StrokeLineCap="Round" StrokeJoin="Round" Width="15" Height="15" Stretch="Uniform" />
+        </Button>
+      </StackPanel>
     </Grid>
 
     <ContentControl Grid.Row="1" Content="{Binding Current}" />
