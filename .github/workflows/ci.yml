@@ -15,6 +15,7 @@ jobs:
           global-json-file: global.json
       - run: dotnet build tests/AgentYattus.Api.Tests
       - run: dotnet build tests/AgentYattus.Client.Core.Tests
+      - run: dotnet build src/AgentYattus.Desktop
       - run: dotnet build spikes/AgentLoop.Tests
       - run: dotnet test --project tests/AgentYattus.Api.Tests --no-build
       - run: dotnet test --project tests/AgentYattus.Client.Core.Tests --no-build

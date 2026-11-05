@@ -1,0 +1,17 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Palette « observatoire » : fonds du plus sombre au plus clair, puis textes, puis accents. -->
+  <SolidColorBrush x:Key="Obsidienne" Color="#0E0F11" />
+  <SolidColorBrush x:Key="Nuit" Color="#121316" />
+  <SolidColorBrush x:Key="Graphite" Color="#16181B" />
+  <SolidColorBrush x:Key="Filet" Color="#24272B" />
+  <SolidColorBrush x:Key="Parchemin" Color="#ECE6D8" />
+  <SolidColorBrush x:Key="Pierre" Color="#A7A196" />
+  <SolidColorBrush x:Key="Cendre" Color="#938E83" />
+  <SolidColorBrush x:Key="VertDeGris" Color="#5E9E92" />
+  <SolidColorBrush x:Key="Laiton" Color="#D8B86E" />
+  <SolidColorBrush x:Key="Cinabre" Color="#D9654B" />
+  <!-- Maquette : Instrument Sans + IBM Plex Mono ; Inter (déjà embarquée) et la mono du système en attendant. -->
+  <FontFamily x:Key="Sans">fonts:Inter#Inter</FontFamily>
+  <FontFamily x:Key="Mono">Menlo, Consolas, monospace</FontFamily>
+</ResourceDictionary>
