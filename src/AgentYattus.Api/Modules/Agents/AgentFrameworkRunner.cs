@@ -100,8 +100,8 @@ internal sealed class AgentFrameworkRunner(
         return history;
     }
 
-    // Même montage que spikes/AgentLoop/FrameworkAgent.cs : on règle nous-mêmes la limite de tours.
-    private static ChatClientAgent CreateAgent(IChatClient model, IReadOnlyList<AIFunction> tools, int maxIterations)
+    // Même montage que spikes/AgentLoop/FrameworkAgent.cs, plus la télémétrie : on règle nous-mêmes la limite de tours.
+    private static AIAgent CreateAgent(IChatClient model, IReadOnlyList<AIFunction> tools, int maxIterations)
     {
         var withTools = model.AsBuilder()
             .UseFunctionInvocation(configure: invoker =>
@@ -110,6 +110,9 @@ internal sealed class AgentFrameworkRunner(
                 // Les messages d'erreur de WorkspaceTools sont écrits pour le modèle et ne contiennent pas de secret.
                 invoker.IncludeDetailedErrors = true;
             })
+            // Une trace par appel au modèle (durée, modèle, tokens), sous la boucle : on voit chaque tour.
+            // Sans le contenu des messages : il peut citer les fichiers lus.
+            .UseOpenTelemetry(sourceName: Telemetry.SourceName, configure: otel => otel.EnableSensitiveData = false)
             .Build();
 
         return new ChatClientAgent(withTools, new ChatClientAgentOptions
@@ -117,6 +120,10 @@ internal sealed class AgentFrameworkRunner(
             Name = "analyste",
             ChatOptions = new ChatOptions { Instructions = Instructions, Tools = [.. tools] },
             UseProvidedChatClientAsIs = true,
-        });
+        })
+            .AsBuilder()
+            // Une trace parente par exécution de l'agent, qui regroupe tous ses appels au modèle.
+            .UseOpenTelemetry(Telemetry.SourceName, otel => otel.EnableSensitiveData = false)
+            .Build();
     }
 }
