@@ -5,9 +5,11 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/AgentYattus.Api/AgentYattus.Api.csproj" />
+    <Project Path="src/AgentYattus.Client.Core/AgentYattus.Client.Core.csproj" />
     <Project Path="src/AgentYattus.Contracts/AgentYattus.Contracts.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AgentYattus.Api.Tests/AgentYattus.Api.Tests.csproj" />
+    <Project Path="tests/AgentYattus.Client.Core.Tests/AgentYattus.Client.Core.Tests.csproj" />
   </Folder>
 </Solution>
