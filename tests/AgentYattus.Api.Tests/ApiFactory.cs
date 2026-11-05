@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Missions;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -14,10 +16,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 {
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"agentyattus-{Guid.NewGuid():N}.db");
 
+    public FakeAgentRunner Runner { get; } = new();
+
     protected override void ConfigureWebHost(IWebHostBuilder builder) =>
         builder.ConfigureServices(services =>
         {
             UseSqlite<MissionsDb>(services);
+            services.RemoveAll<IAgentRunner>();
+            services.AddSingleton<IAgentRunner>(Runner);
         });
 
     private void UseSqlite<TDb>(IServiceCollection services) where TDb : DbContext
@@ -31,5 +37,19 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         await base.DisposeAsync();
         SqliteConnection.ClearAllPools();
         File.Delete(_dbPath);
+    }
+}
+
+public sealed class FakeAgentRunner : IAgentRunner
+{
+    public const string TimeoutGoal = "simule un délai HTTP dépassé";
+
+    public ConcurrentQueue<string> Goals { get; } = new();
+
+    public Task RunAsync(Guid missionId, string goal, CancellationToken cancellationToken)
+    {
+        Goals.Enqueue(goal);
+        // Ce que lèvera un HttpClient en délai dépassé dans le vrai runner.
+        return goal == TimeoutGoal ? Task.FromException(new TaskCanceledException()) : Task.CompletedTask;
     }
 }

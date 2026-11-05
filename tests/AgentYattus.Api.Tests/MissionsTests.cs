@@ -37,4 +37,47 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
+
+    [Fact]
+    public async Task Runner_timeout_marks_mission_Failed_and_worker_keeps_running()
+    {
+        var client = factory.CreateClient();
+
+        var failing = await CreateAsync(client, FakeAgentRunner.TimeoutGoal);
+        var next = await CreateAsync(client, "Mission suivante");
+
+        Assert.Equal(MissionStatus.Failed, await WaitForFinalStatusAsync(client, failing.Id));
+        Assert.Equal(MissionStatus.Completed, await WaitForFinalStatusAsync(client, next.Id));
+    }
+
+    [Fact]
+    public async Task Mission_reaches_Completed()
+    {
+        var client = factory.CreateClient();
+
+        var mission = await CreateAsync(client, "Écrire un test");
+
+        Assert.Equal(MissionStatus.Completed, await WaitForFinalStatusAsync(client, mission.Id));
+        Assert.Contains("Écrire un test", factory.Runner.Goals);
+    }
+
+    private static async Task<MissionDto> CreateAsync(HttpClient client, string goal)
+    {
+        var response = await client.PostAsJsonAsync("/missions", new CreateMissionRequest(goal), Ct);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<MissionDto>(Ct))!;
+    }
+
+    private static async Task<MissionStatus> WaitForFinalStatusAsync(HttpClient client, Guid id)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (true)
+        {
+            var status = (await client.GetFromJsonAsync<MissionDto>($"/missions/{id}", Ct))!.Status;
+            if (status is MissionStatus.Completed or MissionStatus.Failed)
+                return status;
+            Assert.True(DateTime.UtcNow < deadline, $"Mission {id} bloquée en {status}.");
+            await Task.Delay(20, Ct);
+        }
+    }
 }

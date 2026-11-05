@@ -9,6 +9,9 @@ public static class MissionsModule
 
     public static IServiceCollection AddMissionsModule(this IServiceCollection services)
     {
+        services.AddSingleton<MissionQueue>();
+        services.AddScoped<MissionRunner>();
+        services.AddHostedService<MissionWorker>();
         return services.AddModuleDb<MissionsDb>();
     }
 
@@ -21,7 +24,7 @@ public static class MissionsModule
     }
 
     private static async Task<Results<Accepted<MissionDto>, ValidationProblem>> CreateAsync(
-        CreateMissionRequest request, MissionsDb db, CancellationToken cancellationToken)
+        CreateMissionRequest request, MissionsDb db, MissionQueue queue, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Goal) || request.Goal.Length > MaxGoalLength)
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
@@ -38,7 +41,7 @@ public static class MissionsModule
         };
         db.Missions.Add(mission);
         await db.SaveChangesAsync(cancellationToken);
-        // ponytail: la mission est seulement enregistrée ; son exécution arrive au commit suivant.
+        await queue.Writer.WriteAsync(mission.Id, cancellationToken);
 
         return TypedResults.Accepted($"/missions/{mission.Id}", mission.ToDto());
     }
