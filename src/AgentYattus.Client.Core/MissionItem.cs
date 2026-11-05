@@ -10,7 +10,7 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
     public string Goal { get; } = mission.Goal;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusLabel), nameof(IsActive), nameof(IsCompleted), nameof(IsFailed), nameof(IsAwaitingApproval))]
+    [NotifyPropertyChangedFor(nameof(StatusLabel), nameof(IsActive), nameof(IsCompleted), nameof(IsFailed), nameof(IsAwaitingApproval), nameof(AgentLabel))]
     public partial MissionStatus Status { get; set; } = mission.Status;
 
     public bool IsActive => Status is MissionStatus.Pending or MissionStatus.Running;
@@ -25,5 +25,15 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
         MissionStatus.Completed => "Terminée",
         MissionStatus.AwaitingApproval => "À valider",
         _ => "Échec",
+    };
+
+    /// <summary>Ce que fait l'agent, vu de l'écran Mission.</summary>
+    public string AgentLabel => Status switch
+    {
+        MissionStatus.Pending => "en attente",
+        MissionStatus.Running => "au travail",
+        MissionStatus.AwaitingApproval => "en pause",
+        MissionStatus.Completed => "terminé",
+        _ => "échec",
     };
 }

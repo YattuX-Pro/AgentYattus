@@ -42,43 +42,6 @@
       <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
     </Style>
 
-    <!-- Halo qui pulse autour d'un agent ou d'une mission active. -->
-    <Style Selector="Ellipse.pulse">
-      <Setter Property="RenderTransform" Value="scale(1)" />
-      <Style.Animations>
-        <Animation Duration="0:0:2.6" IterationCount="Infinite">
-          <KeyFrame Cue="0%">
-            <Setter Property="Opacity" Value="0.6" />
-            <Setter Property="ScaleTransform.ScaleX" Value="1" />
-            <Setter Property="ScaleTransform.ScaleY" Value="1" />
-          </KeyFrame>
-          <KeyFrame Cue="70%">
-            <Setter Property="Opacity" Value="0" />
-            <Setter Property="ScaleTransform.ScaleX" Value="1.4" />
-            <Setter Property="ScaleTransform.ScaleY" Value="1.4" />
-          </KeyFrame>
-          <KeyFrame Cue="100%">
-            <Setter Property="Opacity" Value="0" />
-            <Setter Property="ScaleTransform.ScaleX" Value="1.4" />
-            <Setter Property="ScaleTransform.ScaleY" Value="1.4" />
-          </KeyFrame>
-        </Animation>
-      </Style.Animations>
-    </Style>
-
-    <Style Selector="TextBlock.mono">
-      <Setter Property="FontFamily" Value="{StaticResource Mono}" />
-    </Style>
-    <Style Selector="Path.icon">
-      <Setter Property="Stroke" Value="{Binding $parent[ContentControl].Foreground}" />
-      <Setter Property="StrokeThickness" Value="1.7" />
-      <Setter Property="StrokeLineCap" Value="Round" />
-      <Setter Property="StrokeJoin" Value="Round" />
-      <Setter Property="Width" Value="15" />
-      <Setter Property="Height" Value="15" />
-      <Setter Property="Stretch" Value="Uniform" />
-    </Style>
-
     <!-- Carte de mission : couleur selon le statut. -->
     <Style Selector="Border.mission">
       <Setter Property="Background" Value="{StaticResource Graphite}" />
@@ -98,67 +61,9 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid RowDefinitions="Auto,*,Auto">
-    <Grid.Background>
-      <!-- Grille de points de la maquette. -->
-      <VisualBrush TileMode="Tile" SourceRect="0,0,24,24" DestinationRect="0,0,24,24">
-        <VisualBrush.Visual>
-          <Canvas Width="24" Height="24" Background="{StaticResource Obsidienne}">
-            <Ellipse Canvas.Left="0" Canvas.Top="0" Width="2" Height="2" Fill="#1C1F23" />
-          </Canvas>
-        </VisualBrush.Visual>
-      </VisualBrush>
-    </Grid.Background>
-
-    <!-- En-tête flottant -->
-    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,*" Margin="20,10" MinHeight="40">
-      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-        <Viewbox Width="26" Height="26">
-          <Canvas Width="26" Height="26">
-            <Rectangle Canvas.Left="0.5" Canvas.Top="0.5" Width="25" Height="25" RadiusX="7" RadiusY="7" Stroke="#2B2F34" />
-            <Path Data="M13 13.5V19.5M13 13.5L7.5 7.5M13 13.5L18.5 7.5" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6" StrokeLineCap="Round" />
-            <Ellipse Canvas.Left="5.6" Canvas.Top="5.6" Width="3.8" Height="3.8" Fill="{StaticResource Parchemin}" />
-            <Ellipse Canvas.Left="16.6" Canvas.Top="5.6" Width="3.8" Height="3.8" Fill="{StaticResource Parchemin}" />
-            <Ellipse Canvas.Left="11.1" Canvas.Top="17.6" Width="3.8" Height="3.8" Fill="{StaticResource Laiton}" />
-            <Ellipse Canvas.Left="10.8" Canvas.Top="11.3" Width="4.4" Height="4.4" Fill="{StaticResource Obsidienne}" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6" />
-          </Canvas>
-        </Viewbox>
-        <TextBlock Text="Agent Yattus" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
-      </StackPanel>
-
-      <!-- ponytail: Agents et Rapports inactifs tant que ces écrans n'existent pas. -->
-      <Border Grid.Column="1" Padding="4" CornerRadius="12" Background="#EB16181B" BorderBrush="{StaticResource Filet}" BorderThickness="1">
-        <StackPanel Orientation="Horizontal" Spacing="2">
-          <Border Height="34" Padding="14,0" CornerRadius="9" Background="{StaticResource Filet}">
-            <ContentControl Foreground="{StaticResource Parchemin}" VerticalAlignment="Center">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <Path Classes="icon" Data="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5M3.5 18a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M15.5 6a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0" />
-                <TextBlock Text="Missions" FontSize="13" FontWeight="Medium" />
-              </StackPanel>
-            </ContentControl>
-          </Border>
-          <Border Height="34" Padding="14,0" CornerRadius="9">
-            <ContentControl Foreground="{StaticResource Pierre}" VerticalAlignment="Center">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <Path Classes="icon" Data="M12 12.5V17M12 12.5L7 7M12 12.5L17 7M3.5 5.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M16.5 5.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M10 19a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />
-                <TextBlock Text="Agents" FontSize="13" FontWeight="Medium" />
-              </StackPanel>
-            </ContentControl>
-          </Border>
-          <Border Height="34" Padding="14,0" CornerRadius="9">
-            <ContentControl Foreground="{StaticResource Pierre}" VerticalAlignment="Center">
-              <StackPanel Orientation="Horizontal" Spacing="8">
-                <Path Classes="icon" Data="M7 3.5h7l5 5v12H7zM14 3.5v5h5M10 13h6M10 16.5h6" />
-                <TextBlock Text="Rapports" FontSize="13" FontWeight="Medium" />
-              </StackPanel>
-            </ContentControl>
-          </Border>
-        </StackPanel>
-      </Border>
-    </Grid>
-
+  <Grid>
     <!-- Contenu centré -->
-    <ScrollViewer Grid.Row="1">
+    <ScrollViewer>
       <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" Margin="24,48,24,28" MaxWidth="1000">
 
         <!-- ponytail: orbes décoratives ; à brancher sur le module Agents quand il exposera ses agents. -->
@@ -258,9 +163,12 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="core:MissionItem">
+                <Button Classes="bare" Margin="0,0,12,12" ToolTip.Tip="Ouvrir la mission"
+                        Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).OpenMissionCommand}"
+                        CommandParameter="{Binding}">
                 <Border Classes="mission" Classes.completed="{Binding IsCompleted}" Classes.failed="{Binding IsFailed}"
                         Classes.awaiting="{Binding IsAwaitingApproval}"
-                        Margin="0,0,12,12" Padding="16,14" CornerRadius="16" BorderThickness="1">
+                        Padding="16,14" CornerRadius="16" BorderThickness="1">
                   <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
                     <Panel Width="36" Height="36">
                       <Ellipse Classes="pulse" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" IsVisible="{Binding IsActive}" />
@@ -283,6 +191,7 @@
                                Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
                   </Grid>
                 </Border>
+                </Button>
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
@@ -290,17 +199,5 @@
       </Grid>
     </ScrollViewer>
 
-    <!-- Barre d'état -->
-    <Border Grid.Row="2" MinHeight="36" Padding="20,6" BorderBrush="#1F2226" BorderThickness="0,1,0,0" Background="#F00E0F11">
-      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="22">
-        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-          <Ellipse Width="7" Height="7" Fill="{StaticResource VertDeGris}" IsVisible="{Binding IsBackendConnected}" />
-          <Ellipse Width="7" Height="7" Fill="{StaticResource Cinabre}" IsVisible="{Binding !IsBackendConnected}" />
-          <TextBlock Classes="mono" Text="Backend" FontSize="11.5" Foreground="{StaticResource Pierre}" />
-          <TextBlock Classes="mono" Text="localhost:5080" FontSize="11.5" Foreground="{StaticResource Cendre}" />
-        </StackPanel>
-        <TextBlock Grid.Column="2" Classes="mono" Text="v0.1.0" FontSize="11.5" Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
-      </Grid>
-    </Border>
   </Grid>
 </UserControl>

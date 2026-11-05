@@ -27,6 +27,7 @@ public static class MissionsModule
         missions.MapPost("/", CreateAsync);
         missions.MapGet("/{id:guid}", GetAsync);
         missions.MapPost("/{id:guid}/decision", DecideAsync);
+        missions.MapGet("/{id:guid}/events", GetEventsAsync);
         app.MapHub<MissionsHub>(MissionsHubProtocol.Path);
         return app;
     }
@@ -87,6 +88,12 @@ public static class MissionsModule
         await queue.Writer.WriteAsync(id, cancellationToken);
         return TypedResults.Accepted($"/missions/{id}");
     }
+
+    private static async Task<Results<Ok<AuditEntryDto[]>, NotFound>> GetEventsAsync(
+        Guid id, MissionsDb db, AuditLog audit, CancellationToken cancellationToken) =>
+        await db.Missions.AnyAsync(m => m.Id == id, cancellationToken)
+            ? TypedResults.Ok(await audit.ReadAsync(id, cancellationToken))
+            : TypedResults.NotFound();
 
     private static async Task<Results<Ok<MissionDto>, NotFound>> GetAsync(
         Guid id, MissionsDb db, CancellationToken cancellationToken) =>

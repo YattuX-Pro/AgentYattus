@@ -1,10 +1,87 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="using:AgentYattus.Client.Core"
         xmlns:views="using:AgentYattus.Desktop.Views"
         x:Class="AgentYattus.Desktop.MainWindow"
+        x:DataType="core:ShellViewModel"
         Title="Agent Yattus"
         Width="1280" Height="820" MinWidth="900" MinHeight="640"
         FontFamily="{StaticResource Sans}"
+        Foreground="{StaticResource Parchemin}"
         Background="{StaticResource Obsidienne}">
-  <views:HomeView />
+
+  <!-- Chaque type de ViewModel s'affiche avec sa vue : la coquille ne connaît que « l'écran courant ». -->
+  <Window.DataTemplates>
+    <DataTemplate DataType="core:HomeViewModel"><views:HomeView /></DataTemplate>
+    <DataTemplate DataType="core:MissionViewModel"><views:MissionView /></DataTemplate>
+  </Window.DataTemplates>
+
+  <Grid RowDefinitions="Auto,*,Auto">
+    <Grid.Background>
+      <!-- Grille de points de la maquette. -->
+      <VisualBrush TileMode="Tile" SourceRect="0,0,24,24" DestinationRect="0,0,24,24">
+        <VisualBrush.Visual>
+          <Canvas Width="24" Height="24" Background="{StaticResource Obsidienne}">
+            <Ellipse Canvas.Left="0" Canvas.Top="0" Width="2" Height="2" Fill="#1C1F23" />
+          </Canvas>
+        </VisualBrush.Visual>
+      </VisualBrush>
+    </Grid.Background>
+
+    <!-- En-tête flottant -->
+    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,*" Margin="20,10" MinHeight="40">
+      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+        <Viewbox Width="26" Height="26">
+          <Canvas Width="26" Height="26">
+            <Rectangle Canvas.Left="0.5" Canvas.Top="0.5" Width="25" Height="25" RadiusX="7" RadiusY="7" Stroke="#2B2F34" />
+            <Path Data="M13 13.5V19.5M13 13.5L7.5 7.5M13 13.5L18.5 7.5" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6" StrokeLineCap="Round" />
+            <Ellipse Canvas.Left="5.6" Canvas.Top="5.6" Width="3.8" Height="3.8" Fill="{StaticResource Parchemin}" />
+            <Ellipse Canvas.Left="16.6" Canvas.Top="5.6" Width="3.8" Height="3.8" Fill="{StaticResource Parchemin}" />
+            <Ellipse Canvas.Left="11.1" Canvas.Top="17.6" Width="3.8" Height="3.8" Fill="{StaticResource Laiton}" />
+            <Ellipse Canvas.Left="10.8" Canvas.Top="11.3" Width="4.4" Height="4.4" Fill="{StaticResource Obsidienne}" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6" />
+          </Canvas>
+        </Viewbox>
+        <TextBlock Text="Agent Yattus" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+      </StackPanel>
+
+      <Border Grid.Column="1" Padding="4" CornerRadius="12" Background="#EB16181B" BorderBrush="{StaticResource Filet}" BorderThickness="1">
+        <StackPanel Orientation="Horizontal" Spacing="2">
+          <Button Classes="tab" Classes.active="{Binding IsMissionsSection}" Command="{Binding GoHomeCommand}">
+            <ContentControl Foreground="{Binding $parent[Button].Foreground}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Path Classes="icon" Data="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5M3.5 18a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M15.5 6a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0" />
+                <TextBlock Text="Missions" FontSize="13" FontWeight="Medium" />
+              </StackPanel>
+            </ContentControl>
+          </Button>
+          <!-- ponytail: Agents et Rapports inactifs tant que ces écrans n'existent pas. -->
+          <Button Classes="tab" IsEnabled="False">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Agents" FontSize="13" FontWeight="Medium" Foreground="{StaticResource Cendre}" />
+            </StackPanel>
+          </Button>
+          <Button Classes="tab" IsEnabled="False">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Rapports" FontSize="13" FontWeight="Medium" Foreground="{StaticResource Cendre}" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <ContentControl Grid.Row="1" Content="{Binding Current}" />
+
+    <!-- Barre d'état -->
+    <Border Grid.Row="2" MinHeight="36" Padding="20,6" BorderBrush="#1F2226" BorderThickness="0,1,0,0" Background="#F00E0F11">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="22">
+        <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Ellipse Width="7" Height="7" Fill="{StaticResource VertDeGris}" IsVisible="{Binding Home.IsBackendConnected}" />
+          <Ellipse Width="7" Height="7" Fill="{StaticResource Cinabre}" IsVisible="{Binding !Home.IsBackendConnected}" />
+          <TextBlock Classes="mono" Text="Backend" FontSize="11.5" Foreground="{StaticResource Pierre}" />
+          <TextBlock Classes="mono" Text="localhost:5080" FontSize="11.5" Foreground="{StaticResource Cendre}" />
+        </StackPanel>
+        <TextBlock Grid.Column="2" Classes="mono" Text="v0.1.0" FontSize="11.5" Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+  </Grid>
 </Window>

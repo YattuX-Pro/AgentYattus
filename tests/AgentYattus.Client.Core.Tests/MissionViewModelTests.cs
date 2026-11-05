@@ -1,0 +1,95 @@
+using System.Net;
+using System.Net.Http.Json;
+using AgentYattus.Contracts;
+
+namespace AgentYattus.Client.Core.Tests;
+
+public sealed class MissionViewModelTests
+{
+    private static readonly Guid Id = Guid.NewGuid();
+    private static readonly DateTimeOffset T = DateTimeOffset.UtcNow;
+
+    private static (MissionViewModel Vm, Func<int> Requests) Create(MissionDto mission, AuditEntryDto[] events)
+    {
+        var count = 0;
+        var handler = new StubHandler(request =>
+        {
+            count++;
+            object body = request.RequestUri!.AbsolutePath.EndsWith("/events") ? events : mission;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(body, body.GetType()) };
+        });
+        var api = new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") });
+        return (new MissionViewModel(api, new MissionItem(mission with { Status = MissionStatus.Pending })), () => count);
+    }
+
+    [Fact]
+    public async Task Load_counts_the_tools_used_and_reads_the_journal()
+    {
+        var (vm, _) = Create(
+            new MissionDto(Id, "Analyse", MissionStatus.Completed, T, "Trois fichiers."),
+            [new("Running", T), new("outil:list_files", T), new("outil:read_file", T), new("outil:read_file", T), new("Completed", T)]);
+
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(MissionStatus.Completed, vm.Mission.Status);
+        Assert.Equal("Trois fichiers.", vm.Result);
+        Assert.Equal([new ToolUsage("list_files", 1), new ToolUsage("read_file", 2)], vm.Tools);
+        Assert.Equal(5, vm.Journal.Count);
+        Assert.Equal("Terminée", vm.LastEntry!.Label);
+        Assert.False(vm.HumanInvolved);
+    }
+
+    [Fact]
+    public async Task Load_shows_the_human_decision()
+    {
+        var (vm, _) = Create(
+            new MissionDto(Id, "Rapport", MissionStatus.Completed, T, "Écrit."),
+            [new("Running", T), new("approbation-demandee:write_file", T), new("AwaitingApproval", T),
+             new("decision:approuvee", T), new("Running", T), new("outil:write_file", T), new("Completed", T)]);
+
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(vm.IsApproved);
+        Assert.True(vm.HumanInvolved);
+        Assert.Contains(vm.Journal, e => e.IsDecision && e.Label == "Écriture approuvée");
+    }
+
+    [Fact]
+    public async Task Hub_events_reload_only_our_mission()
+    {
+        var (vm, requests) = Create(new MissionDto(Id, "Analyse", MissionStatus.Running, T), []);
+
+        await vm.ApplyAsync(new MissionEventDto(Guid.NewGuid(), MissionStatus.Completed, T));
+        Assert.Equal(0, requests());
+
+        await vm.ApplyAsync(new MissionEventDto(Id, MissionStatus.Running, T));
+        Assert.Equal(2, requests());
+    }
+
+    [Fact]
+    public async Task Opening_a_mission_from_home_shows_its_screen()
+    {
+        var (vm, _) = Create(new MissionDto(Id, "Analyse", MissionStatus.Running, T), []);
+        var api = new ApiClient(new HttpClient(new StubHandler(_ =>
+            new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(Array.Empty<AuditEntryDto>()) }))
+        {
+            BaseAddress = new Uri("http://api/"),
+        });
+        var home = new HomeViewModel(api);
+        var shell = new ShellViewModel(api, home);
+
+        home.OpenMissionCommand.Execute(vm.Mission);
+
+        var screen = Assert.IsType<MissionViewModel>(shell.Current);
+        Assert.Same(vm.Mission, screen.Mission);
+        Assert.True(shell.IsMissionsSection);
+        shell.GoHomeCommand.Execute(null);
+        Assert.Same(home, shell.Current);
+    }
+
+    private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(respond(request));
+    }
+}

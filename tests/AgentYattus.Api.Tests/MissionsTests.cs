@@ -33,6 +33,20 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
     }
 
     [Fact]
+    public async Task Events_return_the_mission_journal_in_order()
+    {
+        var client = factory.CreateClient();
+        var mission = await client.CreateMissionAsync("Journal");
+        await client.WaitForFinalStatusAsync(mission.Id);
+
+        var events = await client.GetFromJsonAsync<AuditEntryDto[]>($"/missions/{mission.Id}/events", Ct);
+        var unknown = await client.GetAsync($"/missions/{Guid.NewGuid()}/events", Ct);
+
+        Assert.Equal(["Running", "Completed"], events!.Select(e => e.Type));
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+    }
+
+    [Fact]
     public async Task Get_of_an_unknown_mission_returns_404()
     {
         var response = await factory.CreateClient().GetAsync($"/missions/{Guid.NewGuid()}", Ct);

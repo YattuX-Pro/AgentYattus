@@ -57,6 +57,12 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         }
     }
 
+    /// <summary>Ouvrir une mission : la navigation est l'affaire de la coquille (<see cref="ShellViewModel"/>).</summary>
+    public event Action<MissionItem>? MissionOpened;
+
+    [RelayCommand]
+    private void OpenMission(MissionItem mission) => MissionOpened?.Invoke(mission);
+
     [RelayCommand]
     private void UseSuggestion(string suggestion) => Goal = suggestion;
 

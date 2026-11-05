@@ -1,3 +1,4 @@
+using AgentYattus.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentYattus.Api.Modules.Audit;
@@ -21,6 +22,11 @@ public sealed class AuditLog
         _db.Events.Add(new AuditEvent { MissionId = missionId, Type = type, At = DateTimeOffset.UtcNow });
         await _db.SaveChangesAsync(cancellationToken);
     }
+
+    /// <summary>Le journal d'une mission, dans l'ordre où les événements ont été inscrits.</summary>
+    public async Task<AuditEntryDto[]> ReadAsync(Guid missionId, CancellationToken cancellationToken) =>
+        await _db.Events.Where(e => e.MissionId == missionId).OrderBy(e => e.Id)
+            .Select(e => new AuditEntryDto(e.Type, e.At)).ToArrayAsync(cancellationToken);
 }
 
 internal sealed class AuditEvent

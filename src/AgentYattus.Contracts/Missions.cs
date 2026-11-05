@@ -35,6 +35,9 @@ public sealed record DecisionRequest(bool Approved);
 
 public sealed record MissionEventDto(Guid MissionId, MissionStatus Status, DateTimeOffset At);
 
+/// <param name="Type">Ce qui s'est passé : un statut (« Running »), un outil (« outil:read_file »), une décision…</param>
+public sealed record AuditEntryDto(string Type, DateTimeOffset At);
+
 public static class MissionsHubProtocol
 {
     public const string Path = "/hubs/missions";

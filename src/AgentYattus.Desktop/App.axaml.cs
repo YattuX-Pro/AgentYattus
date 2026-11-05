@@ -15,12 +15,14 @@ public sealed partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var apiUrl = new Uri(Environment.GetEnvironmentVariable("AGENTYATTUS_API_URL") ?? "http://localhost:5080/");
-            var vm = new HomeViewModel(new ApiClient(new HttpClient { BaseAddress = apiUrl }));
+            var api = new ApiClient(new HttpClient { BaseAddress = apiUrl });
+            var vm = new HomeViewModel(api);
+            var shell = new ShellViewModel(api, vm);
             var hub = new MissionsHubClient(apiUrl);
-            hub.MissionEventReceived += e => Dispatcher.UIThread.Post(() => vm.Apply(e));
+            hub.MissionEventReceived += e => Dispatcher.UIThread.Post(() => _ = shell.ApplyAsync(e));
             _ = ConnectAsync(hub, vm);
             desktop.ShutdownRequested += (_, _) => hub.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            desktop.MainWindow = new MainWindow { DataContext = vm };
+            desktop.MainWindow = new MainWindow { DataContext = shell };
         }
 
         base.OnFrameworkInitializationCompleted();

@@ -11,9 +11,6 @@
   </Application.Resources>
   <Application.Styles>
     <FluentTheme />
-    <!-- Les accents des majuscules (É, À) dépassent la hauteur de ligne de la police : sans ceci, ils sont coupés. -->
-    <Style Selector="TextBlock">
-      <Setter Property="ClipToBounds" Value="False" />
-    </Style>
+    <StyleInclude Source="avares://AgentYattus.Desktop/Theme/Controls.axaml" />
   </Application.Styles>
 </Application>
