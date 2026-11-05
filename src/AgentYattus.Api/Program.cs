@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddHealthChecks();
 builder.Services
     .AddMissionsModule()
-    .AddAgentsModule()
+    .AddAgentsModule(builder.Configuration)
     .AddAuditModule();
 
 var app = builder.Build();

@@ -1,11 +1,8 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Http.Json;
-using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.SignalR.Client;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace AgentYattus.Api.Tests;
 
@@ -48,11 +45,11 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
     {
         var client = factory.CreateClient();
 
-        var failing = await CreateAsync(client, FakeAgentRunner.TimeoutGoal);
-        var next = await CreateAsync(client, "Mission suivante");
+        var failing = await client.CreateMissionAsync(FakeAgentRunner.TimeoutGoal);
+        var next = await client.CreateMissionAsync("Mission suivante");
 
-        Assert.Equal(MissionStatus.Failed, await WaitForFinalStatusAsync(client, failing.Id));
-        Assert.Equal(MissionStatus.Completed, await WaitForFinalStatusAsync(client, next.Id));
+        Assert.Equal(MissionStatus.Failed, await client.WaitForFinalStatusAsync(failing.Id));
+        Assert.Equal(MissionStatus.Completed, await client.WaitForFinalStatusAsync(next.Id));
     }
 
     [Fact]
@@ -68,7 +65,7 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
         await hub.StartAsync(Ct);
 
         var client = factory.CreateClient();
-        var mission = await CreateAsync(client, "Écrire un test");
+        var mission = await client.CreateMissionAsync("Écrire un test");
         var deadline = DateTime.UtcNow.AddSeconds(10);
         while (!events.Any(e => e.MissionId == mission.Id && e.Status == MissionStatus.Completed))
         {
@@ -76,34 +73,11 @@ public sealed class MissionsTests(ApiFactory factory) : IClassFixture<ApiFactory
             await Task.Delay(20, Ct);
         }
 
-        Assert.Equal(MissionStatus.Completed, await WaitForFinalStatusAsync(client, mission.Id));
+        Assert.Equal(MissionStatus.Completed, await client.WaitForFinalStatusAsync(mission.Id));
         Assert.Contains("Écrire un test", factory.Runner.Goals);
         Assert.Equal(
             [MissionStatus.Running, MissionStatus.Completed],
             events.Where(e => e.MissionId == mission.Id).Select(e => e.Status));
-        using var scope = factory.Services.CreateScope();
-        var audit = await scope.ServiceProvider.GetRequiredService<AuditDb>().Events
-            .Where(e => e.MissionId == mission.Id).Select(e => e.Type).ToListAsync(Ct);
-        Assert.Equal(["Running", "Completed"], audit);
-    }
-
-    private static async Task<MissionDto> CreateAsync(HttpClient client, string goal)
-    {
-        var response = await client.PostAsJsonAsync("/missions", new CreateMissionRequest(goal), Ct);
-        response.EnsureSuccessStatusCode();
-        return (await response.Content.ReadFromJsonAsync<MissionDto>(Ct))!;
-    }
-
-    private static async Task<MissionStatus> WaitForFinalStatusAsync(HttpClient client, Guid id)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (true)
-        {
-            var status = (await client.GetFromJsonAsync<MissionDto>($"/missions/{id}", Ct))!.Status;
-            if (status is MissionStatus.Completed or MissionStatus.Failed)
-                return status;
-            Assert.True(DateTime.UtcNow < deadline, $"Mission {id} bloquée en {status}.");
-            await Task.Delay(20, Ct);
-        }
+        Assert.Equal(["Running", "Completed"], await factory.AuditOfAsync(mission.Id));
     }
 }

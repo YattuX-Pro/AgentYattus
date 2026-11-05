@@ -1,3 +1,6 @@
+using Anthropic;
+using Microsoft.Extensions.AI;
+
 namespace AgentYattus.Api.Modules.Agents;
 
 public interface IAgentRunner
@@ -7,13 +10,19 @@ public interface IAgentRunner
 
 public static class AgentsModule
 {
-    public static IServiceCollection AddAgentsModule(this IServiceCollection services) =>
-        services.AddScoped<IAgentRunner, PlaceholderAgentRunner>();
-}
+    public static IServiceCollection AddAgentsModule(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<AgentsOptions>().BindConfiguration(AgentsOptions.Section);
+        services.AddScoped<IAgentRunner, AgentFrameworkRunner>();
 
-// Le vrai exécuteur arrive en phase 2 de la feuille de route : Agent Framework,
-// avec les outils de spikes/AgentLoop/WorkspaceTools.cs.
-internal sealed class PlaceholderAgentRunner : IAgentRunner
-{
-    public Task RunAsync(Guid missionId, string goal, CancellationToken cancellationToken) => Task.CompletedTask;
+        // Sans clé, l'API démarre quand même (santé, lecture des missions) ; ce sont les missions qui échouent.
+        if (configuration["Anthropic:ApiKey"] is { Length: > 0 } apiKey)
+        {
+            var model = configuration[$"{AgentsOptions.Section}:Model"] ?? AgentsOptions.DefaultModel;
+            services.AddSingleton<IChatClient>(_ =>
+                new AnthropicClient { ApiKey = apiKey }.AsIChatClient(model, defaultMaxOutputTokens: 16_000));
+        }
+
+        return services;
+    }
 }
