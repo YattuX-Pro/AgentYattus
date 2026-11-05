@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using AgentYattus.Contracts;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AgentYattus.Client.Core;
 
@@ -17,6 +19,11 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
 
     /// <summary>Le journal complet, du plus ancien au plus récent.</summary>
     public ObservableCollection<TimelineEntry> Journal { get; } = [];
+
+    /// <summary>Les actions qui attendent ta décision : exactement ce qui sera exécuté si tu approuves.</summary>
+    public ObservableCollection<ApprovalItem> PendingApproval { get; } = [];
+
+    public bool IsDecisionPending => Mission.IsAwaitingApproval && PendingApproval.Count > 0;
 
     /// <summary>Les outils utilisés par l'agent, avec leur nombre d'appels : « read_file 3 ».</summary>
     public ObservableCollection<ToolUsage> Tools { get; } = [];
@@ -42,6 +49,12 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
             {
                 Mission.Status = dto.Status;
                 Result = dto.Result;
+                PendingApproval.Clear();
+                foreach (var call in dto.PendingApproval?.ToolCalls ?? [])
+                    PendingApproval.Add(ApprovalItem.From(call));
+                OnPropertyChanged(nameof(IsDecisionPending));
+                ApproveCommand.NotifyCanExecuteChanged();
+                RefuseCommand.NotifyCanExecuteChanged();
             }
 
             var events = await api.GetEventsAsync(Mission.Id, cancellationToken);
@@ -72,6 +85,29 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
         }
     }
 
+    [RelayCommand(CanExecute = nameof(IsDecisionPending))]
+    private Task ApproveAsync(CancellationToken cancellationToken) => DecideAsync(true, cancellationToken);
+
+    [RelayCommand(CanExecute = nameof(IsDecisionPending))]
+    private Task RefuseAsync(CancellationToken cancellationToken) => DecideAsync(false, cancellationToken);
+
+    private async Task DecideAsync(bool approved, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var accepted = await api.DecideAsync(Mission.Id, approved, cancellationToken);
+            await LoadAsync(cancellationToken);
+            // Après le rechargement, qui efface l'erreur précédente.
+            if (!accepted)
+                Error = "Cette décision a déjà été prise, peut-être depuis un autre appareil.";
+        }
+        catch (Exception ex) when (ex is HttpRequestException
+                                   || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            Error = ex.Message;
+        }
+    }
+
     /// <summary>Un événement du hub : on recharge si c'est notre mission.</summary>
     // ponytail: rechargement à chaque changement de statut ; les appels d'outils pendant un même tour
     // apparaissent à la fin de ce tour. Pousser chaque événement d'audit par SignalR si le direct doit être plus fin.
@@ -79,6 +115,44 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
 }
 
 public sealed record ToolUsage(string Name, int Count);
+
+/// <summary>
+/// Une action en attente, prête à afficher : « Écrire REPORT.md ? », les premières lignes du contenu,
+/// et le nombre de lignes restantes.
+/// </summary>
+public sealed record ApprovalItem(string Tool, string Title, string? Target, IReadOnlyList<string> Preview, int MoreLines)
+{
+    private const int PreviewLines = 6;
+
+    public bool HasMoreLines => MoreLines > 0;
+
+    public static ApprovalItem From(ToolCallDto call)
+    {
+        Dictionary<string, JsonElement>? arguments = null;
+        try
+        {
+            arguments = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(call.Arguments);
+        }
+        catch (JsonException)
+        {
+            // Arguments illisibles : on montre l'appel brut plutôt que rien.
+        }
+
+        string? Text(string name) =>
+            arguments is not null && arguments.TryGetValue(name, out var value) && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
+
+        if (call.Tool == "write_file" && Text("path") is { } path)
+        {
+            var lines = (Text("content") ?? "").Split('\n');
+            return new ApprovalItem(call.Tool, $"Écrire {Path.GetFileName(path)} ?", path,
+                [.. lines.Take(PreviewLines)], Math.Max(0, lines.Length - PreviewLines));
+        }
+
+        return new ApprovalItem(call.Tool, $"Autoriser {call.Tool} ?", null, [call.Arguments], 0);
+    }
+}
 
 /// <summary>Une entrée du journal, avec le genre de marque à dessiner sur la frise.</summary>
 public sealed record TimelineEntry(string Label, DateTimeOffset At, bool IsTool, bool IsDecision, bool IsFailure)

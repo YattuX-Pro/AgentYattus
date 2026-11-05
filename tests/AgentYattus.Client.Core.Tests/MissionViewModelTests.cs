@@ -87,6 +87,62 @@ public sealed class MissionViewModelTests
         Assert.Same(home, shell.Current);
     }
 
+    [Fact]
+    public async Task Approving_posts_the_decision_and_shows_exactly_what_will_be_written()
+    {
+        var content = string.Join("\n", Enumerable.Range(1, 10).Select(i => $"ligne {i}"));
+        var mission = new MissionDto(Id, "Rapport", MissionStatus.AwaitingApproval, T, null, new ApprovalDto(
+            [new ToolCallDto("write_file", System.Text.Json.JsonSerializer.Serialize(new { path = "docs/REPORT.md", content }))]));
+        HttpRequestMessage? decision = null;
+        string? decisionBody = null;
+        var handler = new StubHandler(request =>
+        {
+            if (request.Method == HttpMethod.Post)
+            {
+                decision = request;
+                decisionBody = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.Accepted);
+            }
+            object body = request.RequestUri!.AbsolutePath.EndsWith("/events") ? Array.Empty<AuditEntryDto>() : mission;
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(body, body.GetType()) };
+        });
+        var vm = new MissionViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }), new MissionItem(mission));
+
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+        var item = Assert.Single(vm.PendingApproval);
+        Assert.Equal("Écrire REPORT.md ?", item.Title);
+        Assert.Equal("docs/REPORT.md", item.Target);
+        Assert.Equal(6, item.Preview.Count);
+        Assert.Equal(4, item.MoreLines);
+        Assert.True(vm.ApproveCommand.CanExecute(null));
+
+        await vm.ApproveCommand.ExecuteAsync(null);
+
+        Assert.Equal($"http://api/missions/{Id}/decision", decision!.RequestUri!.ToString());
+        Assert.Contains("\"approved\":true", decisionBody);
+    }
+
+    [Fact]
+    public async Task A_decision_already_taken_elsewhere_is_explained()
+    {
+        var mission = new MissionDto(Id, "Rapport", MissionStatus.AwaitingApproval, T, null,
+            new ApprovalDto([new ToolCallDto("write_file", "{\"path\":\"REPORT.md\",\"content\":\"x\"}")]));
+        var handler = new StubHandler(request => request.Method == HttpMethod.Post
+            ? new HttpResponseMessage(HttpStatusCode.Conflict)
+            : new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = request.RequestUri!.AbsolutePath.EndsWith("/events")
+                    ? JsonContent.Create(Array.Empty<AuditEntryDto>())
+                    : JsonContent.Create(mission),
+            });
+        var vm = new MissionViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }), new MissionItem(mission));
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        await vm.RefuseCommand.ExecuteAsync(null);
+
+        Assert.Contains("déjà été prise", vm.Error);
+    }
+
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>

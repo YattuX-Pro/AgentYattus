@@ -47,6 +47,38 @@
         </Animation>
       </Style.Animations>
     </Style>
+    <!-- Boutons de la carte d'approbation : laiton pour approuver, contour pour refuser. -->
+    <Style Selector="Button.approve, Button.refuse">
+      <Setter Property="Height" Value="46" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.approve /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Laiton}" />
+      <Setter Property="Foreground" Value="#17140C" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.approve:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#E4C888" />
+      <Setter Property="Foreground" Value="#17140C" />
+    </Style>
+    <Style Selector="Button.refuse /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#3A3F45" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <Style Selector="Button.refuse:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#14D9654B" />
+      <Setter Property="BorderBrush" Value="#66D9654B" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+
     <!-- Pastille de statut en haut de l'écran. -->
     <Style Selector="Border.pill">
       <Setter Property="Height" Value="26" />
@@ -217,6 +249,59 @@
               </StackPanel>
             </StackPanel>
           </Grid>
+
+          <!-- Carte d'approbation : ce que l'agent veut faire, mot pour mot, et ta décision. -->
+          <Border Grid.Column="1" Width="380" Padding="22" CornerRadius="22" VerticalAlignment="Center"
+                  Background="{StaticResource Graphite}" BorderBrush="#73D8B86E" BorderThickness="1"
+                  BoxShadow="0 30 90 0 #8C000000, 0 0 0 6 #0DD8B86E"
+                  IsVisible="{Binding IsDecisionPending}">
+            <StackPanel Spacing="14">
+              <ItemsControl ItemsSource="{Binding PendingApproval}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><StackPanel Spacing="16" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="core:ApprovalItem">
+                    <StackPanel Spacing="12">
+                      <StackPanel Orientation="Horizontal" Spacing="9">
+                        <Rectangle Width="8" Height="8" RadiusX="1.5" RadiusY="1.5" Fill="{StaticResource Laiton}" RenderTransform="rotate(45deg)" />
+                        <TextBlock Classes="mono" Text="{Binding Tool}" FontSize="12" Foreground="{StaticResource Laiton}" />
+                      </StackPanel>
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Title}" FontSize="24" FontWeight="SemiBold" LetterSpacing="-0.4" TextWrapping="Wrap" />
+                        <TextBlock Classes="mono" Text="{Binding Target}" FontSize="12" Foreground="{StaticResource Pierre}"
+                                   IsVisible="{Binding Target, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                      </StackPanel>
+                      <!-- Le contenu, comme un diff : chaque ligne ajoutée commence par « + ». -->
+                      <Border Padding="12,10" CornerRadius="12" Background="{StaticResource Obsidienne}"
+                              BorderBrush="{StaticResource Filet}" BorderThickness="1">
+                        <StackPanel>
+                          <ItemsControl ItemsSource="{Binding Preview}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="x:String">
+                                <StackPanel Orientation="Horizontal">
+                                  <TextBlock Classes="mono" Text="+ " FontSize="12" LineHeight="21" Foreground="{StaticResource VertDeGris}" />
+                                  <TextBlock Classes="mono" Text="{Binding}" FontSize="12" LineHeight="21" Foreground="{StaticResource Parchemin}"
+                                             TextTrimming="CharacterEllipsis" MaxWidth="300" />
+                                </StackPanel>
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                          <TextBlock Classes="mono" FontSize="12" LineHeight="21" Foreground="{StaticResource Cendre}"
+                                     IsVisible="{Binding HasMoreLines}"
+                                     Text="{Binding MoreLines, StringFormat='  +{0} lignes'}" />
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Grid ColumnDefinitions="*,1.4*" ColumnSpacing="10">
+                <Button Classes="refuse" Content="Refuser" Command="{Binding RefuseCommand}" />
+                <Button Grid.Column="1" Classes="approve" Content="Approuver" Command="{Binding ApproveCommand}" />
+              </Grid>
+            </StackPanel>
+          </Border>
         </Grid>
 
         <!-- La réponse de l'agent, une fois la mission terminée -->

@@ -19,6 +19,16 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<AuditEntryDto>> GetEventsAsync(Guid missionId, CancellationToken cancellationToken = default) =>
         await http.GetFromJsonAsync<AuditEntryDto[]>($"missions/{missionId}/events", cancellationToken) ?? [];
 
+    /// <returns>Faux si la décision n'est plus possible : déjà prise, ou la mission n'attend rien (409).</returns>
+    public async Task<bool> DecideAsync(Guid missionId, bool approved, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync($"missions/{missionId}/decision", new DecisionRequest(approved), cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            return false;
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
+
     public async Task<MissionDto?> GetMissionAsync(Guid id, CancellationToken cancellationToken = default)
     {
         using var response = await http.GetAsync($"missions/{id}", cancellationToken);
