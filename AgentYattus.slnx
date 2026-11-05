@@ -3,4 +3,11 @@
     <Project Path="spikes/AgentLoop.Tests/AgentLoop.Tests.csproj" />
     <Project Path="spikes/AgentLoop/AgentLoop.csproj" />
   </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/AgentYattus.Api/AgentYattus.Api.csproj" />
+    <Project Path="src/AgentYattus.Contracts/AgentYattus.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentYattus.Api.Tests/AgentYattus.Api.Tests.csproj" />
+  </Folder>
 </Solution>
