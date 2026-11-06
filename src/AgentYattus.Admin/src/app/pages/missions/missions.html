@@ -35,6 +35,8 @@
           <th hlmTh>Auteur</th>
           <th hlmTh>Type</th>
           <th hlmTh>Statut</th>
+          <th hlmTh class="text-right">Tokens</th>
+          <th hlmTh class="text-right">Coût</th>
           <th hlmTh>Créée</th>
           <th hlmTh></th>
         </tr>
@@ -42,7 +44,7 @@
       <tbody hlmTBody>
         @if (!missions()) {
           @for (i of [1, 2, 3, 4]; track i) {
-            <tr hlmTr><td hlmTd colspan="8"><hlm-skeleton class="h-5 w-full" /></td></tr>
+            <tr hlmTr><td hlmTd colspan="10"><hlm-skeleton class="h-5 w-full" /></td></tr>
           }
         }
         @for (m of shown(); track m.id) {
@@ -53,13 +55,15 @@
             <td hlmTd class="text-muted-foreground">{{ m.createdBy ?? '—' }}</td>
             <td hlmTd>{{ m.kind === 'Review' ? 'Revue' : 'Question' }}</td>
             <td hlmTd><span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span></td>
+            <td hlmTd class="num text-right">{{ tokens((m.inputTokens ?? 0) + (m.outputTokens ?? 0)) }}</td>
+            <td hlmTd class="num text-right">{{ usd(m.cost) }}</td>
             <td hlmTd class="text-muted-foreground num">{{ when(m.createdAt) }}</td>
             <td hlmTd class="text-muted-foreground text-right"><ng-icon name="lucideChevronRight" /></td>
           </tr>
         } @empty {
           @if (missions()) {
             <tr hlmTr>
-              <td hlmTd colspan="8" class="text-muted-foreground py-8 text-center">
+              <td hlmTd colspan="10" class="text-muted-foreground py-8 text-center">
                 {{ missions()!.length ? 'Aucune mission ne correspond.' : 'Aucune mission pour l’instant : elles se lancent depuis le bureau ou le mobile.' }}
               </td>
             </tr>
@@ -76,7 +80,10 @@
       <hlm-sheet-header class="border-b p-4">
         <div class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }} · {{ m.kind === 'Review' ? 'Revue' : 'Question' }} · {{ when(m.createdAt) }} · {{ m.projectName ?? 'sans projet' }} · {{ m.createdBy ?? '—' }}</div>
         <h3 hlmSheetTitle class="pr-6 text-[15px] leading-snug">{{ m.goal }}</h3>
-        <p hlmSheetDescription><span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span></p>
+        <p hlmSheetDescription class="flex flex-wrap items-center gap-2">
+          <span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span>
+          <span class="num text-xs">{{ tokens(m.inputTokens) }} en entrée · {{ tokens(m.outputTokens) }} en sortie · {{ usd(m.cost) }}</span>
+        </p>
       </hlm-sheet-header>
 
       <div #content class="min-h-0 flex-1 overflow-y-auto" (scroll)="checkRead()">

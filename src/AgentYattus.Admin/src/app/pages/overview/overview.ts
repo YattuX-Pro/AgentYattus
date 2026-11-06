@@ -6,9 +6,9 @@ import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
-import { AdminApi, AuditFeedEntry, LlmStatus, Mission, errorMessage, selectionKey } from '../../core/api';
+import { AdminApi, AuditFeedEntry, Budget, LlmStatus, Mission, errorMessage, selectionKey } from '../../core/api';
 import { STATUS, describe } from '../../core/events';
-import { when } from '../../core/format';
+import { tokens, usd, when } from '../../core/format';
 import { PageHeader } from '../../shell/page-header';
 import { axis, stats } from './stats';
 
@@ -26,6 +26,12 @@ export class Overview {
   protected readonly missions = signal<Mission[] | null>(null);
   protected readonly audit = signal<AuditFeedEntry[]>([]);
   protected readonly llm = signal<LlmStatus | null>(null);
+  protected readonly budget = signal<Budget | null>(null);
+  protected readonly totalTokens = computed(() => (this.missions() ?? []).reduce((n, m) => n + (m.inputTokens ?? 0) + (m.outputTokens ?? 0), 0));
+  protected readonly budgetPercent = computed(() => {
+    const b = this.budget();
+    return b?.monthlyBudget ? Math.min(100, Math.round((b.spent / b.monthlyBudget) * 100)) : 0;
+  });
   protected readonly s = computed(() => stats(this.missions() ?? [], this.audit()));
 
   // Graphique : une seule échelle pour les barres, les graduations et les libellés.
@@ -53,6 +59,8 @@ export class Overview {
   protected readonly recent = computed(() => this.audit().slice(0, 8).map((e) => ({ ...e, view: describe(e.type) })));
 
   protected readonly STATUS = STATUS;
+  protected readonly usd = usd;
+  protected readonly tokens = tokens;
   protected readonly when = when;
   protected readonly key = selectionKey;
 
@@ -62,10 +70,11 @@ export class Overview {
 
   protected async load() {
     try {
-      const [missions, audit, llm] = await Promise.all([this.api.missions(), this.api.audit(500), this.api.llm()]);
+      const [missions, audit, llm, budget] = await Promise.all([this.api.missions(), this.api.audit(500), this.api.llm(), this.api.budget()]);
       this.missions.set(missions);
       this.audit.set(audit);
       this.llm.set(llm);
+      this.budget.set(budget);
     } catch (e) {
       toast.error(errorMessage(e));
     }

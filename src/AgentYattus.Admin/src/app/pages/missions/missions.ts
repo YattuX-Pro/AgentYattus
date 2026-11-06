@@ -11,7 +11,7 @@ import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { AdminApi, AuditEntry, Mission, errorMessage } from '../../core/api';
 import { STATUS, argumentsOf, describe } from '../../core/events';
-import { when } from '../../core/format';
+import { tokens, usd, when } from '../../core/format';
 import { PageHeader } from '../../shell/page-header';
 import { FILTERS, MissionFilter, countBy, filterMissions } from './filter';
 
@@ -56,6 +56,8 @@ export class Missions {
   protected readonly describe = describe;
   protected readonly argumentsOf = argumentsOf;
   protected readonly when = when;
+  protected readonly usd = usd;
+  protected readonly tokens = tokens;
 
   constructor() {
     effect(() => this.query.set(this.q()));

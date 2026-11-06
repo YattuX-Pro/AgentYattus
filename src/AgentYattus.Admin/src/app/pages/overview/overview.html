@@ -9,9 +9,9 @@
       { label: 'Missions', value: s().total, hint: s().active + ' en cours' },
       { label: 'Réussite', value: s().successRate === null ? '—' : s().successRate + ' %', hint: s().failed + ' échecs' },
       { label: 'À approuver', value: s().awaiting.length, hint: 'décisions humaines', warn: s().awaiting.length > 0 },
-      { label: 'Appels d’outils', value: s().toolCalls, hint: 'dans le journal récent' },
-      { label: 'Bascules', value: s().switches, hint: 'quotas épuisés' },
-      { label: 'Connexions', value: activeConnections(), hint: llm()?.freeMode ? 'mode Gratuit actif' : 'mode Gratuit inactif' }
+      { label: 'Coût du mois', value: usd(budget()?.spent), hint: budget()?.monthlyBudget ? budgetPercent() + ' % de ' + usd(budget()?.monthlyBudget) : 'aucun plafond', warn: budget()?.alert, bar: budget()?.monthlyBudget ? budgetPercent() : null },
+      { label: 'Tokens', value: tokens(totalTokens()), hint: 'sur ces missions' },
+      { label: 'Bascules', value: s().switches, hint: 'quotas épuisés' }
     ]; track k.label) {
       <div class="-ml-px -mt-px flex min-w-0 flex-col gap-1.5 border-t border-l px-3.5 py-3">
         <span class="text-muted-foreground text-[10.5px] font-medium tracking-wider uppercase">{{ k.label }}</span>
@@ -21,6 +21,9 @@
           <hlm-skeleton class="h-6 w-16" />
         }
         <span class="text-muted-foreground truncate text-xs">{{ k.hint }}</span>
+        @if (k.bar !== undefined && k.bar !== null) {
+          <div class="bg-muted h-1 overflow-hidden rounded-full"><div class="h-full rounded-full" [class.bg-primary]="!k.warn" [class.bg-warning]="k.warn" [style.width.%]="k.bar"></div></div>
+        }
       </div>
     }
   </section>
