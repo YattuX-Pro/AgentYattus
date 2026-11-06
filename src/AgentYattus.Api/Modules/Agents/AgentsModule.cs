@@ -34,6 +34,10 @@ public sealed record AgentResume(string Conversation, bool Approved);
 
 public static class AgentsModule
 {
+    /// <summary>Les rôles qui travaillent sur une mission de ce type : ceux dont le modèle peut coûter.</summary>
+    public static IReadOnlyList<string> RolesFor(MissionKind kind) =>
+        kind == MissionKind.Review ? [AgentRoles.Analyst.Key, AgentRoles.Writer.Key] : [AgentRoles.Analyst.Key];
+
     public static IServiceCollection AddAgentsModule(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<AgentsOptions>().BindConfiguration(AgentsOptions.Section);

@@ -18,4 +18,10 @@ public sealed record UpdateInstanceSettingsRequest(
 public static class SettingsProtocol
 {
     public const string Path = "/settings";
+    public const string Budget = "/budget";
 }
+
+/// <summary>Le budget du mois civil en cours (temps universel) et ce qui est déjà dépensé, au prix du catalogue.</summary>
+/// <param name="Alert">Vrai au-delà du seuil d'alerte.</param>
+/// <param name="Reached">Vrai au plafond : les missions payantes sont refusées si <paramref name="Blocking"/>.</param>
+public sealed record BudgetDto(decimal? MonthlyBudget, decimal Spent, int AlertPercent, bool Blocking, bool Alert, bool Reached);

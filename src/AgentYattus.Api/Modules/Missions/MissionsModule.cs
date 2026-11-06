@@ -1,5 +1,6 @@
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Identity;
+using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Api.Modules.Projects;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -31,6 +32,9 @@ public static class MissionsModule
         missions.MapPost("/{id:guid}/decision", DecideAsync);
         missions.MapGet("/{id:guid}/events", GetEventsAsync);
         app.MapHub<MissionsHub>(MissionsHubProtocol.Path);
+        app.MapGet(SettingsProtocol.Budget, async (MissionsDb db, IInstanceSettings instance, CancellationToken ct) =>
+            TypedResults.Ok(await BudgetAsync(db, await instance.GetAsync(ct), ct)))
+            .RequireAuthorization(Authentication.LlmAdminPolicy);
         return app;
     }
 
@@ -96,6 +100,25 @@ public static class MissionsModule
         var page = await query.OrderByDescending(m => m.Id).Take(limit).ToListAsync(cancellationToken);
         var names = await directory.NamesAsync(page.Where(m => m.ProjectId != null).Select(m => m.ProjectId!.Value), cancellationToken);
         return TypedResults.Ok(page.Select(m => m.ToDto(m.ProjectId is { } p ? names.GetValueOrDefault(p) : null)).ToArray());
+    }
+
+    /// <summary>Ce qui est dépensé ce mois civil (temps universel), en micro-dollars.</summary>
+    // ponytail: filtre du mois en mémoire (SQLite ne compare pas les DateTimeOffset) ; une colonne « mois » si la table grossit.
+    internal static async Task<long> SpentThisMonthMicrosAsync(MissionsDb db, CancellationToken ct)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var start = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
+        var costs = await db.Missions.Where(m => m.CostMicros > 0).Select(m => new { m.CreatedAt, m.CostMicros }).ToListAsync(ct);
+        return costs.Where(c => c.CreatedAt >= start).Sum(c => c.CostMicros);
+    }
+
+    internal static async Task<BudgetDto> BudgetAsync(MissionsDb db, InstanceSettings settings, CancellationToken ct)
+    {
+        var spent = await SpentThisMonthMicrosAsync(db, ct) / 1_000_000m;
+        var budget = settings.MonthlyBudget;
+        return new BudgetDto(budget, spent, settings.BudgetAlertPercent, settings.BlockAtBudget,
+            Alert: budget is { } b && spent >= b * settings.BudgetAlertPercent / 100m,
+            Reached: budget is { } c && spent >= c);
     }
 
     /// <summary>

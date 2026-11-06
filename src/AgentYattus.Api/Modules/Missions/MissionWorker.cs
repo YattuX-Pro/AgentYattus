@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
+using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Projects;
 using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Contracts;
@@ -75,6 +76,8 @@ internal sealed class MissionRunner(
     IAgentRunner agent,
     IProjectDirectory projects,
     IInstanceSettings instance,
+    ILlmClientProvider llm,
+    ILlmPricing pricing,
     IHubContext<MissionsHub> hub,
     ILogger<MissionRunner> logger)
 {
@@ -107,6 +110,19 @@ internal sealed class MissionRunner(
             workspace = folder.Path;
         }
 
+        // Le budget (ADR 0010) : au plafond, une mission qui utiliserait un modèle payant est refusée ; le gratuit passe.
+        var tuning = await instance.GetAsync(cancellationToken);
+        if (tuning is { BlockAtBudget: true, MonthlyBudget: { } budget }
+            && await MissionsModule.SpentThisMonthMicrosAsync(db, cancellationToken) >= budget * 1_000_000m
+            && await UsesPaidModelAsync(mission.Kind))
+        {
+            await audit.AppendAsync(missionId, "budget:atteint", cancellationToken);
+            mission.Result = $"Budget du mois atteint ({budget:0.##} $) : les modèles payants sont suspendus jusqu'au mois prochain. " +
+                "Un administrateur peut relever le plafond (espace admin › Réglages) ; les modèles gratuits restent disponibles.";
+            await SetStatusAsync(MissionStatus.Failed);
+            return;
+        }
+
         mission.Conversation = null;
         mission.PendingApproval = null;
         mission.ApprovalId = null;
@@ -114,7 +130,7 @@ internal sealed class MissionRunner(
         await SetStatusAsync(MissionStatus.Running);
         var status = MissionStatus.Completed;
         // La durée maximum (admin › Réglages) : au-delà, l'exécution est annulée et la mission échoue.
-        var maxDuration = TimeSpan.FromMinutes((await instance.GetAsync(cancellationToken)).MaxDurationMinutes);
+        var maxDuration = TimeSpan.FromMinutes(tuning.MaxDurationMinutes);
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         limit.CancelAfter(maxDuration);
         try
@@ -151,6 +167,18 @@ internal sealed class MissionRunner(
                 mission.Result = $"Durée maximum dépassée ({maxDuration.TotalMinutes:0} min) : la mission a été arrêtée.";
         }
         await SetStatusAsync(status);
+
+        // « gratuit : … » : la chaîne gratuite ; sinon le prix du catalogue du modèle de chaque rôle.
+        async Task<bool> UsesPaidModelAsync(MissionKind kind)
+        {
+            foreach (var role in AgentsModule.RolesFor(kind))
+            {
+                var model = await llm.GetModelAsync(role, cancellationToken);
+                if (!model.StartsWith("gratuit", StringComparison.Ordinal) && pricing.IsPaid(model))
+                    return true;
+            }
+            return false;
+        }
 
         async Task SetStatusAsync(MissionStatus newStatus)
         {
