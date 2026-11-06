@@ -1,0 +1,97 @@
+<app-page-header title="Réglages" description="Valeurs appliquées à toutes les missions de l’instance, dès la prochaine.">
+  <button hlmBtn variant="outline" (click)="load()" [disabled]="busy()"><ng-icon name="lucideRotateCcw" /> Annuler</button>
+  <button hlmBtn (click)="save()" [disabled]="busy() || !form()"><ng-icon name="lucideSave" /> Enregistrer</button>
+</app-page-header>
+
+@if (errors()) {
+  <div class="border-destructive/40 bg-destructive-soft text-destructive mb-2.5 rounded-xl border px-3.5 py-2.5" role="alert">{{ errors() }}</div>
+}
+
+@if (form(); as f) {
+  <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+    <section class="bg-card rounded-xl border">
+      <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Exécution</h2><span class="text-muted-foreground text-xs">par mission</span></div>
+      <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
+        <span><span class="block font-medium">Tours maximum</span><span class="text-muted-foreground text-xs">Au-delà, la réponse est forcée (limite-de-tours)</span></span>
+        <input hlmInput type="number" min="1" max="50" class="w-28" [value]="f.maxIterations" (input)="number('maxIterations', $any($event.target).value)" />
+      </label>
+      <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
+        <span><span class="block font-medium">Durée maximum (min)</span><span class="text-muted-foreground text-xs">Au-delà, la mission est arrêtée et échoue</span></span>
+        <input hlmInput type="number" min="1" max="240" class="w-28" [value]="f.maxDurationMinutes" (input)="number('maxDurationMinutes', $any($event.target).value)" />
+      </label>
+      <label class="flex items-center justify-between gap-3 px-3.5 py-2.5">
+        <span><span class="block font-medium">Missions simultanées</span><span class="text-muted-foreground text-xs">Places du worker ; une mission en attente d’approbation n’en prend pas</span></span>
+        <input hlmInput type="number" min="1" max="8" class="w-28" [value]="f.maxConcurrentMissions" (input)="number('maxConcurrentMissions', $any($event.target).value)" />
+      </label>
+    </section>
+
+    <section class="bg-card rounded-xl border">
+      <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Budget</h2><span class="text-muted-foreground text-xs">mois civil, temps universel</span></div>
+      @if (budget(); as b) {
+        <div class="flex flex-col gap-2 border-b px-3.5 py-3">
+          <div class="flex items-baseline justify-between">
+            <span class="num text-xl font-semibold" [class.text-destructive]="b.reached" [class.text-warning]="b.alert && !b.reached">{{ usd(b.spent) }}</span>
+            <span class="text-muted-foreground text-xs">{{ b.monthlyBudget ? 'sur ' + usd(b.monthlyBudget) + ' · ' + spentPercent() + ' %' : 'aucun plafond' }}</span>
+          </div>
+          <div class="bg-muted h-1.5 overflow-hidden rounded-full border">
+            <div class="h-full rounded-full" [class.bg-primary]="!b.alert" [class.bg-warning]="b.alert && !b.reached" [class.bg-destructive]="b.reached" [style.width.%]="spentPercent()"></div>
+          </div>
+          <span class="text-muted-foreground text-xs">Estimation au prix du catalogue : la facture du fournisseur fait foi.</span>
+        </div>
+      }
+      <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
+        <span><span class="block font-medium">Plafond mensuel ($)</span><span class="text-muted-foreground text-xs">Vide : pas de plafond</span></span>
+        <input hlmInput inputmode="decimal" class="w-28" placeholder="aucun" [value]="budgetText()" (input)="budgetText.set($any($event.target).value)" />
+      </label>
+      <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
+        <span><span class="block font-medium">Alerte (%)</span><span class="text-muted-foreground text-xs">La barre passe en laiton au-delà</span></span>
+        <input hlmInput type="number" min="1" max="100" class="w-28" [value]="f.budgetAlertPercent" (input)="number('budgetAlertPercent', $any($event.target).value)" />
+      </label>
+      <div class="flex items-center justify-between gap-3 px-3.5 py-2.5">
+        <span><span class="block font-medium">Bloquer au plafond</span><span class="text-muted-foreground text-xs">Les missions payantes échouent ; les modèles gratuits restent permis</span></span>
+        <hlm-switch [checked]="f.blockAtBudget" (checkedChange)="set('blockAtBudget', $event)" aria-label="Bloquer au plafond" />
+      </div>
+    </section>
+
+    <section class="bg-card rounded-xl border">
+      <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Espace de travail</h2><span class="text-muted-foreground text-xs">ce que lisent les agents</span></div>
+      <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
+        <span><span class="block font-medium">Taille max d’un fichier lu (Ko)</span><span class="text-muted-foreground text-xs">Au-delà, la lecture est refusée</span></span>
+        <input hlmInput type="number" min="16" max="4096" class="w-28" [value]="f.maxFileKb" (input)="number('maxFileKb', $any($event.target).value)" />
+      </label>
+      <label class="flex flex-col gap-2 px-3.5 py-2.5">
+        <span><span class="block font-medium">Fichiers exclus</span><span class="text-muted-foreground text-xs">Un nom ou un motif par ligne (* et ?). Invisibles pour les agents, en lecture comme en écriture.</span></span>
+        <textarea hlmTextarea rows="6" class="font-mono text-xs" spellcheck="false" [value]="patterns()" (input)="patterns.set($any($event.target).value)"></textarea>
+      </label>
+    </section>
+
+    <section class="bg-card rounded-xl border">
+      <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Sécurité et serveur</h2><span class="text-muted-foreground text-xs">configuration</span></div>
+      <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
+        <span><span class="block font-medium">Rétention de l’audit (jours)</span><span class="text-muted-foreground text-xs">Purge chaque jour ; 0 : tout garder</span></span>
+        <input hlmInput type="number" min="0" max="3650" class="w-28" [value]="f.auditRetentionDays" (input)="number('auditRetentionDays', $any($event.target).value)" />
+      </label>
+      @if (loaded(); as l) {
+        <div class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
+          <span class="font-medium">Autorité Keycloak</span><span class="text-muted-foreground truncate font-mono text-xs">{{ l.environment.authority ?? '—' }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
+          <span class="font-medium">Export des traces (OTLP)</span><span class="text-muted-foreground truncate font-mono text-xs">{{ l.environment.otlpEndpoint ?? 'désactivé' }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
+          <span class="font-medium">Prompts dans les traces</span>
+          <span class="text-muted-foreground text-xs">{{ l.environment.sensitiveTelemetry ? 'inclus' : 'jamais : seulement durées et tokens' }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-3 px-3.5 py-2.5">
+          <span class="font-medium">Dossier par défaut</span><span class="text-muted-foreground truncate font-mono text-xs">{{ l.environment.defaultWorkspace ?? 'aucun' }}</span>
+        </div>
+      }
+    </section>
+  </div>
+} @else {
+  <div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+    @for (i of [1, 2, 3, 4]; track i) {
+      <div class="bg-card flex flex-col gap-3 rounded-xl border p-4"><hlm-skeleton class="h-5 w-32" /><hlm-skeleton class="h-20 w-full" /></div>
+    }
+  </div>
+}

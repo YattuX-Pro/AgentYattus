@@ -31,7 +31,16 @@ export interface Mission {
   id: string; goal: string; status: MissionStatus; createdAt: string; result: string | null;
   pendingApproval: { id: string; toolCalls: ToolCall[] } | null; kind: MissionKind;
   projectId?: string | null; projectName?: string | null; createdBy?: string | null;
+  inputTokens?: number; outputTokens?: number; cost?: number;
 }
+
+export interface InstanceSettings {
+  maxIterations: number; maxDurationMinutes: number; maxConcurrentMissions: number; maxFileKb: number; excludedFiles: string[];
+  auditRetentionDays: number; monthlyBudget: number | null; budgetAlertPercent: number; blockAtBudget: boolean;
+  environment: { authority: string | null; otlpEndpoint: string | null; defaultWorkspace: string | null; sensitiveTelemetry: boolean };
+}
+export type UpdateSettings = Omit<InstanceSettings, 'environment'>;
+export interface Budget { monthlyBudget: number | null; spent: number; alertPercent: number; blocking: boolean; alert: boolean; reached: boolean }
 
 export type OrganizationRole = 'Admin' | 'Operator' | 'Observer';
 export type ProjectVisibility = 'Private' | 'Shared' | 'Organization';
@@ -96,6 +105,10 @@ export class AdminApi {
   events(id: string) { return this.get<AuditEntry[]>(`/missions/${id}/events`); }
   decide(id: string, approvalId: string, approved: boolean) { return this.send('POST', `/missions/${id}/decision`, { approved, approvalId }); }
   audit(limit = 200) { return this.get<AuditFeedEntry[]>(`/audit?limit=${limit}`); }
+
+  settings() { return this.get<InstanceSettings>('/settings'); }
+  saveSettings(settings: UpdateSettings) { return this.send('PUT', '/settings', settings); }
+  budget() { return this.get<Budget>('/budget'); }
 
   me() { return this.get<Me>('/me'); }
   users() { return this.get<User[]>('/users'); }

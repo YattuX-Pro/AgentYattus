@@ -18,6 +18,7 @@ export const routes: Routes = [
       { path: 'agents', loadComponent: () => import('./pages/agents/agents').then((m) => m.Agents) },
       { path: 'organisations', loadComponent: () => import('./pages/organizations/organizations').then((m) => m.Organizations) },
       { path: 'utilisateurs', loadComponent: () => import('./pages/users/users').then((m) => m.Users) },
+      { path: 'reglages', loadComponent: () => import('./pages/settings/settings').then((m) => m.Settings) },
       { path: 'modeles', loadComponent: () => import('./pages/models/models').then((m) => m.Models) },
     ],
   },

@@ -31,6 +31,7 @@ export const NAV: NavGroup[] = [
     items: [
       { path: '/organisations', label: 'Organisations', icon: 'lucideBuilding2' },
       { path: '/utilisateurs', label: 'Utilisateurs', icon: 'lucideUsers' },
+      { path: '/reglages', label: 'Réglages', icon: 'lucideSettings' },
     ],
   },
 ];

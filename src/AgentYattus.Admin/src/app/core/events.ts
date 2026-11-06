@@ -31,6 +31,11 @@ export function describe(type: string): EventView {
         ? { kind, label: 'Écriture approuvée', detail: '', tone: 'success' }
         : { kind, label: 'Écriture refusée', detail: '', tone: 'destructive' };
     case 'limite-de-tours': return { kind, label: 'Limite de tours atteinte', detail, tone: 'destructive' };
+    case 'usage': {
+      const [role, input, output] = detail.split(':');
+      return { kind, label: 'Consommation', detail: `${role} · ${Number(input) + Number(output)} tokens`, tone: 'secondary' };
+    }
+    case 'budget': return { kind, label: 'Budget atteint', detail: 'mission payante refusée', tone: 'destructive' };
   }
   if (type in STATUS) {
     const s = STATUS[type as MissionStatus];

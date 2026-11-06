@@ -12,6 +12,21 @@ export function price(input: number | null, output: number | null): string {
   return `${fmt(input)} · ${fmt(output)}`;
 }
 
+/** Un montant en dollars : 4,82 $ ; sous un cent, assez de décimales pour ne pas afficher 0. */
+export function usd(amount: number | null | undefined): string {
+  if (!amount) return '0 $';
+  const digits = amount < 0.01 ? 4 : 2;
+  return `${amount.toLocaleString('fr-FR', { minimumFractionDigits: digits, maximumFractionDigits: digits })} $`;
+}
+
+/** 1 234 567 → « 1,2M » ; 12 345 → « 12,3k ». */
+export function tokens(n: number | null | undefined): string {
+  if (!n) return '0';
+  if (n >= 1_000_000) return `${(n / 1_000_000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}M`;
+  if (n >= 1_000) return `${(n / 1_000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}k`;
+  return String(n);
+}
+
 /** Date courte, en français, à l'heure locale. */
 export function when(iso: string): string {
   return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });

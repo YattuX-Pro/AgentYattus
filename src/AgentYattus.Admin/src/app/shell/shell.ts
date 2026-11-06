@@ -4,7 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
   lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideCpu, lucideFolderKanban, lucideLayoutDashboard, lucideLogOut,
-  lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSun, lucideUsers,
+  lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSettings, lucideSun, lucideUsers,
 } from '@ng-icons/lucide';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -27,7 +27,7 @@ import { NAV, locate } from './nav';
   providers: [
     provideIcons({
       lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideCpu, lucideFolderKanban, lucideLayoutDashboard, lucideLogOut,
-      lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSun, lucideUsers,
+      lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSettings, lucideSun, lucideUsers,
     }),
   ],
   host: { '(document:keydown)': 'onKey($event)' },
