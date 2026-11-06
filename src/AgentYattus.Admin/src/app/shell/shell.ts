@@ -10,6 +10,7 @@ import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmCollapsibleImports } from '@spartan-ng/helm/collapsible';
 import { HlmKbdImports } from '@spartan-ng/helm/kbd';
+import { HlmToasterImports } from '@spartan-ng/helm/sonner';
 import { HlmToggleGroupImports } from '@spartan-ng/helm/toggle-group';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { filter, map } from 'rxjs';
@@ -21,7 +22,7 @@ import { NAV, locate } from './nav';
   selector: 'app-shell',
   imports: [
     RouterOutlet, RouterLink, RouterLinkActive, NgIcon, HlmButtonImports, HlmCollapsibleImports,
-    HlmAvatarImports, HlmKbdImports, HlmToggleGroupImports, HlmTooltipImports,
+    HlmAvatarImports, HlmKbdImports, HlmToggleGroupImports, HlmTooltipImports, HlmToasterImports,
   ],
   providers: [
     provideIcons({

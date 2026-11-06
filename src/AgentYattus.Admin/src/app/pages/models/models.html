@@ -1,0 +1,288 @@
+<app-page-header title="Modèles" description="Fournisseurs, modèle par défaut et chaîne gratuite. Une clé enregistrée n'est jamais réaffichée.">
+  <button hlmBtn variant="outline" (click)="load()"><ng-icon name="lucideRefreshCw" /> Actualiser</button>
+  <button hlmBtn (click)="openConnect()"><ng-icon name="lucidePlus" /> Connecter un fournisseur</button>
+</app-page-header>
+
+@if (catalog().errors.length) {
+  <div class="border-warning/40 bg-warning-soft text-warning mb-2.5 flex items-start gap-2 rounded-xl border px-3.5 py-2.5" role="status">
+    <ng-icon name="lucideTriangleAlert" class="mt-0.5" />
+    <div>
+      @for (e of catalog().errors; track e.connectionId) {
+        <div><b>{{ connectionLabel(e.connectionId) }}</b> : {{ e.message }}</div>
+      }
+    </div>
+  </div>
+}
+
+<div class="grid grid-cols-1 gap-2.5 lg:grid-cols-12">
+  <!-- Modèle par défaut -->
+  <section class="bg-card flex flex-col rounded-xl border lg:col-span-4">
+    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+      <h2 class="font-semibold">Par défaut</h2>
+      <button hlmBtn variant="outline" size="xs" (click)="openPicker('default')" [disabled]="!catalog().models.length">Changer</button>
+    </div>
+    @if (!status()) {
+      <div class="flex flex-col gap-2 p-3.5"><hlm-skeleton class="h-5 w-40" /><hlm-skeleton class="h-4 w-56" /></div>
+    } @else if (defaultModel(); as m) {
+      <div class="flex flex-col gap-3 p-3.5">
+        <div>
+          <div class="text-[17px] font-semibold">{{ m.name }}</div>
+          <div class="text-muted-foreground font-mono text-xs">{{ providerName(m.provider) }} · {{ connectionLabel(m.connectionId) }}</div>
+        </div>
+        <div class="grid grid-cols-3 divide-x rounded-lg border">
+          <div class="flex flex-col gap-1 px-3 py-2">
+            <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Contexte</span>
+            <b class="num">{{ context(m.contextWindow) }}</b>
+          </div>
+          <div class="col-span-2 flex flex-col gap-1 px-3 py-2">
+            <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Prix / M tokens</span>
+            <b class="num">{{ price(m.inputPricePerMillion, m.outputPricePerMillion) }}</b>
+          </div>
+        </div>
+      </div>
+    } @else {
+      <p class="text-muted-foreground p-3.5">Aucun modèle par défaut. Connectez un fournisseur, puis choisissez un modèle.</p>
+    }
+  </section>
+
+  <!-- Mode Gratuit -->
+  <section class="bg-card flex flex-col rounded-xl border lg:col-span-8">
+    <div class="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b px-3.5 py-2">
+      <div class="flex items-center gap-2.5">
+        <h2 class="font-semibold">Mode Gratuit</h2>
+        <hlm-switch [checked]="status()?.freeMode ?? false" (checkedChange)="toggleFree($event)" [disabled]="busy() || !status()" aria-label="Mode Gratuit" />
+        <span class="text-muted-foreground text-xs">
+          {{ status()?.freeMode ? 'Bascule automatique quand un quota est épuisé, jamais vers un modèle payant.' : 'Désactivé : le modèle par défaut est utilisé.' }}
+        </span>
+      </div>
+      <div class="flex gap-1.5">
+        <button hlmBtn variant="outline" size="xs" (click)="fill()" [disabled]="busy() || chain().length >= MAX_CHAIN">Tout ajouter</button>
+        <button hlmBtn variant="outline" size="xs" (click)="openPicker('chain')" [disabled]="busy() || chain().length >= MAX_CHAIN">
+          <ng-icon name="lucidePlus" /> Modèle gratuit
+        </button>
+      </div>
+    </div>
+    <div hlmTableContainer>
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh class="w-14">Ordre</th>
+            <th hlmTh>Modèle</th>
+            <th hlmTh>Fournisseur</th>
+            <th hlmTh class="text-right">Contexte</th>
+            <th hlmTh></th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (s of chain(); track key(s); let i = $index) {
+            <tr hlmTr>
+              <td hlmTd class="text-muted-foreground font-mono">{{ i + 1 }}</td>
+              <td hlmTd class="font-mono text-xs">{{ findModel(s)?.name ?? s.model }}</td>
+              <td hlmTd class="text-muted-foreground">{{ connectionLabel(s.connectionId) }}</td>
+              <td hlmTd class="num text-right">{{ context(findModel(s)?.contextWindow ?? null) }}</td>
+              <td hlmTd class="text-right">
+                <button hlmBtn variant="ghost" size="icon-xs" (click)="up(i)" [disabled]="i === 0 || busy()" aria-label="Monter"><ng-icon name="lucideArrowUp" /></button>
+                <button hlmBtn variant="ghost" size="xs" (click)="remove(i)" [disabled]="busy()">Retirer</button>
+              </td>
+            </tr>
+          } @empty {
+            <tr hlmTr>
+              <td hlmTd colspan="5" class="text-muted-foreground py-6 text-center">
+                La chaîne est vide. Ajoutez des modèles gratuits : quand l'un épuise son quota, la mission passe au suivant.
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Connexions -->
+  <section class="bg-card rounded-xl border lg:col-span-12">
+    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+      <h2 class="font-semibold">Connexions</h2>
+      <span class="text-muted-foreground text-xs">une connexion = un compte, le vôtre</span>
+    </div>
+    <div hlmTableContainer>
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh>Fournisseur</th>
+            <th hlmTh>Nom</th>
+            <th hlmTh>Clé ou adresse</th>
+            <th hlmTh>Ajoutée</th>
+            <th hlmTh>État</th>
+            <th hlmTh></th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (c of connections(); track c.id) {
+            <tr hlmTr [class.opacity-50]="c.revokedAt">
+              <td hlmTd class="font-medium">{{ c.providerName }}</td>
+              <td hlmTd>{{ c.label }}</td>
+              <td hlmTd class="font-mono text-xs">{{ c.last4 ? '•••• ' + c.last4 : (c.baseUrl ?? '—') }}</td>
+              <td hlmTd class="text-muted-foreground">{{ when(c.createdAt) }} · {{ c.createdBy }}</td>
+              <td hlmTd>
+                @if (c.revokedAt) {
+                  <span hlmBadge variant="outline">Révoquée</span>
+                } @else {
+                  <span hlmBadge variant="success">Active</span>
+                }
+              </td>
+              <td hlmTd class="text-right">
+                @if (!c.revokedAt) {
+                  <button hlmBtn variant="destructive" size="xs" (click)="pendingRevoke.set(c)">Révoquer</button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr hlmTr>
+              <td hlmTd colspan="6" class="text-muted-foreground py-6 text-center">Aucun fournisseur connecté.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Catalogue -->
+  <section class="bg-card rounded-xl border lg:col-span-12">
+    <div class="flex flex-wrap items-center gap-2 border-b px-3.5 py-2">
+      <h2 class="font-semibold">Catalogue</h2>
+      <span class="text-muted-foreground text-xs">{{ catalog().models.length }} modèles disponibles</span>
+      <span class="flex-1"></span>
+      <button hlmBtn variant="outline" size="sm" [attr.aria-pressed]="freeOnly()" [class.ring-1]="freeOnly()" [class.ring-primary]="freeOnly()" (click)="freeOnly.set(!freeOnly())">
+        Gratuits seulement
+      </button>
+      <label class="bg-muted text-muted-foreground flex h-8 w-56 items-center gap-2 rounded-md border px-2.5">
+        <ng-icon name="lucideSearch" />
+        <input class="text-foreground min-w-0 flex-1 bg-transparent outline-none" placeholder="Nom ou fournisseur" aria-label="Chercher dans le catalogue" [value]="query()" (input)="query.set($any($event.target).value)" />
+      </label>
+    </div>
+    <div hlmTableContainer class="max-h-[480px] overflow-y-auto">
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh>Modèle</th>
+            <th hlmTh>Fournisseur</th>
+            <th hlmTh class="text-right">Contexte</th>
+            <th hlmTh class="text-right">Entrée · Sortie / M</th>
+            <th hlmTh></th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (m of shown(); track key(m)) {
+            <tr hlmTr>
+              <td hlmTd>
+                <div class="font-medium">{{ m.name }}</div>
+                <div class="text-muted-foreground font-mono text-xs">{{ m.id }}</div>
+              </td>
+              <td hlmTd class="text-muted-foreground">{{ providerName(m.provider) }} · {{ connectionLabel(m.connectionId) }}</td>
+              <td hlmTd class="num text-right">{{ context(m.contextWindow) }}</td>
+              <td hlmTd class="num text-right">
+                @if (m.free) {
+                  <span hlmBadge variant="success">gratuit</span>
+                } @else {
+                  {{ price(m.inputPricePerMillion, m.outputPricePerMillion) }}
+                }
+              </td>
+              <td hlmTd class="text-right">
+                @if (key(m) === key(status()?.default)) {
+                  <span hlmBadge variant="outline">Par défaut</span>
+                } @else {
+                  <button hlmBtn variant="ghost" size="xs" (click)="setDefault(m)" [disabled]="busy()">Par défaut</button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr hlmTr>
+              <td hlmTd colspan="5" class="text-muted-foreground py-6 text-center">Aucun modèle ne correspond.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<app-model-picker
+  [(open)]="pickerOpen"
+  [models]="pickerModels()"
+  [freeOnly]="pickerFor() === 'chain'"
+  [title]="pickerFor() === 'chain' ? 'Ajouter à la chaîne gratuite' : 'Modèle par défaut'"
+  [current]="pickerFor() === 'default' ? key(status()?.default) : ''"
+  [providerName]="providerName"
+  (chosen)="choose($event)"
+/>
+
+<!-- Connecter un fournisseur -->
+<hlm-dialog [state]="connectState()" (closed)="connectState.set('closed'); apiKey.set('')">
+  <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+    <hlm-dialog-header>
+      <h3 hlmDialogTitle>{{ picked() ? 'Connecter ' + picked()!.name : 'Connecter un fournisseur' }}</h3>
+      <p hlmDialogDescription>
+        {{ picked() ? 'La clé part une seule fois vers le serveur, qui la chiffre. Elle ne sera plus jamais affichée.' : 'Choisissez un fournisseur.' }}
+      </p>
+    </hlm-dialog-header>
+
+    @if (!picked()) {
+      <label class="bg-muted text-muted-foreground flex h-9 items-center gap-2 rounded-md border px-2.5">
+        <ng-icon name="lucideSearch" />
+        <input class="text-foreground min-w-0 flex-1 bg-transparent outline-none" placeholder="Chercher" aria-label="Chercher un fournisseur" [value]="providerQuery()" (input)="providerQuery.set($any($event.target).value)" />
+      </label>
+      <div class="grid max-h-[50vh] grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
+        @for (p of filteredProviders(); track p.id) {
+          <button type="button" class="hover:bg-accent flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-left" (click)="pick(p)">
+            <span class="font-medium">{{ p.name }}</span>
+            <span class="text-muted-foreground text-xs">
+              {{ p.kind === Kind.Local ? 'local' : p.kind === Kind.Custom ? 'adresse' : p.modelCount + ' modèles' }}
+            </span>
+          </button>
+        }
+      </div>
+    } @else {
+      <form class="flex flex-col gap-4" (submit)="$event.preventDefault(); connect()">
+        @if (picked()!.notice) {
+          <div class="border-warning/40 bg-warning-soft text-warning rounded-lg border px-3 py-2 text-xs">{{ picked()!.notice }}</div>
+        }
+        <div hlmField>
+          <label hlmFieldLabel for="label">Nom</label>
+          <input hlmInput id="label" [value]="label()" (input)="label.set($any($event.target).value)" maxlength="80" />
+        </div>
+        @if (hasAddress()) {
+          <div hlmField>
+            <label hlmFieldLabel for="baseUrl">Adresse</label>
+            <input hlmInput id="baseUrl" class="font-mono" placeholder="https://…/v1" [value]="baseUrl()" (input)="baseUrl.set($any($event.target).value)" />
+          </div>
+        }
+        <div hlmField>
+          <label hlmFieldLabel for="apiKey">Clé d'API{{ needsKey() ? '' : ' (facultative)' }}</label>
+          <input hlmInput id="apiKey" type="password" class="font-mono" autocomplete="off" spellcheck="false" [value]="apiKey()" (input)="apiKey.set($any($event.target).value)" />
+        </div>
+        @if (connectError()) {
+          <p class="text-destructive text-sm" role="alert">{{ connectError() }}</p>
+        }
+        <hlm-dialog-footer>
+          <button hlmBtn type="button" variant="outline" (click)="picked.set(null); apiKey.set('')">Retour</button>
+          <button hlmBtn type="submit" [disabled]="!canConnect() || busy()">Connecter</button>
+        </hlm-dialog-footer>
+      </form>
+    }
+  </hlm-dialog-content>
+</hlm-dialog>
+
+<!-- Révoquer -->
+<hlm-alert-dialog [state]="revokeState()" (closed)="pendingRevoke.set(null)">
+  <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+    <hlm-alert-dialog-header>
+      <h3 hlmAlertDialogTitle>Révoquer {{ pendingRevoke()?.label }} ?</h3>
+      <p hlmAlertDialogDescription>
+        La clé est effacée du serveur. Les agents qui l'utilisaient reviennent au modèle par défaut, et elle quitte la chaîne gratuite.
+      </p>
+    </hlm-alert-dialog-header>
+    <hlm-alert-dialog-footer>
+      <button hlmAlertDialogCancel (click)="pendingRevoke.set(null)">Annuler</button>
+      <button hlmAlertDialogAction variant="destructive" (click)="confirmRevoke()">Révoquer</button>
+    </hlm-alert-dialog-footer>
+  </hlm-alert-dialog-content>
+</hlm-alert-dialog>

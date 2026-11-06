@@ -1,9 +1,9 @@
 import { Routes } from '@angular/router';
 import { adminGuard } from './core/auth';
 import { Forbidden } from './pages/forbidden';
-import { Soon } from './pages/soon';
 import { Shell } from './shell/shell';
 
+// Chaque page est chargée à la demande : le premier affichage ne télécharge que la coque.
 export const routes: Routes = [
   { path: 'interdit', component: Forbidden },
   {
@@ -11,11 +11,11 @@ export const routes: Routes = [
     component: Shell,
     canActivate: [adminGuard],
     children: [
-      { path: '', component: Soon, data: { title: 'Vue d’ensemble' } },
-      { path: 'missions', component: Soon, data: { title: 'Missions' } },
-      { path: 'audit', component: Soon, data: { title: 'Audit' } },
-      { path: 'agents', component: Soon, data: { title: 'Agents' } },
-      { path: 'modeles', component: Soon, data: { title: 'Modèles' } },
+      { path: '', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Vue d’ensemble' } },
+      { path: 'missions', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Missions' } },
+      { path: 'audit', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Audit' } },
+      { path: 'agents', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Agents' } },
+      { path: 'modeles', loadComponent: () => import('./pages/models/models').then((m) => m.Models) },
     ],
   },
   { path: '**', redirectTo: '' },
