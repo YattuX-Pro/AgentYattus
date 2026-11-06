@@ -67,6 +67,14 @@ readonly q = input('');   // /missions?q=revue
 
 Avec `withComponentInputBinding()`, le routeur passe les paramètres d'adresse aux **inputs** du composant. L'Audit s'en sert aussi : cliquer sur une mission ouvre `/missions?q=<id>`.
 
+⚠️ **Piège trouvé en testant dans le navigateur** : sans `?q=` dans l'adresse, le routeur passe `undefined` à l'input, **pas** sa valeur par défaut. `query.trim()` plantait et la page restait vide. La correction :
+
+```ts
+readonly q = input('', { transform: (value: string | undefined) => value ?? '' });
+```
+
+Un test de composant (`missions.spec.ts`) le vérifie maintenant. Les tests des fonctions pures ne pouvaient pas le voir : le bug était dans le **branchement**, pas dans la logique.
+
 ## 7. Quiz
 
 1. Pourquoi le journal global est-il réservé aux administrateurs ?

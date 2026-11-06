@@ -64,6 +64,8 @@ export class AuthService {
       this.user.set(user);
       const target = typeof user.state === 'string' && user.state.startsWith('/') ? user.state : '/';
       history.replaceState(null, '', target);
+      // Oublie les allers-retours abandonnés (onglet fermé chez Keycloak, erreur) : leur secret PKCE ne sert plus.
+      void this.manager.clearStaleState();
       return;
     }
     await this.login();

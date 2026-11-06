@@ -25,8 +25,11 @@ const REFRESH_MS = 10_000;
 export class Missions {
   private readonly api = inject(AdminApi);
 
-  /** Le texte cherché depuis la barre du haut (/missions?q=…). */
-  readonly q = input('');
+  /**
+   * Le texte cherché depuis la barre du haut (/missions?q=…). Sans paramètre, le routeur passe undefined
+   * (et non la valeur par défaut) : la transformation le ramène à une chaîne vide.
+   */
+  readonly q = input('', { transform: (value: string | undefined) => value ?? '' });
 
   protected readonly missions = signal<Mission[] | null>(null);
   protected readonly filter = signal<MissionFilter>('all');
