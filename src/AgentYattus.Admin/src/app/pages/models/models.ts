@@ -13,11 +13,11 @@ import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import {
-  AdminApi, LlmConnection, LlmConnectionKind, LlmModel, LlmModels, LlmProvider, LlmSelection, LlmStatus, errorMessage, selectionKey,
+  AdminApi, AuditFeedEntry, LlmConnection, LlmConnectionKind, LlmModel, LlmModels, LlmProvider, LlmSelection, LlmStatus, errorMessage, selectionKey,
 } from '../../core/api';
 import { context, price, when } from '../../core/format';
 import { PageHeader } from '../../shell/page-header';
-import { MAX_CHAIN, fillChain, filterModels, moveUp } from './logic';
+import { MAX_CHAIN, chainActivity, fillChain, filterModels, moveUp } from './logic';
 import { ModelPicker } from './model-picker';
 
 type PickerFor = 'default' | 'chain';
@@ -37,6 +37,11 @@ export class Models {
   protected readonly status = signal<LlmStatus | null>(null);
   protected readonly catalog = signal<LlmModels>({ models: [], errors: [] });
   protected readonly busy = signal(false);
+  protected readonly audit = signal<AuditFeedEntry[]>([]);
+  /** « fournisseur/modèle », le nom que le journal donne à un maillon de la chaîne. */
+  protected readonly chainName = (s: LlmSelection) =>
+    `${this.connections().find((c) => c.id === s.connectionId)?.provider ?? '?'}/${s.model}`;
+  protected readonly activity = (s: LlmSelection) => chainActivity(this.chainName(s), this.audit());
 
   protected readonly providers = computed(() => this.status()?.providers ?? []);
   protected readonly connections = computed(() => this.status()?.connections ?? []);
@@ -94,9 +99,10 @@ export class Models {
 
   protected async load() {
     try {
-      const [status, catalog] = await Promise.all([this.api.llm(), this.api.models()]);
+      const [status, catalog, audit] = await Promise.all([this.api.llm(), this.api.models(), this.api.audit(500)]);
       this.status.set(status);
       this.catalog.set(catalog);
+      this.audit.set(audit);
     } catch (e) {
       toast.error(errorMessage(e));
     }

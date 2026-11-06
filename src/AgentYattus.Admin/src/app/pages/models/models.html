@@ -69,16 +69,27 @@
             <th hlmTh class="w-14">Ordre</th>
             <th hlmTh>Modèle</th>
             <th hlmTh>Fournisseur</th>
+            <th hlmTh>Aujourd'hui</th>
             <th hlmTh class="text-right">Contexte</th>
             <th hlmTh></th>
           </tr>
         </thead>
         <tbody hlmTBody>
           @for (s of chain(); track key(s); let i = $index) {
+            @let act = activity(s);
             <tr hlmTr>
               <td hlmTd class="text-muted-foreground font-mono">{{ i + 1 }}</td>
               <td hlmTd class="font-mono text-xs">{{ findModel(s)?.name ?? s.model }}</td>
               <td hlmTd class="text-muted-foreground">{{ connectionLabel(s.connectionId) }}</td>
+              <td hlmTd class="text-xs">
+                @if (act.takes || act.switchesTo) {
+                  <span class="num">{{ act.takes }} prise{{ act.takes > 1 ? 's' : '' }}</span>
+                  @if (act.switchesTo) { · <span class="text-warning num">{{ act.switchesTo }} bascule{{ act.switchesTo > 1 ? 's' : '' }} reçue{{ act.switchesTo > 1 ? 's' : '' }}</span> }
+                  <span class="text-muted-foreground"> · {{ when(act.last!).slice(-5) }}</span>
+                } @else {
+                  <span class="text-muted-foreground">pas encore utilisé</span>
+                }
+              </td>
               <td hlmTd class="num text-right">{{ context(findModel(s)?.contextWindow ?? null) }}</td>
               <td hlmTd class="text-right">
                 <button hlmBtn variant="ghost" size="icon-xs" (click)="up(i)" [disabled]="i === 0 || busy()" aria-label="Monter"><ng-icon name="lucideArrowUp" /></button>
@@ -87,7 +98,7 @@
             </tr>
           } @empty {
             <tr hlmTr>
-              <td hlmTd colspan="5" class="text-muted-foreground py-6 text-center">
+              <td hlmTd colspan="6" class="text-muted-foreground py-6 text-center">
                 La chaîne est vide. Ajoutez des modèles gratuits : quand l'un épuise son quota, la mission passe au suivant.
               </td>
             </tr>
