@@ -33,13 +33,16 @@ internal sealed class AgentFrameworkRunner(
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
 
     public async Task<AgentOutcome> RunAsync(
-        Guid missionId, string goal, MissionKind kind, AgentResume? resume, CancellationToken cancellationToken)
+        Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace, CancellationToken cancellationToken)
     {
         var settings = options.Value;
-        if (string.IsNullOrWhiteSpace(settings.Workspace))
+        // Le dossier du projet (choisi par un administrateur de l'instance) ; null : celui de la configuration,
+        // que MissionRunner n'autorise que pour les projets d'un administrateur et les missions antérieures aux projets.
+        workspace ??= settings.Workspace;
+        if (string.IsNullOrWhiteSpace(workspace))
             throw new InvalidOperationException(
                 "Workspace absent. Lance : dotnet user-secrets set \"Agents:Workspace\" \"<dossier>\" --project src/AgentYattus.Api");
-        var tools = new WorkspaceTools(settings.Workspace).AsAIFunctions();
+        var tools = new WorkspaceTools(workspace).AsAIFunctions();
 
         Stage stage;
         if (resume is not null)

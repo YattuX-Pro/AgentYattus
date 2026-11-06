@@ -154,6 +154,7 @@ internal sealed class EvalApi(IChatClient chatClient, string model, string works
             services.AddSingleton<ILlmClientProvider>(new EvalModel(chatClient, model));
             services.Configure<AgentsOptions>(options => options.Workspace = workspace);
             // L'évaluation mesure les agents, pas l'authentification : un utilisateur local, connecté d'office.
+            // Administrateur de l'instance : ses projets utilisent le dossier configuré (Agents:Workspace, ADR 0009).
             services.AddAuthentication()
                 .AddScheme<AuthenticationSchemeOptions, EvalUser>(EvalUser.SchemeName, _ => { })
                 .Services.PostConfigure<AuthenticationOptions>(options =>
@@ -187,7 +188,7 @@ internal sealed class EvalUser(
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync() =>
         Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(
-            new ClaimsPrincipal(new ClaimsIdentity([new Claim("preferred_username", "eval")], SchemeName)), SchemeName)));
+            new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub", "eval"), new Claim("preferred_username", "eval"), new Claim(ClaimTypes.Role, "llm-admin")], SchemeName)), SchemeName)));
 }
 
 internal sealed class EvalModel(IChatClient client, string model) : ILlmClientProvider

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Threading.Channels;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
+using AgentYattus.Api.Modules.Projects;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.SignalR;
 
@@ -50,6 +51,7 @@ internal sealed class MissionRunner(
     MissionsDb db,
     AuditLog audit,
     IAgentRunner agent,
+    IProjectDirectory projects,
     IHubContext<MissionsHub> hub,
     ILogger<MissionRunner> logger)
 {
@@ -68,6 +70,20 @@ internal sealed class MissionRunner(
             resume = new AgentResume(mission.Conversation, approved);
         }
 
+        // Le dossier du projet ; une mission sans projet (antérieure) garde le dossier configuré.
+        string? workspace = null;
+        if (mission.ProjectId is { } projectId)
+        {
+            var folder = await projects.WorkspaceAsync(projectId, cancellationToken);
+            if (!folder.Allowed)
+            {
+                mission.Result = "Ce projet n'a pas encore de dossier de travail : un administrateur de l'instance doit en choisir un (espace admin › Projets).";
+                await SetStatusAsync(MissionStatus.Failed);
+                return;
+            }
+            workspace = folder.Path;
+        }
+
         mission.Conversation = null;
         mission.PendingApproval = null;
         mission.ApprovalId = null;
@@ -76,7 +92,7 @@ internal sealed class MissionRunner(
         var status = MissionStatus.Completed;
         try
         {
-            var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, cancellationToken);
+            var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, workspace, cancellationToken);
             if (outcome.Approval is { } approval)
             {
                 // Pause : on enregistre de quoi reprendre, et le worker passe à la mission suivante.
@@ -106,8 +122,10 @@ internal sealed class MissionRunner(
             mission.Status = newStatus;
             await db.SaveChangesAsync(cancellationToken);
             await audit.AppendAsync(missionId, newStatus.ToString(), cancellationToken);
-            // ponytail: diffusion à tous les clients ; des groupes par mission quand il y aura plusieurs utilisateurs.
-            await hub.Clients.All.SendAsync(
+            // Le direct suit les droits : seules les personnes qui peuvent lire le projet reçoivent l'événement.
+            // Une mission sans projet (antérieure) : les seuls administrateurs de l'instance.
+            var readers = await projects.ReadersAsync(mission.ProjectId ?? Guid.Empty, cancellationToken);
+            await hub.Clients.Users(readers).SendAsync(
                 MissionsHubProtocol.MissionEvent,
                 new MissionEventDto(missionId, newStatus, DateTimeOffset.UtcNow),
                 cancellationToken);

@@ -23,9 +23,17 @@ public interface IProjectDirectory
 {
     /// <summary>Les personnes qui peuvent lire le projet : à elles seules, le direct envoie ses événements.</summary>
     Task<IReadOnlyList<string>> ReadersAsync(Guid projectId, CancellationToken cancellationToken);
-    Task<string?> WorkspaceAsync(Guid projectId, CancellationToken cancellationToken);
+    /// <summary>
+    /// Le dossier où les agents travaillent pour ce projet. Sans dossier choisi, le dossier configuré du serveur
+    /// (Agents:Workspace) ne sert qu'aux projets d'un administrateur de l'instance, qui l'a configuré : sinon,
+    /// n'importe qui ferait lire ce dossier commun en créant un projet. Allowed = false : la mission doit échouer.
+    /// </summary>
+    Task<ProjectWorkspace> WorkspaceAsync(Guid projectId, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<Guid, string>> NamesAsync(IEnumerable<Guid> projectIds, CancellationToken cancellationToken);
 }
+
+/// <param name="Path">Le dossier du projet ; null avec <paramref name="Allowed"/> : le dossier configuré du serveur.</param>
+public sealed record ProjectWorkspace(bool Allowed, string? Path);
 
 public static class ProjectsModule
 {
@@ -298,8 +306,14 @@ internal sealed class ProjectDirectory(ProjectsDb db, IDirectory directory) : IP
         return [.. readers];
     }
 
-    public async Task<string?> WorkspaceAsync(Guid projectId, CancellationToken ct) =>
-        (await db.Projects.FindAsync([projectId], ct))?.Workspace;
+    public async Task<ProjectWorkspace> WorkspaceAsync(Guid projectId, CancellationToken ct)
+    {
+        if (await db.Projects.FindAsync([projectId], ct) is not { } project)
+            return new ProjectWorkspace(false, null);
+        if (project.Workspace is not null)
+            return new ProjectWorkspace(true, project.Workspace);
+        return new ProjectWorkspace((await directory.InstanceAdminsAsync(ct)).Contains(project.OwnerId), null);
+    }
 
     public async Task<IReadOnlyDictionary<Guid, string>> NamesAsync(IEnumerable<Guid> projectIds, CancellationToken ct)
     {

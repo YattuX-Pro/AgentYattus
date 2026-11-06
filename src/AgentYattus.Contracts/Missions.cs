@@ -22,10 +22,13 @@ public enum MissionKind
     Review,
 }
 
-public sealed record CreateMissionRequest(string Goal, MissionKind Kind = MissionKind.Question);
+/// <param name="ProjectId">Le projet de la mission ; null : le projet personnel de l'auteur (ADR 0009).</param>
+public sealed record CreateMissionRequest(string Goal, MissionKind Kind = MissionKind.Question, Guid? ProjectId = null);
 
 /// <param name="Result">La réponse finale de l'agent, une fois la mission terminée.</param>
 /// <param name="PendingApproval">Les actions qui attendent une décision, quand le statut est AwaitingApproval.</param>
+/// <param name="ProjectId">Null pour une mission antérieure aux projets (visible des seuls administrateurs de l'instance).</param>
+/// <param name="CreatedBy">Le nom d'utilisateur de l'auteur.</param>
 public sealed record MissionDto(
     Guid Id,
     string Goal,
@@ -33,7 +36,10 @@ public sealed record MissionDto(
     DateTimeOffset CreatedAt,
     string? Result = null,
     ApprovalDto? PendingApproval = null,
-    MissionKind Kind = MissionKind.Question);
+    MissionKind Kind = MissionKind.Question,
+    Guid? ProjectId = null,
+    string? ProjectName = null,
+    string? CreatedBy = null);
 
 /// <param name="Id">Identifie cette demande : une décision ne vaut que pour la demande que l'on a vue.</param>
 public sealed record ApprovalDto(Guid Id, IReadOnlyList<ToolCallDto> ToolCalls);

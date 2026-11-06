@@ -106,9 +106,13 @@ public sealed class FakeAgentRunner : IAgentRunner
 
     public ConcurrentQueue<string> Goals { get; } = new();
 
-    public Task<AgentOutcome> RunAsync(Guid missionId, string goal, MissionKind kind, AgentResume? resume, CancellationToken cancellationToken)
+    /// <summary>Le dossier de travail reçu pour chaque but.</summary>
+    public ConcurrentDictionary<string, string?> Workspaces { get; } = new();
+
+    public Task<AgentOutcome> RunAsync(Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace, CancellationToken cancellationToken)
     {
         Goals.Enqueue(goal);
+        Workspaces[goal] = workspace;
         // Ce que lèvera un HttpClient en délai dépassé dans le vrai runner.
         return goal == TimeoutGoal
             ? Task.FromException<AgentOutcome>(new TaskCanceledException())

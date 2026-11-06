@@ -53,6 +53,8 @@ public sealed class AuthTests(AuthTests.JwtApiFactory factory) : IClassFixture<A
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMissionsAsync(JwtApiFactory.Token(audience: "autre-api"))).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMissionsAsync(JwtApiFactory.Token(expires: DateTime.UtcNow.AddMinutes(-10)))).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetMissionsAsync(JwtApiFactory.Token(key: new string('x', 64)))).StatusCode);
+        // Sans « sub », pas d'identité stable à laquelle rattacher des droits (ADR 0009).
+        Assert.Equal(HttpStatusCode.Unauthorized, (await GetMissionsAsync(JwtApiFactory.Token(sub: null))).StatusCode);
     }
 
     [Fact]
@@ -87,7 +89,7 @@ public sealed class AuthTests(AuthTests.JwtApiFactory factory) : IClassFixture<A
                 options.TokenValidationParameters.IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(SigningKey));
             });
 
-        public static string Token(string audience = "agent-yattus-api", DateTime? expires = null, string? key = null) =>
+        public static string Token(string audience = "agent-yattus-api", DateTime? expires = null, string? key = null, string? sub = "dev-sub") =>
             new JsonWebTokenHandler().CreateToken(new SecurityTokenDescriptor
             {
                 Issuer = Issuer,
@@ -98,7 +100,7 @@ public sealed class AuthTests(AuthTests.JwtApiFactory factory) : IClassFixture<A
                 {
                     ["preferred_username"] = "dev",
                     ["realm_access"] = new Dictionary<string, object> { ["roles"] = new[] { "llm-admin" } },
-                },
+                }.Concat(sub is null ? [] : [new KeyValuePair<string, object>("sub", sub)]).ToDictionary(),
                 SigningCredentials = new SigningCredentials(
                     new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key ?? SigningKey)), SecurityAlgorithms.HmacSha256),
             });

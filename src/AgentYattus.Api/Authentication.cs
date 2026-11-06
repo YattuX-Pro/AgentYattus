@@ -39,6 +39,12 @@ internal static class Authentication
                     },
                     OnTokenValidated = context =>
                     {
+                        // Les droits sont rattachés à « sub » (ADR 0009) : un jeton sans identifiant stable est refusé.
+                        if (context.Principal?.FindFirst("sub")?.Value is not { Length: > 0 and <= 64 })
+                        {
+                            context.Fail("Jeton sans identifiant d'utilisateur (sub).");
+                            return Task.CompletedTask;
+                        }
                         AddRealmRoles(context.Principal);
                         return Task.CompletedTask;
                     },

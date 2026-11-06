@@ -38,6 +38,14 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("CreatedByName")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
                     b.Property<bool?>("Decision")
                         .HasColumnType("boolean");
 
@@ -54,6 +62,9 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.Property<string>("PendingApproval")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Result")
                         .HasColumnType("text");
 
@@ -62,6 +73,8 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
 
                     b.ToTable("Missions", "missions");
                 });
