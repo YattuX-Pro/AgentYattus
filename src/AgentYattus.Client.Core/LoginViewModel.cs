@@ -3,7 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace AgentYattus.Client.Core;
 
-/// <summary>L'écran de connexion : un bouton, le navigateur s'occupe du reste.</summary>
+/// <summary>L'écran de connexion : un bouton par moyen de connexion, le navigateur s'occupe du reste.</summary>
 public sealed partial class LoginViewModel(OidcClient oidc, TokenStore tokens, Func<Uri, Task> openBrowser) : ObservableObject
 {
     [ObservableProperty]
@@ -17,14 +17,15 @@ public sealed partial class LoginViewModel(OidcClient oidc, TokenStore tokens, F
 
     private bool CanLogin => !IsBusy;
 
+    /// <param name="provider">null : le formulaire Keycloak ; « google » ou « github » : directement chez ce fournisseur.</param>
     [RelayCommand(CanExecute = nameof(CanLogin))]
-    private async Task LoginAsync(CancellationToken cancellationToken)
+    private async Task LoginAsync(string? provider, CancellationToken cancellationToken)
     {
         IsBusy = true;
         Error = null;
         try
         {
-            var session = await oidc.LoginAsync(openBrowser, cancellationToken);
+            var session = await oidc.LoginAsync(openBrowser, provider, cancellationToken);
             tokens.Session = session;
             LoggedIn?.Invoke(session);
         }

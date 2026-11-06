@@ -19,12 +19,14 @@ services:
   # Fournisseur d'identité (OpenID Connect). Développement seulement : HTTP, base intégrée, comptes de test.
   keycloak:
     image: quay.io/keycloak/keycloak:26.8.1
-    command: ["start-dev", "--import-realm", "--http-port=8380"]
+    command: ["start-dev", "--import-realm", "--http-port=8380", "--spi-theme--cache-themes=false", "--spi-theme--cache-templates=false"]
     environment:
       KC_BOOTSTRAP_ADMIN_USERNAME: admin
       KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
     volumes:
       - ./deploy/keycloak/agent-yattus-realm.json:/opt/keycloak/data/import/agent-yattus-realm.json:ro
+      # Thème de connexion aux couleurs de l'admin (cache désactivé : une retouche se voit au rechargement).
+      - ./deploy/keycloak/themes/agent-yattus:/opt/keycloak/themes/agent-yattus:ro
     ports:
       - "127.0.0.1:8380:8380"
 

@@ -35,7 +35,8 @@ public sealed class OidcClient(HttpClient backchannel, OidcSettings settings)
 {
     private Discovery? _discovery;
 
-    public async Task<OidcSession> LoginAsync(Func<Uri, Task> openBrowser, CancellationToken cancellationToken = default)
+    /// <param name="identityProvider">Alias d'un fournisseur du realm (« google », « github ») : Keycloak y envoie directement (kc_idp_hint).</param>
+    public async Task<OidcSession> LoginAsync(Func<Uri, Task> openBrowser, string? identityProvider = null, CancellationToken cancellationToken = default)
     {
         var discovery = await DiscoverAsync(cancellationToken);
         var verifier = Pkce.NewVerifier();
@@ -47,7 +48,7 @@ public sealed class OidcClient(HttpClient backchannel, OidcSettings settings)
         listener.Prefixes.Add(redirectUri);
         listener.Start();
 
-        var query = string.Join('&', new Dictionary<string, string>
+        var parameters = new Dictionary<string, string>
         {
             ["client_id"] = settings.ClientId,
             ["response_type"] = "code",
@@ -56,7 +57,10 @@ public sealed class OidcClient(HttpClient backchannel, OidcSettings settings)
             ["state"] = state,
             ["code_challenge"] = Pkce.Challenge(verifier),
             ["code_challenge_method"] = "S256",
-        }.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
+        };
+        if (!string.IsNullOrEmpty(identityProvider))
+            parameters["kc_idp_hint"] = identityProvider;
+        var query = string.Join('&', parameters.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
         await openBrowser(new Uri($"{discovery.AuthorizationEndpoint}?{query}"));
 
         // On attend que le navigateur revienne sur la boucle locale avec le code.

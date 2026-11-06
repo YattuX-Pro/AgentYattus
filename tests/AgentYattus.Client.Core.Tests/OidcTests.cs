@@ -31,7 +31,7 @@ public sealed class OidcTests
         {
             authorizeUrl = url;
             return Browser.ReturnAsync(url, code: "code-123");
-        }, Ct);
+        }, cancellationToken: Ct);
 
         var authorize = HttpUtility.ParseQueryString(authorizeUrl!.Query);
         Assert.Equal("S256", authorize["code_challenge_method"]);
@@ -46,12 +46,25 @@ public sealed class OidcTests
     }
 
     [Fact]
+    public async Task Login_with_a_provider_asks_keycloak_to_go_straight_to_it()
+    {
+        var oidc = new OidcClient(new HttpClient(new FakeKeycloak()), Settings);
+        Uri? withProvider = null, without = null;
+
+        await oidc.LoginAsync(url => { withProvider = url; return Browser.ReturnAsync(url, code: "c"); }, "github", Ct);
+        await oidc.LoginAsync(url => { without = url; return Browser.ReturnAsync(url, code: "c"); }, cancellationToken: Ct);
+
+        Assert.Equal("github", HttpUtility.ParseQueryString(withProvider!.Query)["kc_idp_hint"]);
+        Assert.Null(HttpUtility.ParseQueryString(without!.Query)["kc_idp_hint"]);
+    }
+
+    [Fact]
     public async Task A_response_with_another_state_is_rejected()
     {
         var oidc = new OidcClient(new HttpClient(new FakeKeycloak()), Settings);
 
         var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            oidc.LoginAsync(url => Browser.ReturnAsync(url, code: "code-123", state: "forgé"), Ct));
+            oidc.LoginAsync(url => Browser.ReturnAsync(url, code: "code-123", state: "forgé"), cancellationToken: Ct));
 
         Assert.Contains("state", error.Message);
     }

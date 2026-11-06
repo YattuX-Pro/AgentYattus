@@ -5,8 +5,13 @@
              x:DataType="core:LoginViewModel"
              Foreground="{StaticResource Parchemin}">
 
+  <!--
+    Même page que la connexion web (maquette https://claude.ai/artifact/HWDHft7SQGMeAfXwY7ibuy) : visuel à gauche, panneau à droite.
+    Pas de champ mot de passe ici : une application de bureau ouvre le navigateur du système (RFC 8252),
+    elle ne voit donc jamais le mot de passe. Google et GitHub passent par Keycloak (kc_idp_hint).
+  -->
   <UserControl.Styles>
-    <Style Selector="Button.primary">
+    <Style Selector="Button.primary, Button.provider">
       <Setter Property="Height" Value="46" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
@@ -15,46 +20,262 @@
     </Style>
     <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{StaticResource VertDeGris}" />
-      <Setter Property="Foreground" Value="{StaticResource Obsidienne}" />
-      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Foreground" Value="#0B1412" />
+      <Setter Property="CornerRadius" Value="9" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="#6FB3A6" />
-      <Setter Property="Foreground" Value="{StaticResource Obsidienne}" />
+      <Setter Property="Foreground" Value="#0B1412" />
     </Style>
-    <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="Button.provider /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#131417" />
+      <Setter Property="BorderBrush" Value="#2E3237" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <Style Selector="Button.provider:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1A1C20" />
+      <Setter Property="BorderBrush" Value="#3A3F45" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.provider:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{StaticResource Filet}" />
       <Setter Property="Foreground" Value="{StaticResource Cendre}" />
     </Style>
+
+    <!-- Animations du visuel : le flux des outils, et ce qui attend une décision -->
+    <Style Selector="Line.flow">
+      <Setter Property="StrokeDashArray" Value="2.5,4.5" />
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" IterationCount="INFINITE">
+          <KeyFrame Cue="0%"><Setter Property="StrokeDashOffset" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="StrokeDashOffset" Value="-14" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector=":is(Shape).blink">
+      <Style.Animations>
+        <Animation Duration="0:0:1.4" IterationCount="INFINITE">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.25" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontFamily" Value="{StaticResource Mono}" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="LetterSpacing" Value="1.3" />
+    </Style>
   </UserControl.Styles>
 
-  <!-- Une seule carte au centre : pas de formulaire, la connexion se fait dans le navigateur. -->
-  <Border Width="400" Padding="30,32" CornerRadius="22" HorizontalAlignment="Center" VerticalAlignment="Center"
-          Background="{StaticResource Graphite}" BorderBrush="#2B2F34" BorderThickness="1" BoxShadow="0 30 90 0 #80000000">
-    <StackPanel Spacing="20">
-      <Viewbox Width="44" Height="44" HorizontalAlignment="Left">
-        <Canvas Width="26" Height="26">
-          <Rectangle Canvas.Left="0.5" Canvas.Top="0.5" Width="25" Height="25" RadiusX="7" RadiusY="7" Stroke="#2B2F34" />
-          <Path Data="M13 13.5V19.5M13 13.5L7.5 7.5M13 13.5L18.5 7.5" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6" StrokeLineCap="Round" />
-          <Ellipse Canvas.Left="5.6" Canvas.Top="5.6" Width="3.8" Height="3.8" Fill="{StaticResource Parchemin}" />
-          <Ellipse Canvas.Left="16.6" Canvas.Top="5.6" Width="3.8" Height="3.8" Fill="{StaticResource Parchemin}" />
-          <Ellipse Canvas.Left="11.1" Canvas.Top="17.6" Width="3.8" Height="3.8" Fill="{StaticResource Laiton}" />
-          <Ellipse Canvas.Left="10.8" Canvas.Top="11.3" Width="4.4" Height="4.4" Fill="{StaticResource Obsidienne}" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6" />
-        </Canvas>
-      </Viewbox>
-      <StackPanel Spacing="6">
-        <TextBlock Text="Connexion" FontSize="26" FontWeight="SemiBold" LetterSpacing="-0.5" />
-        <TextBlock Text="La connexion s’ouvre dans ton navigateur. Agent Yattus ne voit jamais ton mot de passe."
-                   FontSize="13.5" Foreground="{StaticResource Pierre}" TextWrapping="Wrap" />
+  <Grid ColumnDefinitions="*,440">
+
+    <!-- Visuel : le réseau d'agents -->
+    <Border BorderBrush="#1C1E22" BorderThickness="0,0,1,0" ClipToBounds="True">
+      <Border.Background>
+        <VisualBrush TileMode="Tile" SourceRect="0,0,22,22" DestinationRect="0,0,22,22">
+          <VisualBrush.Visual>
+            <Canvas Width="22" Height="22" Background="#0B0C0E">
+              <Ellipse Canvas.Left="0" Canvas.Top="0" Width="1.6" Height="1.6" Fill="#1E1F21" />
+            </Canvas>
+          </VisualBrush.Visual>
+        </VisualBrush>
+      </Border.Background>
+      <Panel>
+        <Border>
+          <Border.Background>
+            <RadialGradientBrush Center="52%,46%" GradientOrigin="52%,46%" RadiusX="55%" RadiusY="45%">
+              <GradientStop Offset="0" Color="#295E9E92" />
+              <GradientStop Offset="1" Color="#005E9E92" />
+            </RadialGradientBrush>
+          </Border.Background>
+        </Border>
+
+        <Viewbox Stretch="Uniform" Margin="24,80">
+          <Canvas Width="800" Height="720">
+            <Ellipse Canvas.Left="272" Canvas.Top="232" Width="256" Height="256" Stroke="#12ECE6D8" />
+            <Ellipse Canvas.Left="164" Canvas.Top="124" Width="472" Height="472" Stroke="#0DECE6D8" StrokeDashArray="1,3" />
+            <Ellipse Canvas.Left="70" Canvas.Top="30" Width="660" Height="660" Stroke="#09ECE6D8" />
+
+            <Line StartPoint="400,360" EndPoint="196,214" Stroke="#595E9E92" StrokeThickness="1.2" />
+            <Line Classes="flow" StartPoint="400,360" EndPoint="196,214" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6" />
+            <Line StartPoint="400,360" EndPoint="400,132" Stroke="#2EECE6D8" StrokeThickness="1.2" />
+            <Line StartPoint="400,360" EndPoint="612,222" Stroke="#8CA7A196" StrokeThickness="1.2" StrokeDashArray="4,5" />
+            <Line StartPoint="400,360" EndPoint="228,530" Stroke="#595E9E92" StrokeThickness="1.2" />
+            <Line Classes="flow" StartPoint="400,360" EndPoint="228,530" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6" />
+            <Line StartPoint="400,360" EndPoint="586,524" Stroke="#99D8B86E" StrokeThickness="1.2" />
+            <Line StartPoint="196,214" EndPoint="400,132" Stroke="#12ECE6D8" />
+            <Line StartPoint="612,222" EndPoint="400,132" Stroke="#12ECE6D8" />
+            <Line StartPoint="228,530" EndPoint="586,524" Stroke="#0DECE6D8" />
+
+            <!-- Orchestrateur -->
+            <Ellipse Canvas.Left="352" Canvas.Top="312" Width="96" Height="96" Stroke="#335E9E92" StrokeThickness="1" />
+            <Ellipse Canvas.Left="362" Canvas.Top="322" Width="76" Height="76" Fill="#101413" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" />
+            <Path Data="M386,344 L400,359 L414,344 M400,359 L400,378" Stroke="{StaticResource VertDeGris}" StrokeThickness="2.6" StrokeLineCap="Round" />
+            <Ellipse Canvas.Left="396" Canvas.Top="355" Width="8" Height="8" Fill="{StaticResource VertDeGris}" />
+
+            <Ellipse Canvas.Left="181" Canvas.Top="199" Width="30" Height="30" Fill="#101413" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" />
+            <Ellipse Canvas.Left="191.5" Canvas.Top="209.5" Width="9" Height="9" Fill="{StaticResource VertDeGris}" />
+            <Ellipse Canvas.Left="388" Canvas.Top="120" Width="24" Height="24" Fill="#121316" Stroke="#59ECE6D8" StrokeThickness="1.2" />
+            <Ellipse Canvas.Left="396.5" Canvas.Top="128.5" Width="7" Height="7" Fill="#99ECE6D8" />
+            <Ellipse Canvas.Left="597" Canvas.Top="207" Width="30" Height="30" Stroke="{StaticResource Pierre}" StrokeThickness="1.3" StrokeDashArray="2,2" />
+            <Ellipse Canvas.Left="215" Canvas.Top="517" Width="26" Height="26" Fill="#101413" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" />
+            <Rectangle Canvas.Left="222" Canvas.Top="524" Width="12" Height="12" RadiusX="2" RadiusY="2" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.4" />
+            <Ellipse Classes="blink" Canvas.Left="563" Canvas.Top="501" Width="46" Height="46" Stroke="#66D8B86E" StrokeThickness="1" />
+            <Ellipse Canvas.Left="571" Canvas.Top="509" Width="30" Height="30" Fill="#15130E" Stroke="{StaticResource Laiton}" StrokeThickness="1.5" />
+            <Ellipse Canvas.Left="581.5" Canvas.Top="519.5" Width="9" Height="9" Fill="{StaticResource Laiton}" />
+
+            <TextBlock Classes="label" Canvas.Left="146" Canvas.Top="240" Width="100" TextAlignment="Center" Text="ANALYSTE" Foreground="{StaticResource Pierre}" />
+            <TextBlock Classes="label" Canvas.Left="350" Canvas.Top="92" Width="100" TextAlignment="Center" Text="MODÈLE" Foreground="#8A857B" />
+            <TextBlock Classes="label" Canvas.Left="562" Canvas.Top="248" Width="100" TextAlignment="Center" Text="RÉDACTEUR" Foreground="{StaticResource Pierre}" />
+            <TextBlock Classes="label" Canvas.Left="178" Canvas.Top="554" Width="100" TextAlignment="Center" Text="WORKSPACE" Foreground="{StaticResource Pierre}" />
+            <TextBlock Classes="label" Canvas.Left="536" Canvas.Top="550" Width="100" TextAlignment="Center" Text="VOUS" Foreground="{StaticResource Laiton}" />
+          </Canvas>
+        </Viewbox>
+
+        <!-- Marque -->
+        <StackPanel Orientation="Horizontal" Spacing="12" Margin="40,34,0,0" HorizontalAlignment="Left" VerticalAlignment="Top">
+          <Border Width="34" Height="34" CornerRadius="9" Background="#131417" BorderBrush="#2A2D31" BorderThickness="1">
+            <Viewbox Width="20" Height="20">
+              <Canvas Width="24" Height="24">
+                <Path Data="M5,3.5 L12,11 L19,3.5 M12,11 L12,20.5" Stroke="{StaticResource VertDeGris}" StrokeThickness="2" StrokeLineCap="Round" />
+                <Ellipse Canvas.Left="9.8" Canvas.Top="8.8" Width="4.4" Height="4.4" Fill="{StaticResource VertDeGris}" />
+              </Canvas>
+            </Viewbox>
+          </Border>
+          <TextBlock Text="Agent Yattus" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </StackPanel>
+
+        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,44,40,0" HorizontalAlignment="Right" VerticalAlignment="Top">
+          <Ellipse Classes="blink" Width="7" Height="7" Fill="{StaticResource VertDeGris}" VerticalAlignment="Center" />
+          <TextBlock Classes="label" Text="SYSTÈME OPÉRATIONNEL" Foreground="{StaticResource Pierre}" />
+        </StackPanel>
+
+        <!-- Carte flottante : une mission en direct -->
+        <Border Width="300" Margin="0,96,40,0" Padding="18,16" HorizontalAlignment="Right" VerticalAlignment="Top"
+                CornerRadius="12" Background="#D1131417" BorderBrush="#26292D" BorderThickness="1" BoxShadow="0 24 48 -24 #B3000000">
+          <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Revue de code" FontSize="13" FontWeight="SemiBold" />
+              <Border Grid.Column="1" Padding="7,3" CornerRadius="999" Background="#245E9E92">
+                <TextBlock Classes="label" FontSize="10" LetterSpacing="1" Text="EN COURS" Foreground="{StaticResource VertDeGris}" />
+              </Border>
+            </Grid>
+            <StackPanel Spacing="9">
+              <StackPanel.Styles>
+                <Style Selector="TextBlock">
+                  <Setter Property="FontFamily" Value="{StaticResource Mono}" />
+                  <Setter Property="FontSize" Value="11.5" />
+                </Style>
+              </StackPanel.Styles>
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Ellipse Width="6" Height="6" Fill="{StaticResource VertDeGris}" />
+                <TextBlock Grid.Column="1" Text="list_files" Foreground="{StaticResource Pierre}" />
+                <TextBlock Grid.Column="2" Text="analyste" Foreground="#8A857B" />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Ellipse Width="6" Height="6" Fill="{StaticResource VertDeGris}" />
+                <TextBlock Grid.Column="1" Text="read_file src/Api.cs" Foreground="{StaticResource Pierre}" />
+                <TextBlock Grid.Column="2" Text="analyste" Foreground="#8A857B" />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Ellipse Width="6" Height="6" Stroke="{StaticResource Pierre}" StrokeDashArray="1.5,1.5" />
+                <TextBlock Grid.Column="1" Text="handoff" Foreground="{StaticResource Pierre}" />
+                <TextBlock Grid.Column="2" Text="rédacteur" Foreground="#8A857B" />
+              </Grid>
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Ellipse Classes="blink" Width="6" Height="6" Fill="{StaticResource Laiton}" />
+                <TextBlock Grid.Column="1" Text="write_file REPORT.md" Foreground="{StaticResource Laiton}" />
+                <TextBlock Grid.Column="2" Text="approbation" Foreground="{StaticResource Laiton}" />
+              </Grid>
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <!-- Accroche -->
+        <Grid ColumnDefinitions="*,Auto" Margin="40,0,40,38" VerticalAlignment="Bottom">
+          <StackPanel>
+            <TextBlock Text="Orchestrez vos agents." FontSize="30" FontWeight="SemiBold" LetterSpacing="-0.7" />
+            <TextBlock Text="Gardez la décision." FontSize="30" FontWeight="SemiBold" LetterSpacing="-0.7" Foreground="{StaticResource Pierre}" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Bottom" Margin="0,0,0,6">
+            <TextBlock Classes="label" FontSize="10.5" Text="OIDC · PKCE" Foreground="#8A857B" />
+            <TextBlock Classes="label" FontSize="10.5" Text="AUDIT" Foreground="#8A857B" />
+          </StackPanel>
+        </Grid>
+      </Panel>
+    </Border>
+
+    <!-- Panneau de connexion -->
+    <Border Grid.Column="1" Background="{StaticResource Obsidienne}" Padding="40,32">
+      <StackPanel MaxWidth="360" Spacing="28" VerticalAlignment="Center">
+        <StackPanel Spacing="8">
+          <TextBlock Classes="label" Text="ESPACE SÉCURISÉ" Foreground="{StaticResource VertDeGris}" LetterSpacing="1.5" />
+          <TextBlock Text="Connexion" FontSize="28" FontWeight="SemiBold" LetterSpacing="-0.7" />
+          <TextBlock Text="La connexion s’ouvre dans ton navigateur : Agent Yattus ne voit jamais ton mot de passe."
+                     FontSize="14" LineHeight="21" Foreground="{StaticResource Pierre}" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Spacing="12">
+          <Button Classes="primary" Command="{Binding LoginCommand}">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <TextBlock Text="Se connecter" FontSize="14.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+              <Path Data="M5,12 L19,12 M13,6 L19,12 L13,18" Stroke="#0B1412" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                    Width="15" Height="15" Stretch="Uniform" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+
+          <Grid ColumnDefinitions="*,Auto,*" ColumnSpacing="12" Margin="0,6">
+            <Border Height="1" Background="{StaticResource Filet}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Classes="label" Text="OU" Foreground="#8A857B" />
+            <Border Grid.Column="2" Height="1" Background="{StaticResource Filet}" VerticalAlignment="Center" />
+          </Grid>
+
+          <Button Classes="provider" Command="{Binding LoginCommand}" CommandParameter="google">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Viewbox Width="17" Height="17" VerticalAlignment="Center">
+                <Canvas Width="24" Height="24">
+                  <Path Fill="#4285F4" Data="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82z" />
+                  <Path Fill="#34A853" Data="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24z" />
+                  <Path Fill="#FBBC05" Data="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09z" />
+                  <Path Fill="#EA4335" Data="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96z" />
+                </Canvas>
+              </Viewbox>
+              <TextBlock Text="Continuer avec Google" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+
+          <Button Classes="provider" Command="{Binding LoginCommand}" CommandParameter="github">
+            <StackPanel Orientation="Horizontal" Spacing="10">
+              <Viewbox Width="17" Height="17" VerticalAlignment="Center">
+                <Canvas Width="24" Height="24">
+                  <Path Fill="{StaticResource Parchemin}" Data="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56v-2c-3.2.7-3.87-1.37-3.87-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.03 1.76 2.69 1.25 3.35.96.1-.74.4-1.25.73-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.29 1.18-3.1-.12-.29-.51-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.18 1.84 1.18 3.1 0 4.42-2.69 5.39-5.25 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z" />
+                </Canvas>
+              </Viewbox>
+              <TextBlock Text="Continuer avec GitHub" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+            </StackPanel>
+          </Button>
+
+          <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsBusy}" Margin="0,4,0,0">
+            <Ellipse Classes="blink" Width="7" Height="7" Fill="{StaticResource Laiton}" VerticalAlignment="Center" />
+            <TextBlock Text="En attente du navigateur…" FontSize="12.5" Foreground="{StaticResource Pierre}" />
+          </StackPanel>
+          <TextBlock Text="{Binding Error}" FontSize="12.5" Foreground="{StaticResource Cinabre}" TextWrapping="Wrap"
+                     IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
+
+        <Border BorderBrush="{StaticResource Filet}" BorderThickness="0,1,0,0" Padding="0,20,0,0">
+          <StackPanel Orientation="Horizontal" Spacing="10">
+            <Path Data="M12,3 L4.5,6 L4.5,11.5 C4.5,16.1 7.7,19.9 12,21 C16.3,19.9 19.5,16.1 19.5,11.5 L19.5,6 Z M9,12 L11,14 L15,10"
+                  Stroke="{StaticResource VertDeGris}" StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
+                  Width="15" Height="15" Stretch="Uniform" VerticalAlignment="Center" />
+            <TextBlock Text="Connexion chiffrée, via Keycloak." FontSize="12.5" Foreground="{StaticResource Pierre}" VerticalAlignment="Center" />
+          </StackPanel>
+        </Border>
       </StackPanel>
-      <Button Classes="primary" Command="{Binding LoginCommand}" Content="Se connecter" />
-      <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding IsBusy}">
-        <Ellipse Width="7" Height="7" Fill="{StaticResource Laiton}" VerticalAlignment="Center" />
-        <TextBlock Text="En attente du navigateur…" FontSize="12.5" Foreground="{StaticResource Pierre}" />
-      </StackPanel>
-      <TextBlock Text="{Binding Error}" FontSize="12.5" Foreground="{StaticResource Cinabre}" TextWrapping="Wrap"
-                 IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-    </StackPanel>
-  </Border>
+    </Border>
+  </Grid>
 </UserControl>
