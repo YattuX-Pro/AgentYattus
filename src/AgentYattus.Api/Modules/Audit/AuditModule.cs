@@ -1,3 +1,4 @@
+using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -9,7 +10,8 @@ public static class AuditModule
     public static IServiceCollection AddAuditModule(this IServiceCollection services) =>
         services
             .AddModuleDb<AuditDb>(AuditDb.Schema)
-            .AddScoped(sp => new AuditLog(sp.GetRequiredService<AuditDb>()));
+            .AddScoped(sp => new AuditLog(sp.GetRequiredService<AuditDb>()))
+            .AddHostedService<AuditRetention>();
 
     private const int MaxFeed = 500;
 
@@ -47,10 +49,58 @@ public sealed class AuditLog
         await _db.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Efface les événements antérieurs à <paramref name="cutoff"/>. Les identifiants croissent avec le temps :
+    /// on cherche le dernier événement trop ancien, puis on efface tout ce qui le précède en une requête.
+    /// </summary>
+    // On lit les dates une à une, du plus ancien au plus récent, et on s'arrête au premier assez récent :
+    // SQLite ne sait pas comparer des DateTimeOffset dans une requête.
+    public async Task<int> PurgeOlderThanAsync(DateTimeOffset cutoff, CancellationToken cancellationToken)
+    {
+        long? last = null;
+        await foreach (var e in _db.Events.OrderBy(e => e.Id).Select(e => new { e.Id, e.At }).AsAsyncEnumerable().WithCancellation(cancellationToken))
+        {
+            if (e.At >= cutoff)
+                break;
+            last = e.Id;
+        }
+        return last is { } id ? await _db.Events.Where(e => e.Id <= id).ExecuteDeleteAsync(cancellationToken) : 0;
+    }
+
     /// <summary>Le journal d'une mission, dans l'ordre où les événements ont été inscrits.</summary>
     public async Task<AuditEntryDto[]> ReadAsync(Guid missionId, CancellationToken cancellationToken) =>
         await _db.Events.Where(e => e.MissionId == missionId).OrderBy(e => e.Id)
             .Select(e => new AuditEntryDto(e.Type, e.At)).ToArrayAsync(cancellationToken);
+}
+
+/// <summary>Chaque jour, efface les événements plus anciens que la rétention choisie (0 : tout garder). ADR 0010.</summary>
+internal sealed class AuditRetention(IServiceScopeFactory scopes, ILogger<AuditRetention> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+        do
+        {
+            try
+            {
+                await using var scope = scopes.CreateAsyncScope();
+                var days = (await scope.ServiceProvider.GetRequiredService<IInstanceSettings>().GetAsync(stoppingToken)).AuditRetentionDays;
+                if (days > 0)
+                {
+                    var removed = await scope.ServiceProvider.GetRequiredService<AuditLog>()
+                        .PurgeOlderThanAsync(DateTimeOffset.UtcNow.AddDays(-days), stoppingToken);
+                    if (removed > 0)
+                        logger.LogInformation("Audit : {Count} événements de plus de {Days} jours effacés", removed, days);
+                }
+            }
+            // Une purge ratée (base indisponible au démarrage…) ne doit pas arrêter l'hôte : on réessaie demain.
+            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+            {
+                logger.LogWarning(ex, "Purge de l'audit ignorée");
+            }
+        }
+        while (await timer.WaitForNextTickAsync(stoppingToken));
+    }
 }
 
 internal sealed class AuditEvent

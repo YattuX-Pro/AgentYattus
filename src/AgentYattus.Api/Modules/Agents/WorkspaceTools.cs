@@ -132,9 +132,37 @@ internal sealed class WorkspaceTools
 
     private static bool IsLink(string path) => new FileInfo(path).LinkTarget is not null;
 
-    /// <summary>Vrai si un des éléments du chemin (dossier ou fichier) correspond à un motif exclu.</summary>
-    private bool IsExcluded(string fullPath) =>
-        _excluded.Count > 0 && fullPath != _root
-        && Path.GetRelativePath(_root, fullPath).Split(Path.DirectorySeparatorChar)
-            .Any(part => _excluded.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, part, ignoreCase: true)));
+    /// <summary>
+    /// Vrai si un des éléments du chemin (dossier ou fichier) correspond à un motif exclu.
+    /// On compare le nom demandé ET le nom réel sur le disque : sur un disque insensible à la casse ou à la
+    /// normalisation Unicode (macOS), « .ENV » ou un « é » décomposé désignent le même fichier que le motif.
+    /// </summary>
+    private bool IsExcluded(string fullPath)
+    {
+        if (_excluded.Count == 0 || fullPath == _root)
+            return false;
+        var current = _root;
+        foreach (var raw in Path.GetRelativePath(_root, fullPath).Split(Path.DirectorySeparatorChar))
+        {
+            // Flux de données alternatifs NTFS (« .env::$DATA ») et noms courts 8.3 (« ENV~1 ») : d'autres noms
+            // pour un même fichier, sous Windows. Refusés d'office plutôt que de deviner à quoi ils mènent.
+            if (raw.IndexOfAny([':', '~']) >= 0)
+                return true;
+            var part = raw.Normalize(System.Text.NormalizationForm.FormC);
+            var actual = ActualName(current, part) ?? part;
+            if (Matches(part) || Matches(actual))
+                return true;
+            current = Path.Combine(current, actual);
+        }
+        return false;
+
+        bool Matches(string name) => _excluded.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, name, ignoreCase: true));
+    }
+
+    /// <summary>Le nom tel qu'il est écrit sur le disque (casse, normalisation), ou null s'il n'existe pas.</summary>
+    private static string? ActualName(string directory, string name) =>
+        Directory.Exists(directory)
+            ? Directory.EnumerateFileSystemEntries(directory).Select(Path.GetFileName)
+                .FirstOrDefault(n => string.Equals(n!.Normalize(System.Text.NormalizationForm.FormC), name, StringComparison.OrdinalIgnoreCase))
+            : null;
 }

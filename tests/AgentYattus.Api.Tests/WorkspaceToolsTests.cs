@@ -76,5 +76,13 @@ public sealed class WorkspaceToolsTests : IDisposable
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile("certs/serveur.PFX", Ct)); // la casse ne compte pas
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.WriteFile(".env", "piège", Ct));
         Assert.Equal("contenu A", await tools.ReadFile("a.txt", Ct));
+
+        // D'autres écritures du même fichier : casse, flux NTFS, nom court 8.3, « é » décomposé.
+        File.WriteAllText(Path.Combine(_workspace, "clé.txt"), "secret");
+        var accents = new WorkspaceTools(_workspace, excluded: ["clé.txt"]);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile(".ENV", Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile(".env::$DATA", Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile("ENV~1", Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => accents.ReadFile("cle\u0301.txt", Ct));
     }
 }
