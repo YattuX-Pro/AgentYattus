@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Projects;
+using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.SignalR;
 
@@ -21,8 +22,8 @@ internal sealed class MissionQueue
 // Serveur vers client uniquement : aucune méthode appelable.
 internal sealed class MissionsHub : Hub;
 
-// ponytail: une seule mission à la fois. Une mission en attente d'approbation ne bloque pas le worker :
-// son état est en base, et la décision la remet dans la file.
+// Plusieurs missions à la fois, autant que le réglage « missions simultanées » (ADR 0010), relu avant chaque départ.
+// Une mission en attente d'approbation n'occupe pas de place : son état est en base, et la décision la remet dans la file.
 internal sealed class MissionWorker(
     MissionQueue queue,
     IServiceScopeFactory scopes,
@@ -30,18 +31,39 @@ internal sealed class MissionWorker(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var running = new List<Task>();
         await foreach (var missionId in queue.Reader.ReadAllAsync(stoppingToken))
         {
-            try
+            running.RemoveAll(t => t.IsCompleted);
+            var max = await MaxConcurrentAsync(stoppingToken);
+            while (running.Count >= max)
             {
-                await using var scope = scopes.CreateAsyncScope();
-                await scope.ServiceProvider.GetRequiredService<MissionRunner>().RunAsync(missionId, stoppingToken);
+                await Task.WhenAny(running);
+                running.RemoveAll(t => t.IsCompleted);
             }
-            catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
-            {
-                // Une mission en échec ne doit pas arrêter le worker (ni l'hôte).
-                logger.LogError(ex, "Mission {MissionId} interrompue", missionId);
-            }
+            running.Add(RunOneAsync(missionId, stoppingToken));
+        }
+        await Task.WhenAll(running);
+    }
+
+    private async Task<int> MaxConcurrentAsync(CancellationToken stoppingToken)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        return Math.Max(1, (await scope.ServiceProvider.GetRequiredService<IInstanceSettings>().GetAsync(stoppingToken)).MaxConcurrentMissions);
+    }
+
+    private async Task RunOneAsync(Guid missionId, CancellationToken stoppingToken)
+    {
+        await Task.Yield(); // rend la main à la boucle : la mission suivante peut être lue pendant que celle-ci tourne
+        try
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            await scope.ServiceProvider.GetRequiredService<MissionRunner>().RunAsync(missionId, stoppingToken);
+        }
+        catch (Exception ex) when (!stoppingToken.IsCancellationRequested)
+        {
+            // Une mission en échec ne doit pas arrêter le worker (ni l'hôte).
+            logger.LogError(ex, "Mission {MissionId} interrompue", missionId);
         }
     }
 }
@@ -52,6 +74,7 @@ internal sealed class MissionRunner(
     AuditLog audit,
     IAgentRunner agent,
     IProjectDirectory projects,
+    IInstanceSettings instance,
     IHubContext<MissionsHub> hub,
     ILogger<MissionRunner> logger)
 {
@@ -90,9 +113,13 @@ internal sealed class MissionRunner(
         mission.Decision = null;
         await SetStatusAsync(MissionStatus.Running);
         var status = MissionStatus.Completed;
+        // La durée maximum (admin › Réglages) : au-delà, l'exécution est annulée et la mission échoue.
+        var maxDuration = TimeSpan.FromMinutes((await instance.GetAsync(cancellationToken)).MaxDurationMinutes);
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(maxDuration);
         try
         {
-            var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, workspace, cancellationToken);
+            var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, workspace, limit.Token);
             if (outcome.Usage is { } usage)
             {
                 mission.InputTokens += usage.InputTokens;
@@ -120,6 +147,8 @@ internal sealed class MissionRunner(
         {
             logger.LogError(ex, "Mission {MissionId} en échec", missionId);
             status = MissionStatus.Failed;
+            if (limit.IsCancellationRequested)
+                mission.Result = $"Durée maximum dépassée ({maxDuration.TotalMinutes:0} min) : la mission a été arrêtée.";
         }
         await SetStatusAsync(status);
 

@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Llm;
+using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Contracts;
 using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
@@ -28,7 +29,8 @@ internal sealed class AgentFrameworkRunner(
     AuditLog audit,
     ILogger<AgentFrameworkRunner> logger,
     ILlmClientProvider llm,
-    ILlmPricing pricing) : IAgentRunner
+    ILlmPricing pricing,
+    IInstanceSettings instance) : IAgentRunner
 {
     // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
@@ -37,13 +39,16 @@ internal sealed class AgentFrameworkRunner(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace, CancellationToken cancellationToken)
     {
         var settings = options.Value;
+        // Les réglages de l'instance (admin › Réglages) l'emportent sur la configuration de départ (ADR 0010).
+        var tuning = await instance.GetAsync(cancellationToken);
+        var maxIterations = tuning.MaxIterations ?? settings.MaxIterations;
         // Le dossier du projet (choisi par un administrateur de l'instance) ; null : celui de la configuration,
         // que MissionRunner n'autorise que pour les projets d'un administrateur et les missions antérieures aux projets.
         workspace ??= settings.Workspace;
         if (string.IsNullOrWhiteSpace(workspace))
             throw new InvalidOperationException(
                 "Workspace absent. Lance : dotnet user-secrets set \"Agents:Workspace\" \"<dossier>\" --project src/AgentYattus.Api");
-        var tools = new WorkspaceTools(workspace).AsAIFunctions();
+        var tools = new WorkspaceTools(workspace, tuning.MaxFileKb * 1024L, tuning.ExcludedFiles).AsAIFunctions();
 
         var usage = new AgentUsage(0, 0, 0);
         Stage stage;
@@ -60,7 +65,7 @@ internal sealed class AgentFrameworkRunner(
         {
             // Revue, étape 1 : l'Analyste explore et rend ses constats. Il n'a aucun outil d'écriture : il ne s'arrête jamais.
             await audit.AppendAsync(missionId, $"agent:{AgentRoles.Analyst.Key}", cancellationToken);
-            var (analysis, analysisUsage) = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, settings.MaxIterations,
+            var (analysis, analysisUsage) = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, maxIterations,
                 [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], cancellationToken);
             usage += analysisUsage;
             var findings = analysis.Text;
@@ -71,7 +76,7 @@ internal sealed class AgentFrameworkRunner(
         }
 
         var role = AgentRoles.All.Single(r => r.Key == stage.Role);
-        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, settings.MaxIterations, stage.History, cancellationToken);
+        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, maxIterations, stage.History, cancellationToken);
         usage += roleUsage;
 
         var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();

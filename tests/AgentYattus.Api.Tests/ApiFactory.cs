@@ -5,6 +5,7 @@ using AgentYattus.Api.Modules.Identity;
 using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Missions;
 using AgentYattus.Api.Modules.Projects;
+using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Contracts;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
@@ -36,6 +37,7 @@ public class ApiFactory : WebApplicationFactory<Program>
             UseSqlite<LlmDb>(services);
             UseSqlite<IdentityDb>(services);
             UseSqlite<ProjectsDb>(services);
+            UseSqlite<SettingsDb>(services);
             // Jamais d'appel au vrai modèle pendant les tests, même si une clé est dans les user-secrets.
             services.RemoveAll<ILlmClientProvider>();
             services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(null));
@@ -103,6 +105,13 @@ public sealed class TestAuthHandler(
 public sealed class FakeAgentRunner : IAgentRunner
 {
     public const string TimeoutGoal = "simule un délai HTTP dépassé";
+    public const string LongGoal = "mission longue";
+
+    private static async Task<AgentOutcome> WaitForCancellationAsync(CancellationToken cancellationToken)
+    {
+        await Task.Delay(Timeout.Infinite, cancellationToken);
+        throw new InvalidOperationException("Inatteignable.");
+    }
 
     public ConcurrentQueue<string> Goals { get; } = new();
 
@@ -113,6 +122,9 @@ public sealed class FakeAgentRunner : IAgentRunner
     {
         Goals.Enqueue(goal);
         Workspaces[goal] = workspace;
+        // Une mission longue : elle tourne jusqu'à son annulation (arrêt, durée maximum, fin de l'hôte).
+        if (goal.StartsWith(LongGoal, StringComparison.Ordinal))
+            return WaitForCancellationAsync(cancellationToken);
         // Ce que lèvera un HttpClient en délai dépassé dans le vrai runner.
         return goal == TimeoutGoal
             ? Task.FromException<AgentOutcome>(new TaskCanceledException())

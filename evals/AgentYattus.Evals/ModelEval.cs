@@ -150,6 +150,7 @@ internal sealed class EvalApi(IChatClient chatClient, string model, string works
             UseSqlite<LlmDb>(services);
             UseSqlite<AgentYattus.Api.Modules.Identity.IdentityDb>(services);
             UseSqlite<AgentYattus.Api.Modules.Projects.ProjectsDb>(services);
+            UseSqlite<AgentYattus.Api.Modules.Settings.SettingsDb>(services);
             services.RemoveAll<ILlmClientProvider>();
             services.AddSingleton<ILlmClientProvider>(new EvalModel(chatClient, model));
             services.Configure<AgentsOptions>(options => options.Workspace = workspace);

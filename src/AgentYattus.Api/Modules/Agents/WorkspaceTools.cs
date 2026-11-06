@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.IO.Enumeration;
 using Microsoft.Extensions.AI;
 
 namespace AgentYattus.Api.Modules.Agents;
@@ -11,9 +12,12 @@ internal sealed class WorkspaceTools
 {
     private readonly string _root;
     private readonly long _maxFileBytes;
+    private readonly IReadOnlyList<string> _excluded;
 
-    public WorkspaceTools(string rootPath, long maxFileBytes = 256 * 1024)
+    /// <param name="excluded">Motifs de noms (« .env », « *.pfx ») : ces fichiers et dossiers n'existent pas pour l'agent (ADR 0010).</param>
+    public WorkspaceTools(string rootPath, long maxFileBytes = 256 * 1024, IReadOnlyList<string>? excluded = null)
     {
+        _excluded = excluded ?? [];
         var root = Path.GetFullPath(rootPath);
         if (!Directory.Exists(root))
         {
@@ -49,7 +53,7 @@ internal sealed class WorkspaceTools
         }
 
         return Directory.EnumerateFileSystemEntries(directory)
-            .Where(entry => !IsLink(entry))
+            .Where(entry => !IsLink(entry) && !IsExcluded(entry))
             .Select(entry => Path.GetRelativePath(_root, entry))
             .Order(StringComparer.Ordinal)
             .ToArray();
@@ -105,6 +109,12 @@ internal sealed class WorkspaceTools
             throw new UnauthorizedAccessException($"Accès refusé : '{relativePath}' est hors du workspace.");
         }
 
+        // Un fichier exclu (secret probable) est refusé en lecture comme en écriture, et absent des listes.
+        if (IsExcluded(fullPath))
+        {
+            throw new UnauthorizedAccessException($"Accès refusé : '{relativePath}' est exclu par la configuration.");
+        }
+
         // Un lien symbolique du workspace peut pointer n'importe où (un dépôt cloné peut en contenir un vers ~/.ssh).
         // On refuse tout chemin qui en traverse un. La racine et ses dossiers parents viennent de la configuration du serveur.
         var current = _root;
@@ -121,4 +131,10 @@ internal sealed class WorkspaceTools
     }
 
     private static bool IsLink(string path) => new FileInfo(path).LinkTarget is not null;
+
+    /// <summary>Vrai si un des éléments du chemin (dossier ou fichier) correspond à un motif exclu.</summary>
+    private bool IsExcluded(string fullPath) =>
+        _excluded.Count > 0 && fullPath != _root
+        && Path.GetRelativePath(_root, fullPath).Split(Path.DirectorySeparatorChar)
+            .Any(part => _excluded.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, part, ignoreCase: true)));
 }

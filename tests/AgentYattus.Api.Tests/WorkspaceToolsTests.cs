@@ -61,4 +61,20 @@ public sealed class WorkspaceToolsTests : IDisposable
 
         Assert.Equal("contenu A", await tools.ReadFile("a.txt", Ct));
     }
+
+    [Fact]
+    public async Task Excluded_files_and_folders_are_invisible_and_refused()
+    {
+        File.WriteAllText(Path.Combine(_workspace, ".env"), "API_KEY=secret");
+        Directory.CreateDirectory(Path.Combine(_workspace, "certs"));
+        File.WriteAllText(Path.Combine(_workspace, "certs", "serveur.PFX"), "binaire");
+        var tools = new WorkspaceTools(_workspace, excluded: [".env", "*.pfx"]);
+
+        Assert.DoesNotContain(".env", tools.ListFiles());
+        Assert.Empty(tools.ListFiles("certs"));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile(".env", Ct));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile("certs/serveur.PFX", Ct)); // la casse ne compte pas
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.WriteFile(".env", "piège", Ct));
+        Assert.Equal("contenu A", await tools.ReadFile("a.txt", Ct));
+    }
 }
