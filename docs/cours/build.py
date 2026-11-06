@@ -23,6 +23,7 @@ PHASES = [  # (première leçon, numéro, titre, objectif)
     (22, "3", "Client desktop", "L'application Avalonia : suivre une mission en direct et décider."),
     (27, "4", "MVP", "Deux agents qui collaborent, un banc d'évaluation, la sécurité documentée."),
     (30, "5", "Authentification et LLM", "Keycloak, connexion PKCE, clés d'API chiffrées et choix du modèle."),
+    (34, "6", "Fournisseurs et modèles", "Comme opencode : tous les fournisseurs, un modèle par agent, et un mode Gratuit."),
 ]
 
 
