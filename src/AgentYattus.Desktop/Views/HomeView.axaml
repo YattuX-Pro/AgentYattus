@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:AgentYattus.Client.Core"
+             xmlns:contracts="using:AgentYattus.Contracts"
              x:Class="AgentYattus.Desktop.Views.HomeView"
              x:DataType="core:HomeViewModel"
              Foreground="{StaticResource Parchemin}">
@@ -138,7 +139,7 @@
             <TextBox Classes="composer" Text="{Binding Goal}" PlaceholderText="Décrivez l’objectif…"
                      PlaceholderForeground="#6F6B63" AcceptsReturn="True" TextWrapping="Wrap"
                      FontSize="17" MinHeight="78" Padding="4,2" />
-            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
               <!-- Bascule : une simple question, ou une revue à deux agents qui écrit REPORT.md (avec ton accord). -->
               <ToggleButton Classes="report" IsChecked="{Binding WriteReport}" Height="32" Padding="12,0"
                             ToolTip.Tip="Revue à deux agents : l’Analyste rend ses constats, le Rédacteur écrit REPORT.md, que tu approuves">
@@ -148,9 +149,18 @@
                   <TextBlock Classes="mono" Text="REPORT.md" FontSize="11.5" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
-              <TextBlock Grid.Column="1" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
+              <!-- Le projet de la mission (ADR 0009) ; sans choix, le projet personnel. -->
+              <ComboBox Grid.Column="1" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}" Height="32"
+                        MinWidth="150" MaxWidth="240" PlaceholderText="Projet personnel" ToolTip.Tip="Le projet de la mission">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="contracts:ProjectDto">
+                    <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Grid.Column="2" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
                          TextWrapping="Wrap" VerticalAlignment="Center" />
-              <Button Grid.Column="2" Classes="send" Command="{Binding LaunchMissionCommand}"
+              <Button Grid.Column="3" Classes="send" Command="{Binding LaunchMissionCommand}"
                       Width="42" Height="42" Padding="0" HotKey="Ctrl+Enter"
                       ToolTip.Tip="Lancer la mission (Ctrl+Entrée)"
                       HorizontalContentAlignment="Center" VerticalContentAlignment="Center">

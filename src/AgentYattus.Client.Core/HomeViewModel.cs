@@ -23,6 +23,13 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
 
     public ObservableCollection<MissionItem> Missions { get; } = [];
 
+    /// <summary>Les projets où l'on peut lancer une mission (propriétaire ou éditeur). ADR 0009.</summary>
+    public ObservableCollection<ProjectDto> Projects { get; } = [];
+
+    /// <summary>Le projet de la prochaine mission ; null : le projet personnel, choisi par le serveur.</summary>
+    [ObservableProperty]
+    public partial ProjectDto? SelectedProject { get; set; }
+
     public IReadOnlyList<string> Suggestions { get; } = ["Revue de performance", "Audit de sécurité", "Documenter une API"];
 
     private bool CanLaunchMission => !string.IsNullOrWhiteSpace(Goal);
@@ -34,7 +41,7 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         try
         {
             var kind = WriteReport ? MissionKind.Review : MissionKind.Question;
-            Missions.Insert(0, new MissionItem(await api.CreateMissionAsync(Goal, cancellationToken, kind)));
+            Missions.Insert(0, new MissionItem(await api.CreateMissionAsync(Goal, cancellationToken, kind, SelectedProject?.Id)));
             Goal = "";
         }
         // Délai dépassé ou réponse illisible ne doivent pas faire planter l'interface.
@@ -59,6 +66,26 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
                                    || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
         {
             Error = ex.Message;
+            return;
+        }
+
+        try
+        {
+            // Un lecteur voit les missions d'un projet mais n'y lance rien : on ne le propose pas.
+            var selected = SelectedProject?.Id;
+            Projects.Clear();
+            foreach (var project in (await api.GetProjectsAsync(cancellationToken)).Where(p => p.MyAccess is ProjectRole.Owner or ProjectRole.Editor))
+                Projects.Add(project);
+            SelectedProject = Projects.FirstOrDefault(p => p.Id == selected)
+                ?? Projects.FirstOrDefault(p => p.IsPersonalDefault)
+                ?? Projects.FirstOrDefault();
+        }
+        // Sans la liste des projets (API plus ancienne, coupure), on lance quand même : dans le projet personnel.
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
+                                   || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            Projects.Clear();
+            SelectedProject = null;
         }
     }
 

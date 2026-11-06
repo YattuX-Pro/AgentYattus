@@ -44,6 +44,44 @@ public sealed class HomeViewModelTests
     }
 
     [Fact]
+    public async Task Projects_where_one_can_launch_are_offered_and_the_chosen_one_is_sent()
+    {
+        var owner = new UserRefDto("u", "u", null);
+        ProjectDto Project(string name, ProjectRole access, bool personal = false) => new(
+            Guid.NewGuid(), name, null, null, owner, ProjectVisibility.Private, personal, null, access, false, [], DateTimeOffset.UtcNow);
+        var personal = Project("Personnel", ProjectRole.Owner, personal: true);
+        var shared = Project("API facturation", ProjectRole.Editor);
+        var readOnly = Project("Lecture seule", ProjectRole.Reader);
+        string? body = null;
+        var handler = new StubHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Post)
+            {
+                body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.Accepted)
+                {
+                    Content = JsonContent.Create(new MissionDto(Guid.NewGuid(), "But", MissionStatus.Pending, DateTimeOffset.UtcNow)),
+                };
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = path == "/projects" ? JsonContent.Create(new[] { readOnly, shared, personal }) : JsonContent.Create(Array.Empty<MissionDto>()),
+            };
+        });
+        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
+
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal(["API facturation", "Personnel"], vm.Projects.Select(p => p.Name));
+        Assert.Equal(personal.Id, vm.SelectedProject!.Id);
+        vm.SelectedProject = shared;
+        vm.Goal = "But";
+        await vm.LaunchMissionCommand.ExecuteAsync(null);
+        Assert.Contains($"\"projectId\":\"{shared.Id}\"", body);
+    }
+
+    [Fact]
     public async Task Launch_shows_an_error_when_the_api_fails()
     {
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
@@ -66,17 +104,20 @@ public sealed class HomeViewModelTests
             new(Guid.NewGuid(), "Écrire le rapport", MissionStatus.AwaitingApproval, DateTimeOffset.UtcNow),
             new(Guid.NewGuid(), "Relire le README", MissionStatus.Completed, DateTimeOffset.UtcNow, "Tout va bien."),
         ];
-        HttpRequestMessage? sent = null;
+        var sent = new List<string>();
         var handler = new StubHandler(request =>
         {
-            sent = request;
-            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(missions) };
+            sent.Add(request.RequestUri!.ToString());
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = request.RequestUri!.AbsolutePath == "/projects" ? JsonContent.Create(Array.Empty<ProjectDto>()) : JsonContent.Create(missions),
+            };
         });
         var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
 
         await vm.LoadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal("http://api/missions?limit=50", sent!.RequestUri!.ToString());
+        Assert.Equal(["http://api/missions?limit=50", "http://api/projects"], sent);
         Assert.Equal(missions.Select(m => m.Id), vm.Missions.Select(m => m.Id));
         Assert.True(vm.Missions[0].IsAwaitingApproval);
         Assert.Equal("À valider", vm.Missions[0].StatusLabel);
