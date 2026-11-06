@@ -49,6 +49,14 @@ public sealed record MissionEventDto(Guid MissionId, MissionStatus Status, DateT
 /// <param name="Type">Ce qui s'est passé : un statut (« Running »), un outil (« outil:read_file »), une décision…</param>
 public sealed record AuditEntryDto(string Type, DateTimeOffset At);
 
+/// <summary>Une ligne du journal de toutes les missions, pour l'espace admin.</summary>
+public sealed record AuditFeedEntryDto(Guid MissionId, string Type, DateTimeOffset At);
+
+public static class AuditProtocol
+{
+    public const string Path = "/audit";
+}
+
 public static class MissionsHubProtocol
 {
     public const string Path = "/hubs/missions";

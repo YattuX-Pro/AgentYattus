@@ -1,4 +1,5 @@
 using AgentYattus.Contracts;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentYattus.Api.Modules.Audit;
@@ -9,6 +10,29 @@ public static class AuditModule
         services
             .AddModuleDb<AuditDb>(AuditDb.Schema)
             .AddScoped(sp => new AuditLog(sp.GetRequiredService<AuditDb>()));
+
+    private const int MaxFeed = 500;
+
+    /// <summary>
+    /// Le journal de toutes les missions, les plus récents d'abord. Réservé aux administrateurs :
+    /// il révèle ce que font toutes les missions de l'instance.
+    /// </summary>
+    // ponytail: une seule page ; ajouter un curseur (?before=id) quand 500 lignes ne suffiront plus.
+    public static IEndpointRouteBuilder MapAuditEndpoints(this IEndpointRouteBuilder app)
+    {
+        app.MapGet(AuditProtocol.Path, async Task<Results<Ok<AuditFeedEntryDto[]>, ValidationProblem>> (
+            AuditDb db, CancellationToken cancellationToken, int limit = 200) =>
+        {
+            if (limit is < 1 or > MaxFeed)
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["limit"] = [$"La limite est comprise entre 1 et {MaxFeed}."],
+                });
+            return TypedResults.Ok(await db.Events.OrderByDescending(e => e.Id).Take(limit)
+                .Select(e => new AuditFeedEntryDto(e.MissionId, e.Type, e.At)).ToArrayAsync(cancellationToken));
+        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+        return app;
+    }
 }
 
 public sealed class AuditLog

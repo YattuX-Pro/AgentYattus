@@ -12,8 +12,8 @@ export const routes: Routes = [
     canActivate: [adminGuard],
     children: [
       { path: '', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Vue d’ensemble' } },
-      { path: 'missions', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Missions' } },
-      { path: 'audit', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Audit' } },
+      { path: 'missions', loadComponent: () => import('./pages/missions/missions').then((m) => m.Missions) },
+      { path: 'audit', loadComponent: () => import('./pages/audit/audit').then((m) => m.Audit) },
       { path: 'agents', loadComponent: () => import('./pages/agents/agents').then((m) => m.Agents) },
       { path: 'modeles', loadComponent: () => import('./pages/models/models').then((m) => m.Models) },
     ],

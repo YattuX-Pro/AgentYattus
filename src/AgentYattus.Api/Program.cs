@@ -24,5 +24,6 @@ app.MapHealthChecks("/health").AllowAnonymous();
 app.MapMissionsEndpoints();
 app.MapAgentsEndpoints();
 app.MapLlmEndpoints();
+app.MapAuditEndpoints();
 
 app.Run();

@@ -1,0 +1,136 @@
+<app-page-header title="Missions" description="Lancées depuis le bureau et le mobile. Ici, on surveille et on décide.">
+  <button hlmBtn variant="outline" (click)="load()"><ng-icon name="lucideRefreshCw" /> Actualiser</button>
+</app-page-header>
+
+<section class="bg-card rounded-xl border">
+  <div class="flex flex-wrap items-center gap-1.5 border-b px-3.5 py-2.5">
+    @for (f of FILTERS; track f.id) {
+      <button
+        hlmBtn
+        size="sm"
+        [variant]="filter() === f.id ? 'secondary' : 'ghost'"
+        [attr.aria-pressed]="filter() === f.id"
+        (click)="filter.set(f.id)"
+      >
+        {{ f.label }} <span class="num text-muted-foreground font-mono text-xs">{{ count(f.id) }}</span>
+      </button>
+    }
+    <span class="flex-1"></span>
+    <label class="bg-muted text-muted-foreground flex h-8 w-64 max-w-full items-center gap-2 rounded-md border px-2.5">
+      <ng-icon name="lucideSearch" />
+      <input class="text-foreground min-w-0 flex-1 bg-transparent outline-none" placeholder="But ou identifiant" aria-label="Filtrer les missions" [value]="query()" (input)="query.set($any($event.target).value)" />
+    </label>
+  </div>
+
+  <div hlmTableContainer>
+    <table hlmTable>
+      <thead hlmTHead>
+        <tr hlmTr>
+          <th hlmTh class="w-24">N°</th>
+          <th hlmTh>But</th>
+          <th hlmTh>Type</th>
+          <th hlmTh>Statut</th>
+          <th hlmTh>Créée</th>
+          <th hlmTh></th>
+        </tr>
+      </thead>
+      <tbody hlmTBody>
+        @if (!missions()) {
+          @for (i of [1, 2, 3, 4]; track i) {
+            <tr hlmTr><td hlmTd colspan="6"><hlm-skeleton class="h-5 w-full" /></td></tr>
+          }
+        }
+        @for (m of shown(); track m.id) {
+          <tr hlmTr class="cursor-pointer" tabindex="0" (click)="open(m)" (keydown.enter)="open(m)">
+            <td hlmTd class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }}</td>
+            <td hlmTd class="max-w-[520px] truncate">{{ m.goal }}</td>
+            <td hlmTd>{{ m.kind === 'Review' ? 'Revue' : 'Question' }}</td>
+            <td hlmTd><span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span></td>
+            <td hlmTd class="text-muted-foreground num">{{ when(m.createdAt) }}</td>
+            <td hlmTd class="text-muted-foreground text-right"><ng-icon name="lucideChevronRight" /></td>
+          </tr>
+        } @empty {
+          @if (missions()) {
+            <tr hlmTr>
+              <td hlmTd colspan="6" class="text-muted-foreground py-8 text-center">
+                {{ missions()!.length ? 'Aucune mission ne correspond.' : 'Aucune mission pour l’instant : elles se lancent depuis le bureau ou le mobile.' }}
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<hlm-sheet side="right" [state]="sheetState()" (closed)="selected.set(null)">
+  <hlm-sheet-content *hlmSheetPortal="let ctx" class="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
+    @if (selected(); as m) {
+      <hlm-sheet-header class="border-b p-4">
+        <div class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }} · {{ m.kind === 'Review' ? 'Revue' : 'Question' }} · {{ when(m.createdAt) }}</div>
+        <h3 hlmSheetTitle class="pr-6 text-[15px] leading-snug">{{ m.goal }}</h3>
+        <p hlmSheetDescription><span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span></p>
+      </hlm-sheet-header>
+
+      <div #content class="min-h-0 flex-1 overflow-y-auto" (scroll)="checkRead()">
+        <div class="text-muted-foreground px-4 pt-3 text-[10.5px] tracking-wider uppercase">Déroulé</div>
+        <ol class="flex flex-col px-4 py-2">
+          @for (e of events(); track $index) {
+            @let v = describe(e.type);
+            <li class="grid grid-cols-[48px_12px_1fr] items-start gap-2.5 py-1.5">
+              <span class="text-muted-foreground num pt-px text-right font-mono text-xs">{{ when(e.at).slice(-5) }}</span>
+              <span
+                class="mt-1.5 size-2.5 rounded-full"
+                [class.bg-primary]="v.tone === 'success' || v.tone === 'secondary'"
+                [class.bg-warning]="v.tone === 'warning'"
+                [class.bg-destructive]="v.tone === 'destructive'"
+              ></span>
+              <div class="min-w-0">
+                <div class="font-medium">{{ v.label }}</div>
+                @if (v.detail) {
+                  <div class="text-muted-foreground truncate font-mono text-xs">{{ v.detail }}</div>
+                }
+              </div>
+            </li>
+          } @empty {
+            <li class="text-muted-foreground py-2">Aucun événement.</li>
+          }
+        </ol>
+
+        @if (m.pendingApproval; as approval) {
+          <div class="flex flex-col gap-3 border-t p-4">
+            <div class="text-warning text-[10.5px] tracking-wider uppercase">Action à approuver</div>
+            @for (call of approval.toolCalls; track $index) {
+              <div class="flex flex-col gap-2 rounded-lg border">
+                <div class="bg-warning-soft text-warning rounded-t-lg px-3 py-1.5 font-mono text-xs">{{ call.tool }}</div>
+                @for (arg of argumentsOf(call.arguments); track arg.name) {
+                  <div class="px-3 pb-2">
+                    <div class="text-muted-foreground mb-1 text-xs">{{ arg.name }}</div>
+                    <pre class="bg-muted m-0 rounded-md p-2.5 font-mono text-xs leading-relaxed break-words whitespace-pre-wrap">{{ arg.value }}</pre>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        @if (m.result) {
+          <div class="border-t p-4">
+            <div class="text-muted-foreground mb-2 text-[10.5px] tracking-wider uppercase">Résultat</div>
+            <pre class="bg-muted m-0 rounded-md p-3 font-sans text-[13px] leading-relaxed break-words whitespace-pre-wrap">{{ m.result }}</pre>
+          </div>
+        }
+      </div>
+
+      @if (m.pendingApproval) {
+        <hlm-sheet-footer class="flex-row justify-end gap-2 border-t p-3">
+          @if (!readAll()) {
+            <span class="text-muted-foreground mr-auto self-center text-xs">Faites défiler jusqu'au bout pour approuver.</span>
+          }
+          <button hlmBtn variant="destructive" (click)="decide(false)" [disabled]="deciding()">Refuser</button>
+          <button hlmBtn (click)="decide(true)" [disabled]="deciding() || !readAll()">Approuver l'écriture</button>
+        </hlm-sheet-footer>
+      }
+    }
+  </hlm-sheet-content>
+</hlm-sheet>
