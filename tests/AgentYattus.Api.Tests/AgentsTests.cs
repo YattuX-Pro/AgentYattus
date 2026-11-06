@@ -16,3 +16,16 @@ public sealed class AgentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(["write_file"], agents[1].Tools.Where(t => t.RequiresApproval).Select(t => t.Name));
     }
 }
+
+public sealed class AgentStatsTests
+{
+    [Fact]
+    public void Stats_count_runs_and_tokens_per_role_and_skip_malformed_events()
+    {
+        var stats = AgentYattus.Api.Modules.Agents.AgentsModule.Stats(
+            ["usage:analyste:1000:200", "usage:analyste:500:100", "usage:redacteur:300:300", "usage:analyste:x:1", "usage:abimé"]);
+
+        Assert.Equal(new AgentYattus.Contracts.AgentStatsDto(2, 1_800, 900), stats["analyste"]);
+        Assert.Equal(new AgentYattus.Contracts.AgentStatsDto(1, 600, 600), stats["redacteur"]);
+    }
+}

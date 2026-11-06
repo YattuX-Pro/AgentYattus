@@ -67,6 +67,11 @@ public sealed class AuditLog
         return last is { } id ? await _db.Events.Where(e => e.Id <= id).ExecuteDeleteAsync(cancellationToken) : 0;
     }
 
+    /// <summary>Les types des événements qui commencent par ce préfixe, toutes missions confondues (statistiques).</summary>
+    // ponytail: lit tous les événements « usage: » ; une table de statistiques agrégées si le journal devient très gros.
+    public async Task<List<string>> TypesStartingWithAsync(string prefix, CancellationToken cancellationToken) =>
+        await _db.Events.Where(e => e.Type.StartsWith(prefix)).Select(e => e.Type).ToListAsync(cancellationToken);
+
     /// <summary>Le journal d'une mission, dans l'ordre où les événements ont été inscrits.</summary>
     public async Task<AuditEntryDto[]> ReadAsync(Guid missionId, CancellationToken cancellationToken) =>
         await _db.Events.Where(e => e.MissionId == missionId).OrderBy(e => e.Id)

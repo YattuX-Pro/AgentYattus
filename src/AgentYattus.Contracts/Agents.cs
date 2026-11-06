@@ -6,7 +6,10 @@ namespace AgentYattus.Contracts;
 /// <param name="ModelOverride">Son modèle propre ; null s'il utilise le modèle par défaut.</param>
 public sealed record AgentDto(
     string Name, string Role, string Model, int MaxIterations, IReadOnlyList<ToolInfoDto> Tools,
-    string Key = "", LlmSelectionDto? ModelOverride = null);
+    string Key = "", LlmSelectionDto? ModelOverride = null, AgentStatsDto? Stats = null);
+
+/// <summary>Ce que le journal dit d'un rôle : combien de fois il a travaillé, et ce qu'il a consommé.</summary>
+public sealed record AgentStatsDto(int Runs, long TotalTokens, long AverageTokens);
 
 /// <param name="Model">Null pour revenir au modèle par défaut.</param>
 public sealed record UpdateAgentModelRequest(LlmSelectionDto? Model);

@@ -27,15 +27,18 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-2 divide-x border-b">
-        <div class="flex flex-col gap-1 px-3.5 py-2.5">
-          <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Tours max</span>
-          <b class="num text-[15px]">{{ agent.maxIterations }}</b>
-        </div>
-        <div class="flex flex-col gap-1 px-3.5 py-2.5">
-          <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Outils</span>
-          <b class="num text-[15px]">{{ agent.tools.length }}</b>
-        </div>
+      <div class="grid grid-cols-2 border-b sm:grid-cols-4">
+        @for (k of [
+          { label: 'Exécutions', value: agent.stats?.runs ?? 0 },
+          { label: 'Tokens moyens', value: tokens(agent.stats?.averageTokens) },
+          { label: 'Tokens au total', value: tokens(agent.stats?.totalTokens) },
+          { label: 'Tours max', value: agent.maxIterations }
+        ]; track k.label) {
+          <div class="-ml-px flex flex-col gap-1 border-l px-3.5 py-2.5">
+            <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">{{ k.label }}</span>
+            <b class="num text-[15px]">{{ k.value }}</b>
+          </div>
+        }
       </div>
 
       <div class="flex flex-wrap items-center justify-between gap-3 border-b px-3.5 py-3">

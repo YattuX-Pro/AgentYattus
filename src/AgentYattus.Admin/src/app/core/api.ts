@@ -22,7 +22,11 @@ export interface LlmStatus {
 export interface AddConnection { provider: string; label: string; apiKey: string | null; baseUrl: string | null }
 
 export interface ToolInfo { name: string; description: string; requiresApproval: boolean }
-export interface Agent { name: string; role: string; model: string; maxIterations: number; tools: ToolInfo[]; key: string; modelOverride: LlmSelection | null }
+export interface AgentStats { runs: number; totalTokens: number; averageTokens: number }
+export interface Agent {
+  name: string; role: string; model: string; maxIterations: number; tools: ToolInfo[]; key: string; modelOverride: LlmSelection | null;
+  stats?: AgentStats | null;
+}
 
 export type MissionStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'AwaitingApproval' | 'Cancelled';
 export type MissionKind = 'Question' | 'Review';

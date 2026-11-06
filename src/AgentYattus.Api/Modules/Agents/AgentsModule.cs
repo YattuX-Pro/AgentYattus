@@ -1,3 +1,4 @@
+using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -45,18 +46,34 @@ public static class AgentsModule
         return services.AddScoped<IAgentRunner, AgentFrameworkRunner>();
     }
 
+    /// <summary>Lit les événements « usage:rôle:entrée:sortie » (leçon 52) et en fait des statistiques par rôle.</summary>
+    internal static Dictionary<string, AgentStatsDto> Stats(IEnumerable<string> usageEvents)
+    {
+        var totals = new Dictionary<string, (int Runs, long Tokens)>();
+        foreach (var type in usageEvents)
+        {
+            var parts = type.Split(':');
+            if (parts.Length != 4 || !long.TryParse(parts[2], out var input) || !long.TryParse(parts[3], out var output))
+                continue;
+            var (runs, tokens) = totals.GetValueOrDefault(parts[1]);
+            totals[parts[1]] = (runs + 1, tokens + input + output);
+        }
+        return totals.ToDictionary(t => t.Key, t => new AgentStatsDto(t.Value.Runs, t.Value.Tokens, t.Value.Tokens / t.Value.Runs));
+    }
+
     public static IEndpointRouteBuilder MapAgentsEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet(AgentsProtocol.Path, async (
-            IOptions<AgentsOptions> options, ILlmClientProvider llm, ILlmAgentModels models, CancellationToken cancellationToken) =>
+            IOptions<AgentsOptions> options, ILlmClientProvider llm, ILlmAgentModels models, AuditLog audit, CancellationToken cancellationToken) =>
         {
+            var stats = Stats(await audit.TypesStartingWithAsync("usage:", cancellationToken));
             var agents = new List<AgentDto>();
             foreach (var role in AgentRoles.All)
                 agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, cancellationToken), options.Value.MaxIterations,
                 [
                     .. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name))
                         .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
-                ], role.Key, await models.GetAsync(role.Key, cancellationToken)));
+                ], role.Key, await models.GetAsync(role.Key, cancellationToken), stats.GetValueOrDefault(role.Key, new AgentStatsDto(0, 0, 0))));
             return TypedResults.Ok(agents);
         });
 

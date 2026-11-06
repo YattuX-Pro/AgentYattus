@@ -7,6 +7,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { AdminApi, Agent, LlmModel, LlmStatus, errorMessage, selectionKey } from '../../core/api';
+import { tokens } from '../../core/format';
 import { PageHeader } from '../../shell/page-header';
 import { ModelPicker } from '../models/model-picker';
 
@@ -41,6 +42,7 @@ export class Agents {
   protected readonly tools = computed(() => toolRows(this.agents() ?? []));
   protected readonly providerName = (id: string) => this.status()?.providers.find((p) => p.id === id)?.name ?? id;
   protected readonly key = selectionKey;
+  protected readonly tokens = tokens;
 
   constructor() {
     void this.load();
