@@ -55,5 +55,9 @@ public sealed class AgentDefinitionTests
         member.DefaultRequestHeaders.Add(TestAuthHandler.RolesHeader, "membre");
         Assert.Equal(HttpStatusCode.Forbidden, (await member.PutAsJsonAsync(AgentsProtocol.Role("analyste"), new UpdateAgentRequest(null, null), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await member.GetAsync(AgentsProtocol.Versions("analyste"), Ct)).StatusCode);
+        // La liste des agents reste lisible, sans les consignes.
+        var seen = (await member.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!.Single(a => a.Key == "analyste");
+        Assert.Equal(("", "", ""), (seen.Instructions, seen.DefaultInstructions, seen.Guardrails));
+        Assert.NotEmpty(seen.Tools);
     }
 }

@@ -25,6 +25,7 @@
           </div>
           <div class="text-muted-foreground">{{ agent.role }}</div>
         </div>
+        <button hlmBtn variant="outline" size="sm" (click)="edit(agent)">Modifier</button>
       </div>
 
       <div class="grid grid-cols-2 border-b sm:grid-cols-4">
@@ -109,3 +110,76 @@
   [providerName]="providerName"
   (chosen)="set(editing()!, $event)"
 />
+
+<hlm-sheet side="right" [state]="editState()" (closed)="editingRole.set(null)">
+  <hlm-sheet-content *hlmSheetPortal="let ctx" class="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
+    @if (editingRole(); as role) {
+      <hlm-sheet-header class="border-b p-4">
+        <h3 hlmSheetTitle>{{ role.name }} · consigne</h3>
+        <p hlmSheetDescription>
+          Version {{ role.version || 'd’origine' }}. Une modification crée une nouvelle version ; elle s’applique dès la prochaine mission.
+        </p>
+      </hlm-sheet-header>
+
+      <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+        <label class="flex flex-col gap-1.5">
+          <span class="flex items-center justify-between">
+            <span class="font-medium">Consigne</span>
+            <span class="num text-xs" [class.text-destructive]="!draftValid()" [class.text-muted-foreground]="draftValid()">{{ draft().length }} / 8 000</span>
+          </span>
+          <textarea hlmTextarea rows="10" class="font-mono text-xs leading-relaxed" [value]="draft()" (input)="draft.set($any($event.target).value)"></textarea>
+        </label>
+
+        <div class="flex flex-col gap-1.5">
+          <span class="font-medium">Toujours ajouté par le code</span>
+          <p class="bg-muted text-muted-foreground m-0 rounded-md border p-2.5 font-mono text-xs leading-relaxed">{{ role.guardrails }}</p>
+          <span class="text-muted-foreground text-xs">Les outils, l’approbation des écritures et le dossier de travail ne dépendent pas de la consigne.</span>
+        </div>
+
+        <label class="flex items-center justify-between gap-3">
+          <span><span class="block font-medium">Tours maximum pour ce rôle</span><span class="text-muted-foreground text-xs">Vide : la limite de l’instance</span></span>
+          <input hlmInput type="number" min="1" max="50" class="w-28" placeholder="instance" [value]="maxTurns()" (input)="maxTurns.set($any($event.target).value)" />
+        </label>
+
+        @if (changedFromOrigin()) {
+          <div class="flex flex-col gap-1.5">
+            <span class="font-medium">Différences avec l’origine</span>
+            <div class="max-h-48 overflow-y-auto rounded-md border font-mono text-xs">
+              @for (line of diff(); track $index) {
+                <div class="px-2.5 py-0.5 whitespace-pre-wrap"
+                  [class.bg-destructive-soft]="line.kind === 'removed'" [class.text-destructive]="line.kind === 'removed'"
+                  [class.bg-primary-soft]="line.kind === 'added'" [class.text-primary]="line.kind === 'added'"
+                  [class.text-muted-foreground]="line.kind === 'same'">{{ line.kind === 'removed' ? '− ' : line.kind === 'added' ? '+ ' : '  ' }}{{ line.text }}</div>
+              }
+            </div>
+          </div>
+        }
+
+        <div class="flex flex-col gap-1.5">
+          <span class="font-medium">Historique</span>
+          @for (v of versions(); track v.version) {
+            <div class="flex items-center gap-3 border-b py-1.5 last:border-b-0">
+              <span class="num w-10 font-mono text-xs">v{{ v.version }}</span>
+              <span class="text-muted-foreground min-w-0 flex-1 truncate text-xs">
+                {{ when(v.at) }} · {{ v.by }} · {{ v.instructions === null ? 'consigne d’origine' : v.instructions.slice(0, 60) + '…' }}{{ v.maxIterations ? ' · ' + v.maxIterations + ' tours' : '' }}
+              </span>
+              @if (v.version !== role.version) {
+                <button hlmBtn variant="ghost" size="xs" (click)="restore(v)" [disabled]="busy()">Restaurer</button>
+              } @else {
+                <span hlmBadge variant="outline">en vigueur</span>
+              }
+            </div>
+          } @empty {
+            <span class="text-muted-foreground text-xs">Aucune modification : la consigne d’origine est en vigueur.</span>
+          }
+        </div>
+      </div>
+
+      <hlm-sheet-footer class="flex-row flex-wrap justify-end gap-2 border-t p-3">
+        <button hlmBtn variant="ghost" class="mr-auto" (click)="saveRole(null, '', 'Retour à la consigne d’origine.')" [disabled]="busy() || role.version === 0">Revenir à l’origine</button>
+        <button hlmBtn variant="outline" (click)="editingRole.set(null)">Fermer</button>
+        <button hlmBtn (click)="saveRole(draft(), maxTurns(), 'Nouvelle version enregistrée.')" [disabled]="busy() || !draftValid()">Enregistrer</button>
+      </hlm-sheet-footer>
+    }
+  </hlm-sheet-content>
+</hlm-sheet>

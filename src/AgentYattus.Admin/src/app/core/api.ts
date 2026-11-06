@@ -26,7 +26,9 @@ export interface AgentStats { runs: number; totalTokens: number; averageTokens: 
 export interface Agent {
   name: string; role: string; model: string; maxIterations: number; tools: ToolInfo[]; key: string; modelOverride: LlmSelection | null;
   stats?: AgentStats | null;
+  instructions: string; defaultInstructions: string; guardrails: string; version: number; maxIterationsOverride: number | null;
 }
+export interface AgentVersion { version: number; instructions: string | null; maxIterations: number | null; at: string; by: string }
 
 export type MissionStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'AwaitingApproval' | 'Cancelled';
 export type MissionKind = 'Question' | 'Review';
@@ -102,6 +104,10 @@ export class AdminApi {
   setFree(enabled: boolean, chain: LlmSelection[]) { return this.send('PUT', '/llm/free', { enabled, chain }); }
 
   agents() { return this.get<Agent[]>('/agents'); }
+  updateAgent(role: string, instructions: string | null, maxIterations: number | null) {
+    return this.send('PUT', `/agents/${encodeURIComponent(role)}`, { instructions, maxIterations });
+  }
+  agentVersions(role: string) { return this.get<AgentVersion[]>(`/agents/${encodeURIComponent(role)}/versions`); }
   setAgentModel(role: string, model: LlmSelection | null) { return this.send('PUT', `/agents/${encodeURIComponent(role)}/model`, { model }); }
 
   missions(limit = 100) { return this.get<Mission[]>(`/missions?limit=${limit}`); }

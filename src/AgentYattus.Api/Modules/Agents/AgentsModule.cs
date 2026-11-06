@@ -69,8 +69,11 @@ public static class AgentsModule
     {
         app.MapGet(AgentsProtocol.Path, async (
             IOptions<AgentsOptions> options, ILlmClientProvider llm, ILlmAgentModels models, AuditLog audit, AgentDefinitions definitions,
-            IInstanceSettings instance, CancellationToken cancellationToken) =>
+            IInstanceSettings instance, HttpContext http, CancellationToken cancellationToken) =>
         {
+            // Les consignes (qui peuvent contenir des règles internes) et leur version : administrateurs seulement,
+            // comme l'historique. Les autres voient le rôle, son modèle et ses outils.
+            var admin = http.User.IsInRole(Authentication.LlmAdminRole);
             var stats = Stats(await audit.TypesStartingWithAsync("usage:", cancellationToken));
             var instanceMax = (await instance.GetAsync(cancellationToken)).MaxIterations ?? options.Value.MaxIterations;
             var agents = new List<AgentDto>();
@@ -82,7 +85,8 @@ public static class AgentsModule
                     .. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name))
                         .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
                 ], role.Key, await models.GetAsync(role.Key, cancellationToken), stats.GetValueOrDefault(role.Key, new AgentStatsDto(0, 0, 0)),
-                current?.Instructions ?? role.Instructions, role.Instructions, AgentRoles.Guardrails(role), current?.Version ?? 0, current?.MaxIterations));
+                admin ? current?.Instructions ?? role.Instructions : "", admin ? role.Instructions : "", admin ? AgentRoles.Guardrails(role) : "",
+                admin ? current?.Version ?? 0 : 0, admin ? current?.MaxIterations : null));
             }
             return TypedResults.Ok(agents);
         });
