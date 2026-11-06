@@ -24,14 +24,14 @@ export interface AddConnection { provider: string; label: string; apiKey: string
 export interface ToolInfo { name: string; description: string; requiresApproval: boolean }
 export interface Agent { name: string; role: string; model: string; maxIterations: number; tools: ToolInfo[]; key: string; modelOverride: LlmSelection | null }
 
-export type MissionStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'AwaitingApproval';
+export type MissionStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'AwaitingApproval' | 'Cancelled';
 export type MissionKind = 'Question' | 'Review';
 export interface ToolCall { tool: string; arguments: string }
 export interface Mission {
   id: string; goal: string; status: MissionStatus; createdAt: string; result: string | null;
   pendingApproval: { id: string; toolCalls: ToolCall[] } | null; kind: MissionKind;
   projectId?: string | null; projectName?: string | null; createdBy?: string | null;
-  inputTokens?: number; outputTokens?: number; cost?: number;
+  inputTokens?: number; outputTokens?: number; cost?: number; retryOf?: string | null;
 }
 
 export interface InstanceSettings {
@@ -104,6 +104,8 @@ export class AdminApi {
   mission(id: string) { return this.get<Mission>(`/missions/${id}`); }
   events(id: string) { return this.get<AuditEntry[]>(`/missions/${id}/events`); }
   decide(id: string, approvalId: string, approved: boolean) { return this.send('POST', `/missions/${id}/decision`, { approved, approvalId }); }
+  cancel(id: string) { return this.send('POST', `/missions/${id}/cancel`); }
+  retry(id: string) { return this.send<Mission>('POST', `/missions/${id}/retry`); }
   audit(limit = 200) { return this.get<AuditFeedEntry[]>(`/audit?limit=${limit}`); }
 
   settings() { return this.get<InstanceSettings>('/settings'); }

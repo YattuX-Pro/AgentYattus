@@ -9,6 +9,7 @@ export const STATUS: Record<MissionStatus, { label: string; tone: Tone }> = {
   AwaitingApproval: { label: 'À approuver', tone: 'warning' },
   Completed: { label: 'Terminée', tone: 'secondary' },
   Failed: { label: 'Échouée', tone: 'destructive' },
+  Cancelled: { label: 'Arrêtée', tone: 'secondary' },
 };
 
 export interface EventView {
@@ -30,6 +31,7 @@ export function describe(type: string): EventView {
       return detail === 'approuvee'
         ? { kind, label: 'Écriture approuvée', detail: '', tone: 'success' }
         : { kind, label: 'Écriture refusée', detail: '', tone: 'destructive' };
+    case 'arret-demande': return { kind: 'decision', label: 'Arrêt demandé', detail: '', tone: 'warning' };
     case 'limite-de-tours': return { kind, label: 'Limite de tours atteinte', detail, tone: 'destructive' };
     case 'usage': {
       const [role, input, output] = detail.split(':');

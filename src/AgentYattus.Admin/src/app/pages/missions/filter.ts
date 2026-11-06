@@ -1,6 +1,6 @@
 import { Mission, MissionStatus } from '../../core/api';
 
-export type MissionFilter = 'all' | 'active' | 'AwaitingApproval' | 'Completed' | 'Failed';
+export type MissionFilter = 'all' | 'active' | 'AwaitingApproval' | 'Completed' | 'Failed' | 'Cancelled';
 
 export const FILTERS: { id: MissionFilter; label: string }[] = [
   { id: 'all', label: 'Toutes' },
@@ -8,6 +8,7 @@ export const FILTERS: { id: MissionFilter; label: string }[] = [
   { id: 'AwaitingApproval', label: 'À approuver' },
   { id: 'Completed', label: 'Terminées' },
   { id: 'Failed', label: 'Échouées' },
+  { id: 'Cancelled', label: 'Arrêtées' },
 ];
 
 const matches = (status: MissionStatus, filter: MissionFilter) =>

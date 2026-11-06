@@ -4,6 +4,7 @@ import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronRight, lucideRefreshCw, lucideSearch } from '@ng-icons/lucide';
 import { BrnDialogState } from '@spartan-ng/brain/dialog';
 import { toast } from '@spartan-ng/brain/sonner';
+import { HlmAlertDialogImports } from '@spartan-ng/helm/alert-dialog';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmSheetImports } from '@spartan-ng/helm/sheet';
@@ -19,7 +20,7 @@ const REFRESH_MS = 10_000;
 
 @Component({
   selector: 'app-missions',
-  imports: [PageHeader, RouterLink, NgIcon, HlmButtonImports, HlmBadgeImports, HlmTableImports, HlmSheetImports, HlmSkeletonImports],
+  imports: [PageHeader, RouterLink, NgIcon, HlmAlertDialogImports, HlmButtonImports, HlmBadgeImports, HlmTableImports, HlmSheetImports, HlmSkeletonImports],
   providers: [provideIcons({ lucideChevronRight, lucideRefreshCw, lucideSearch })],
   templateUrl: './missions.html',
 })
@@ -49,6 +50,10 @@ export class Missions {
   protected readonly sheetState = computed<BrnDialogState>(() => (this.selected() ? 'open' : 'closed'));
   protected readonly readAll = signal(false);
   protected readonly deciding = signal(false);
+  protected readonly confirmStop = signal(false);
+  protected readonly stopState = computed<BrnDialogState>(() => (this.confirmStop() ? 'open' : 'closed'));
+  protected readonly canStop = (m: Mission) => m.status === 'Pending' || m.status === 'Running' || m.status === 'AwaitingApproval';
+  protected readonly canRetry = (m: Mission) => (m.status === 'Failed' || m.status === 'Cancelled') && !!m.projectId;
   private readonly content = viewChild<ElementRef<HTMLElement>>('content');
 
   protected readonly FILTERS = FILTERS;
@@ -85,6 +90,39 @@ export class Missions {
       setTimeout(() => this.checkRead(), 0);
     } catch (e) {
       toast.error(errorMessage(e));
+    }
+  }
+
+  protected async stop() {
+    const mission = this.selected();
+    this.confirmStop.set(false);
+    if (!mission) return;
+    this.deciding.set(true);
+    try {
+      await this.api.cancel(mission.id);
+      toast.success('Arrêt demandé : la mission s’arrête à sa prochaine étape.');
+      await this.load();
+      await this.open(mission);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      this.deciding.set(false);
+    }
+  }
+
+  protected async retry() {
+    const mission = this.selected();
+    if (!mission) return;
+    this.deciding.set(true);
+    try {
+      const retry = await this.api.retry(mission.id);
+      toast.success('Mission relancée.');
+      await this.load();
+      await this.open(retry);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      this.deciding.set(false);
     }
   }
 

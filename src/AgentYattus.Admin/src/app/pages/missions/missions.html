@@ -78,7 +78,10 @@
   <hlm-sheet-content *hlmSheetPortal="let ctx" class="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
     @if (selected(); as m) {
       <hlm-sheet-header class="border-b p-4">
-        <div class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }} · {{ m.kind === 'Review' ? 'Revue' : 'Question' }} · {{ when(m.createdAt) }} · {{ m.projectName ?? 'sans projet' }} · {{ m.createdBy ?? '—' }}</div>
+        <div class="text-muted-foreground font-mono text-xs">
+          {{ m.id.slice(0, 8) }} · {{ m.kind === 'Review' ? 'Revue' : 'Question' }} · {{ when(m.createdAt) }} · {{ m.projectName ?? 'sans projet' }} · {{ m.createdBy ?? '—' }}
+          @if (m.retryOf) { · relance de {{ m.retryOf.slice(0, 8) }} }
+        </div>
         <h3 hlmSheetTitle class="pr-6 text-[15px] leading-snug">{{ m.goal }}</h3>
         <p hlmSheetDescription class="flex flex-wrap items-center gap-2">
           <span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span>
@@ -136,15 +139,39 @@
         }
       </div>
 
-      @if (m.pendingApproval) {
-        <hlm-sheet-footer class="flex-row justify-end gap-2 border-t p-3">
-          @if (!readAll()) {
+      @if (m.pendingApproval || canStop(m) || canRetry(m)) {
+        <hlm-sheet-footer class="flex-row flex-wrap justify-end gap-2 border-t p-3">
+          @if (m.pendingApproval && !readAll()) {
             <span class="text-muted-foreground mr-auto self-center text-xs">Faites défiler jusqu'au bout pour approuver.</span>
           }
-          <button hlmBtn variant="destructive" (click)="decide(false)" [disabled]="deciding()">Refuser</button>
-          <button hlmBtn (click)="decide(true)" [disabled]="deciding() || !readAll()">Approuver l'écriture</button>
+          @if (canStop(m)) {
+            <button hlmBtn variant="ghost" (click)="confirmStop.set(true)" [disabled]="deciding()">Arrêter</button>
+          }
+          @if (canRetry(m)) {
+            <button hlmBtn variant="outline" (click)="retry()" [disabled]="deciding()">Relancer</button>
+          }
+          @if (m.pendingApproval) {
+            <button hlmBtn variant="destructive" (click)="decide(false)" [disabled]="deciding()">Refuser</button>
+            <button hlmBtn (click)="decide(true)" [disabled]="deciding() || !readAll()">Approuver l'écriture</button>
+          }
         </hlm-sheet-footer>
       }
     }
   </hlm-sheet-content>
 </hlm-sheet>
+
+<hlm-alert-dialog [state]="stopState()" (closed)="confirmStop.set(false)">
+  <hlm-alert-dialog-content *hlmAlertDialogPortal="let ctx">
+    <hlm-alert-dialog-header>
+      <h3 hlmAlertDialogTitle>Arrêter cette mission ?</h3>
+      <p hlmAlertDialogDescription>
+        L'agent s'arrête à sa prochaine étape. Ce qui est déjà fait reste dans le journal ; une écriture en attente est abandonnée.
+        Vous pourrez la relancer ensuite.
+      </p>
+    </hlm-alert-dialog-header>
+    <hlm-alert-dialog-footer>
+      <button hlmAlertDialogCancel (click)="confirmStop.set(false)">Continuer la mission</button>
+      <button hlmAlertDialogAction variant="destructive" (click)="stop()">Arrêter</button>
+    </hlm-alert-dialog-footer>
+  </hlm-alert-dialog-content>
+</hlm-alert-dialog>
