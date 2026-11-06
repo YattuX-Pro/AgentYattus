@@ -85,11 +85,32 @@ Calendrier indicatif (4 à 5 mois depuis le 24/10/2026) : MVP démontrable mi-f�
 - [x] 49 `feat(admin): page Projets (visibilité, invités, dossier de travail)`
 - [x] 50 `feat(admin): pages Organisations et Utilisateurs, groupe Administration`
 
+## Compléter l'admin
+
+- [x] 51 `docs(adr): coût des missions, budget et réglages de l'instance` (ADR 0010)
+- [x] 52 `feat(missions): tokens et coût enregistrés par mission`
+- [x] 53 `feat(settings): module Réglages de l'instance`
+- [x] 54 `feat(settings): budget mensuel et blocage au plafond`
+- [x] 55 `feat(audit): purge selon la rétention, exclusions comparées au nom réel`, puis `fix(agents)` (nom exact du disque)
+- [x] 56 `feat(admin): page Réglages`
+- [x] 57 `feat(admin): coût et tokens dans la vue d'ensemble et les missions`
+- [x] 58 `feat(missions): arrêter une mission`
+- [x] 59 `feat(missions): relancer une mission`
+- [x] 60 `feat(admin): arrêter et relancer depuis l'admin`
+- [x] 61 `feat(agents): statistiques par agent`
+- [x] 62 `docs(adr): consignes des agents modifiables` (ADR 0011)
+- [x] 63 `feat(agents): consignes et tours modifiables, avec historique`
+- [x] 64 `feat(admin): modifier un agent`
+- [x] 65 `feat(admin): missions en direct par SignalR`
+- [x] 66 `feat(audit): export CSV`
+- [x] 67 `feat(admin): activité du jour de la chaîne gratuite`
+- [x] 68 `refactor(desktop): retirer la gestion des modèles du bureau`
+- [x] 69 `feat(desktop): choisir le projet d'une mission`
+
 ## Ensuite
 
+- [ ] Rôles d'agents personnalisés (choix des outils) : une décision à part.
 - [ ] Clés de modèle personnelles (une clé ne sert qu'aux projets de son propriétaire), modèle par projet, budget par organisation et par projet (ADR 0009, reporté).
-- [ ] `feat(desktop)` : choisir le projet d'une mission (aujourd'hui, le projet personnel).
-- [ ] Retirer l'écran Modèles du bureau, maintenant géré par l'admin web.
 
 - [ ] Lancer l'évaluation sur Haiku et Sonnet (payant, quelques dizaines de centimes) et choisir le modèle par défaut.
 - [ ] `feat(mobile): squelette MAUI` (le code existe, non commité ; à brancher sur la connexion OIDC avec `WebAuthenticator`).

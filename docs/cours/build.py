@@ -26,6 +26,7 @@ PHASES = [  # (première leçon, numéro, titre, objectif)
     (34, "6", "Fournisseurs et modèles", "Comme opencode : tous les fournisseurs, un modèle par agent, et un mode Gratuit."),
     (37, "7", "Espace admin web", "Séparer gérer et travailler : un espace d'administration en Angular et spartan/ui."),
     (45, "8", "Plusieurs utilisateurs", "Organisations, projets privés ou partagés, et des missions qui suivent les droits."),
+    (51, "9", "Compléter l'admin", "Coût et budget, réglages, arrêter et relancer, consignes versionnées, direct, export."),
 ]
 
 
