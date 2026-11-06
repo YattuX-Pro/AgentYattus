@@ -33,7 +33,38 @@ public static class AuditModule
             return TypedResults.Ok(await db.Events.OrderByDescending(e => e.Id).Take(limit)
                 .Select(e => new AuditFeedEntryDto(e.MissionId, e.Type, e.At)).ToArrayAsync(cancellationToken));
         }).RequireAuthorization(Authentication.LlmAdminPolicy);
+
+        // Export CSV, pour un tableur ou un archivage. Borné, et protégé contre l'injection de formules.
+        app.MapGet(AuditProtocol.Export, async Task<Results<FileContentHttpResult, ValidationProblem>> (
+            AuditDb db, CancellationToken ct, int limit = 5000) =>
+        {
+            if (limit is < 1 or > MaxExport)
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["limit"] = [$"La limite est comprise entre 1 et {MaxExport}."],
+                });
+            var rows = await db.Events.OrderByDescending(e => e.Id).Take(limit).ToListAsync(ct);
+            var csv = new System.Text.StringBuilder("horodatage,mission,evenement\r\n");
+            foreach (var e in rows)
+                csv.Append(Csv(e.At.ToString("O"))).Append(',').Append(Csv(e.MissionId.ToString())).Append(',').Append(Csv(e.Type)).Append("\r\n");
+            // L'en-tête UTF-8 (BOM) fait reconnaître les accents à Excel.
+            var bytes = System.Text.Encoding.UTF8.GetPreamble().Concat(System.Text.Encoding.UTF8.GetBytes(csv.ToString())).ToArray();
+            return TypedResults.File(bytes, "text/csv; charset=utf-8", $"audit-{DateTime.UtcNow:yyyyMMdd-HHmm}.csv");
+        }).RequireAuthorization(Authentication.LlmAdminPolicy);
         return app;
+    }
+
+    private const int MaxExport = 50_000;
+
+    /// <summary>
+    /// Une cellule CSV sûre. Un tableur exécute une cellule qui commence par = + - @ (ou une tabulation, un retour) :
+    /// un type d'événement venu d'un nom d'outil ou d'un modèle pourrait devenir une formule. On la préfixe d'une apostrophe.
+    /// </summary>
+    internal static string Csv(string value)
+    {
+        if (value.Length > 0 && value[0] is '=' or '+' or '-' or '@' or '\t' or '\r')
+            value = "'" + value;
+        return value.IndexOfAny([',', '"', '\n', '\r']) >= 0 ? $"\"{value.Replace("\"", "\"\"")}\"" : value;
     }
 }
 

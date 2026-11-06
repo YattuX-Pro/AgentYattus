@@ -70,6 +70,7 @@ public sealed record AuditFeedEntryDto(Guid MissionId, string Type, DateTimeOffs
 public static class AuditProtocol
 {
     public const string Path = "/audit";
+    public const string Export = "/audit/export";
 }
 
 public static class MissionsHubProtocol

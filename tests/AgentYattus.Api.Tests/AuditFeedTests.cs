@@ -36,3 +36,35 @@ public sealed class AuditFeedTests
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync(AuditProtocol.Path, Ct)).StatusCode);
     }
 }
+
+public sealed class AuditExportTests
+{
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    [Theory]
+    [InlineData("outil:read_file", "outil:read_file")]
+    [InlineData("=HYPERLINK(\"http://x\")", "\"'=HYPERLINK(\"\"http://x\"\")\"")]
+    [InlineData("+1", "'+1")]
+    [InlineData("a,b", "\"a,b\"")]
+    public void Cells_are_quoted_and_formulas_neutralized(string value, string expected) =>
+        Assert.Equal(expected, AgentYattus.Api.Modules.Audit.AuditModule.Csv(value));
+
+    [Fact]
+    public async Task Admins_export_the_journal_as_csv()
+    {
+        await using var api = new ApiFactory();
+        var client = api.CreateClient();
+        var mission = await client.CreateMissionAsync("Exportée");
+        await client.WaitForFinalStatusAsync(mission.Id);
+
+        var response = await client.GetAsync(AuditProtocol.Export, Ct);
+        var text = await response.Content.ReadAsStringAsync(Ct);
+
+        Assert.Equal("text/csv", response.Content.Headers.ContentType!.MediaType);
+        Assert.StartsWith("horodatage,mission,evenement", text.TrimStart('﻿'));
+        Assert.Contains($"{mission.Id},Completed", text);
+        var member = api.CreateClient();
+        member.DefaultRequestHeaders.Add(TestAuthHandler.RolesHeader, "membre");
+        Assert.Equal(System.Net.HttpStatusCode.Forbidden, (await member.GetAsync(AuditProtocol.Export, Ct)).StatusCode);
+    }
+}

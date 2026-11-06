@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
-import { lucideRefreshCw } from '@ng-icons/lucide';
+import { lucideDownload, lucideRefreshCw } from '@ng-icons/lucide';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -24,10 +24,11 @@ const KINDS = [
 @Component({
   selector: 'app-audit',
   imports: [PageHeader, RouterLink, NgIcon, HlmButtonImports, HlmBadgeImports, HlmTableImports, HlmSkeletonImports],
-  providers: [provideIcons({ lucideRefreshCw })],
+  providers: [provideIcons({ lucideDownload, lucideRefreshCw })],
   template: `
     <app-page-header title="Audit" description="Chaque action des agents et chaque décision, horodatées, en ajout seul.">
       <button hlmBtn variant="outline" (click)="load()"><ng-icon name="lucideRefreshCw" /> Actualiser</button>
+      <button hlmBtn variant="outline" (click)="export()" [disabled]="exporting()"><ng-icon name="lucideDownload" /> Exporter en CSV</button>
     </app-page-header>
 
     <section class="bg-card rounded-xl border">
@@ -89,6 +90,24 @@ export class Audit {
   protected readonly count = (kind: string) => this.rows().filter((r) => kind === 'all' || r.view.kind === kind).length;
   protected readonly KINDS = KINDS;
   protected readonly when = when;
+  protected readonly exporting = signal(false);
+
+  protected async export() {
+    this.exporting.set(true);
+    try {
+      const response = await this.api.exportAudit();
+      const name = /filename="?([^";]+)"?/.exec(response.headers.get('Content-Disposition') ?? '')?.[1] ?? 'audit.csv';
+      const url = URL.createObjectURL(response.body!);
+      const link = Object.assign(document.createElement('a'), { href: url, download: name });
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('Export téléchargé (5 000 derniers événements).');
+    } catch (e) {
+      toast.error(errorMessage(e));
+    } finally {
+      this.exporting.set(false);
+    }
+  }
 
   constructor() {
     void this.load();

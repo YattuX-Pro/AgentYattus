@@ -116,6 +116,8 @@ export class AdminApi {
   decide(id: string, approvalId: string, approved: boolean) { return this.send('POST', `/missions/${id}/decision`, { approved, approvalId }); }
   cancel(id: string) { return this.send('POST', `/missions/${id}/cancel`); }
   retry(id: string) { return this.send<Mission>('POST', `/missions/${id}/retry`); }
+  /** L'export CSV : un fichier, téléchargé avec le jeton (un simple lien ne l'enverrait pas). */
+  exportAudit() { return firstValueFrom(this.http.get('/api/audit/export', { responseType: 'blob', observe: 'response' })); }
   audit(limit = 200) { return this.get<AuditFeedEntry[]>(`/audit?limit=${limit}`); }
 
   settings() { return this.get<InstanceSettings>('/settings'); }
