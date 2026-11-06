@@ -110,10 +110,10 @@ public sealed class FakeAgentRunner : IAgentRunner
 /// <summary>Un fournisseur de modèle figé : le faux modèle des tests, ou aucun (« pas de clé »).</summary>
 public sealed class FixedLlmClientProvider(IChatClient? client, string model = "claude-haiku-5-5") : ILlmClientProvider
 {
-    public Task<LlmClient?> GetAsync(CancellationToken cancellationToken) =>
+    public Task<LlmClient?> GetAsync(string role, CancellationToken cancellationToken) =>
         Task.FromResult(client is null ? null : new LlmClient(client, model));
 
-    public Task<string> GetModelAsync(CancellationToken cancellationToken) => Task.FromResult(model);
+    public Task<string> GetModelAsync(string role, CancellationToken cancellationToken) => Task.FromResult(model);
 }
 
 /// <summary>Le vrai exécuteur Agent Framework, branché sur un faux modèle et un workspace temporaire.</summary>

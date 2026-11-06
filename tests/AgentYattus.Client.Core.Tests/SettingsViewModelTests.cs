@@ -31,6 +31,12 @@ public sealed class SettingsViewModelTests
             new LlmModelDto(OllamaId, "ollama", "qwen3:8b", "qwen3:8b", null, 0, 0, false, true),
         ], []);
 
+    private static AgentDto[] Agents() =>
+    [
+        new("Analyste", "Lit", "ollama/qwen3:8b", 10, [], "analyste", new LlmSelectionDto(OllamaId, "qwen3:8b")),
+        new("Rédacteur", "Écrit", "anthropic/claude-haiku-5-5", 10, [], "redacteur"),
+    ];
+
     private static (SettingsViewModel Vm, List<(HttpMethod Method, string Path, string? Body)> Calls) Create(Func<HttpRequestMessage, HttpResponseMessage?>? respond = null)
     {
         var calls = new List<(HttpMethod, string, string?)>();
@@ -47,7 +53,12 @@ public sealed class SettingsViewModelTests
                 return new HttpResponseMessage(request.Method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.NoContent);
             return new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = request.RequestUri.AbsolutePath == LlmProtocol.Models ? JsonContent.Create(Models()) : JsonContent.Create(Status(revoked)),
+                Content = request.RequestUri.AbsolutePath switch
+                {
+                    LlmProtocol.Models => JsonContent.Create(Models()),
+                    AgentsProtocol.Path => JsonContent.Create(Agents()),
+                    _ => JsonContent.Create(Status(revoked)),
+                },
             };
         });
         return (new SettingsViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") })), calls);
@@ -87,6 +98,24 @@ public sealed class SettingsViewModelTests
         Assert.Contains($"\"connectionId\":\"{OllamaId}\"", put.Body);
         Assert.Contains("\"model\":\"qwen3:8b\"", put.Body);
         Assert.False(vm.IsPickerOpen);
+    }
+
+    [Fact]
+    public async Task Each_agent_shows_its_own_model_and_can_get_a_new_one_or_go_back_to_the_default()
+    {
+        var (vm, calls) = Create();
+        await vm.LoadAsync(Ct);
+        Assert.Equal(["qwen3:8b", "Par défaut"], vm.Agents.Select(a => a.Label));
+
+        vm.OpenAgentPickerCommand.Execute(vm.Agents[1]);
+        await vm.ChooseCommand.ExecuteAsync(vm.FilteredModels.Single(m => m.Model.Id == "claude-sonnet-5-5"));
+        await vm.ResetAgentCommand.ExecuteAsync(vm.Agents[0]);
+
+        var puts = calls.Where(c => c.Method == HttpMethod.Put).ToList();
+        Assert.Equal(("/agents/redacteur/model", "/agents/analyste/model"), (puts[0].Path, puts[1].Path));
+        Assert.Contains("\"model\":\"claude-sonnet-5-5\"", puts[0].Body);
+        Assert.Contains("\"model\":null", puts[1].Body);
+        Assert.DoesNotContain(calls, c => c.Path == LlmProtocol.Settings);
     }
 
     [Fact]

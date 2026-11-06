@@ -190,7 +190,7 @@ internal sealed class EvalUser(
 
 internal sealed class EvalModel(IChatClient client, string model) : ILlmClientProvider
 {
-    public Task<LlmClient?> GetAsync(CancellationToken cancellationToken) => Task.FromResult<LlmClient?>(new(client, model));
+    public Task<LlmClient?> GetAsync(string role, CancellationToken cancellationToken) => Task.FromResult<LlmClient?>(new(client, model));
 
-    public Task<string> GetModelAsync(CancellationToken cancellationToken) => Task.FromResult(model);
+    public Task<string> GetModelAsync(string role, CancellationToken cancellationToken) => Task.FromResult(model);
 }

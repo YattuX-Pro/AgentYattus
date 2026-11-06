@@ -193,9 +193,9 @@ public sealed class LlmTests
         IConfiguration Config(string? key) => new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Anthropic:ApiKey"] = key }).Build();
 
-        Assert.Null(await new LlmClientProvider(db, protection, Config(null)).GetAsync(Ct));
+        Assert.Null(await new LlmClientProvider(db, protection, Config(null)).GetAsync("analyste", Ct));
         Assert.Equal("anthropic/claude-haiku-5-5",
-            (await new LlmClientProvider(db, protection, Config("sk-ant-config-0123456789")).GetAsync(Ct))!.Model);
+            (await new LlmClientProvider(db, protection, Config("sk-ant-config-0123456789")).GetAsync("analyste", Ct))!.Model);
 
         var client = api.CreateClient();
         var groq = await ConnectAsync(client, "groq");
@@ -203,11 +203,56 @@ public sealed class LlmTests
         await client.PutAsJsonAsync(LlmProtocol.Settings, new UpdateLlmSettingsRequest(new(groq.Id, model)), Ct);
         db.ChangeTracker.Clear();
 
-        var chosen = (await new LlmClientProvider(db, protection, Config(null)).GetAsync(Ct))!;
+        var chosen = (await new LlmClientProvider(db, protection, Config(null)).GetAsync("analyste", Ct))!;
         Assert.Equal($"groq/{model}", chosen.Model);
         // Groq parle le protocole d'OpenAI, à sa propre adresse.
         var metadata = chosen.Client.GetService<ChatClientMetadata>()!;
         Assert.Equal(("https://api.groq.com/openai/v1", model), (metadata.ProviderUri?.ToString().TrimEnd('/'), metadata.DefaultModelId));
+    }
+
+    [Fact]
+    public async Task Each_agent_can_have_its_own_model_and_falls_back_to_the_default()
+    {
+        await using var api = new ApiFactory();
+        var client = api.CreateClient();
+        var anthropic = await ConnectAsync(client, "anthropic");
+        var ollama = await ConnectAsync(client, "ollama", key: null);
+        await client.PutAsJsonAsync(LlmProtocol.Settings, new UpdateLlmSettingsRequest(new(anthropic.Id, "claude-sonnet-5-5")), Ct);
+
+        var set = await client.PutAsJsonAsync(AgentsProtocol.Model("analyste"), new UpdateAgentModelRequest(new(ollama.Id, "qwen3:8b")), Ct);
+        var unknownRole = await client.PutAsJsonAsync(AgentsProtocol.Model("pirate"), new UpdateAgentModelRequest(null), Ct);
+        var unknownModel = await client.PutAsJsonAsync(AgentsProtocol.Model("redacteur"), new UpdateAgentModelRequest(new(anthropic.Id, "gpt-4o")), Ct);
+        var agents = (await client.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!;
+
+        Assert.Equal((HttpStatusCode.NoContent, HttpStatusCode.NotFound, HttpStatusCode.BadRequest), (set.StatusCode, unknownRole.StatusCode, unknownModel.StatusCode));
+        Assert.Equal(new LlmSelectionDto(ollama.Id, "qwen3:8b"), agents.Single(a => a.Key == "analyste").ModelOverride);
+        Assert.Null(agents.Single(a => a.Key == "redacteur").ModelOverride);
+
+        using (var scope = api.Services.CreateScope())
+        {
+            // ApiFactory remplace le fournisseur des agents par un faux : on teste ici le vrai.
+            var real = new LlmClientProvider(scope.ServiceProvider.GetRequiredService<LlmDb>(),
+                scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(), new ConfigurationBuilder().Build());
+            Assert.Equal("ollama/qwen3:8b", (await real.GetAsync("analyste", Ct))!.Model);
+            Assert.Equal("anthropic/claude-sonnet-5-5", (await real.GetAsync("redacteur", Ct))!.Model);
+        }
+
+        // Révoquer la connexion d'un agent le ramène au modèle par défaut.
+        await client.DeleteAsync($"{LlmProtocol.Connections}/{ollama.Id}", Ct);
+        var analyst = (await client.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!.Single(a => a.Key == "analyste");
+        Assert.Null(analyst.ModelOverride);
+    }
+
+    [Fact]
+    public async Task Only_llm_admins_can_choose_an_agent_model()
+    {
+        await using var api = new ApiFactory();
+        var client = api.CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.RolesHeader, "observateur");
+
+        var response = await client.PutAsJsonAsync(AgentsProtocol.Model("analyste"), new UpdateAgentModelRequest(null), Ct);
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 
     [Fact]

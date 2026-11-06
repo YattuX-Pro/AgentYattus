@@ -26,6 +26,12 @@ public sealed record ModelItem(LlmModelDto Model, string ProviderName, bool IsDe
         query.Length == 0 || $"{Model.Name} {Model.Id} {ProviderName}".Contains(query, StringComparison.OrdinalIgnoreCase);
 }
 
+/// <summary>Un agent et son modèle : le sien, ou celui par défaut.</summary>
+public sealed record AgentModelRow(string Key, string Name, string Model, ModelItem? Own, bool HasOwn)
+{
+    public string Label => HasOwn ? Own?.Model.Name ?? Model : "Par défaut";
+}
+
 /// <summary>
 /// Paramètres › Modèles, à la manière d'opencode : connecter des fournisseurs (clé d'API, serveur local, adresse
 /// compatible OpenAI), puis choisir un modèle dans un sélecteur unique, avec recherche.
@@ -38,6 +44,10 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     public ObservableCollection<LlmProviderDto> FilteredProviders { get; } = [];
     public ObservableCollection<LlmConnectionDto> Connections { get; } = [];
     public ObservableCollection<ModelItem> FilteredModels { get; } = [];
+    public ObservableCollection<AgentModelRow> Agents { get; } = [];
+
+    /// <summary>Le rôle dont on choisit le modèle dans le sélecteur ; null pour le modèle par défaut.</summary>
+    private string? _pickerRole;
 
     /// <summary>Le modèle par défaut ; null si aucun n'est choisi.</summary>
     [ObservableProperty]
@@ -99,6 +109,7 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
         {
             var status = await api.GetLlmStatusAsync(cancellationToken);
             var models = await api.GetLlmModelsAsync(cancellationToken);
+            var agents = await api.GetAgentsAsync(cancellationToken);
             Replace(Providers, status.Providers);
             Replace(Connections, status.Connections);
             var names = status.Connections.ToDictionary(c => c.Id, c => c.ProviderName);
@@ -107,6 +118,9 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
             _allModels.AddRange(models.Models.Select(m => new ModelItem(m, names.GetValueOrDefault(m.ConnectionId, m.Provider),
                 IsDefault: m.ConnectionId == Default?.ConnectionId && m.Id == Default?.Model)));
             DefaultModel = _allModels.FirstOrDefault(m => m.IsDefault);
+            Replace(Agents, agents.Where(a => a.Key.Length > 0).Select(a => new AgentModelRow(a.Key, a.Name, a.Model,
+                _allModels.FirstOrDefault(m => m.Model.ConnectionId == a.ModelOverride?.ConnectionId && m.Model.Id == a.ModelOverride?.Model),
+                a.ModelOverride is not null)));
             FilterModels();
             FilterProviders();
             if (models.Errors.Count > 0)
@@ -131,9 +145,30 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     [RelayCommand]
     private void OpenPicker()
     {
+        _pickerRole = null;
         ModelQuery = "";
         IsPickerOpen = true;
     }
+
+    [RelayCommand]
+    private void OpenAgentPicker(AgentModelRow agent)
+    {
+        _pickerRole = agent.Key;
+        ModelQuery = "";
+        IsPickerOpen = true;
+    }
+
+    [RelayCommand]
+    private Task ResetAgentAsync(AgentModelRow agent) => RunAsync(async () =>
+    {
+        if (await api.SetAgentModelAsync(agent.Key, null) is { } error)
+            Error = error;
+        else
+        {
+            await LoadAsync();
+            Info = $"{agent.Name} utilise le modèle par défaut.";
+        }
+    });
 
     [RelayCommand]
     private void ClosePicker() => IsPickerOpen = false;
@@ -142,12 +177,19 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     private Task ChooseAsync(ModelItem item) => RunAsync(async () =>
     {
         IsPickerOpen = false;
-        if (await api.UpdateLlmSettingsAsync(new UpdateLlmSettingsRequest(new LlmSelectionDto(item.Model.ConnectionId, item.Model.Id))) is { } error)
+        var selection = new LlmSelectionDto(item.Model.ConnectionId, item.Model.Id);
+        var role = Agents.FirstOrDefault(a => a.Key == _pickerRole);
+        var error = role is null
+            ? await api.UpdateLlmSettingsAsync(new UpdateLlmSettingsRequest(selection))
+            : await api.SetAgentModelAsync(role.Key, selection);
+        if (error is not null)
             Error = error;
         else
         {
             await LoadAsync();
-            Info = $"{item.Model.Name} sera utilisé à la prochaine mission.";
+            Info = role is null
+                ? $"{item.Model.Name} sera utilisé à la prochaine mission."
+                : $"{role.Name} utilisera {item.Model.Name}.";
         }
     });
 

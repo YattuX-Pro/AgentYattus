@@ -9,13 +9,24 @@ namespace AgentYattus.Api.Modules.Llm;
 /// <summary>Un client de modèle prêt à servir, et le modèle qu'il utilise (« fournisseur/modèle »).</summary>
 public sealed record LlmClient(IChatClient Client, string Model);
 
-/// <summary>Ce que le module montre aux agents : le client du modèle choisi, sans jamais exposer la clé.</summary>
+/// <summary>Ce que le module montre aux agents : le client du modèle choisi pour un rôle, sans jamais exposer la clé.</summary>
 public interface ILlmClientProvider
 {
+    /// <param name="role">La clé du rôle d'agent (« analyste ») : il peut avoir son propre modèle.</param>
     /// <returns>Null si aucun modèle n'est utilisable.</returns>
-    Task<LlmClient?> GetAsync(CancellationToken cancellationToken);
+    Task<LlmClient?> GetAsync(string role, CancellationToken cancellationToken);
 
-    Task<string> GetModelAsync(CancellationToken cancellationToken);
+    Task<string> GetModelAsync(string role, CancellationToken cancellationToken);
+}
+
+/// <summary>Le modèle propre à un rôle d'agent, à la place du modèle par défaut. Le module Agents connaît les rôles, pas celui-ci.</summary>
+public interface ILlmAgentModels
+{
+    Task<LlmSelectionDto?> GetAsync(string role, CancellationToken cancellationToken);
+
+    /// <param name="selection">Null pour revenir au modèle par défaut.</param>
+    /// <returns>Null si tout va bien, sinon la raison du refus.</returns>
+    Task<string?> SetAsync(string role, LlmSelectionDto? selection, string user, CancellationToken cancellationToken);
 }
 
 public static class LlmModule
@@ -37,6 +48,7 @@ public static class LlmModule
         services.AddSingleton<ModelCatalog>();
         services.AddHostedService<CatalogRefresher>();
         services.AddScoped<ILlmClientProvider, LlmClientProvider>();
+        services.AddScoped<ILlmAgentModels, LlmAgentModels>();
         return services.AddModuleDb<LlmDb>(LlmDb.Schema);
     }
 
@@ -144,6 +156,8 @@ public static class LlmModule
             var settings = await LlmSettings.GetOrCreateAsync(db, cancellationToken);
             if (settings.DefaultConnectionId == id)
                 settings.DefaultConnectionId = null;
+            // Les rôles qui utilisaient cette connexion reviennent au modèle par défaut.
+            db.AgentModels.RemoveRange(await db.AgentModels.Where(a => a.ConnectionId == id).ToListAsync(cancellationToken));
             await db.SaveChangesAsync(cancellationToken);
             logger.LogInformation("Fournisseur « {Label} » révoqué par {User}", connection.Label, connection.RevokedBy);
         }
@@ -181,14 +195,14 @@ public static class LlmModule
 }
 
 /// <summary>
-/// Le client du modèle : le modèle par défaut choisi dans l'application, sinon la clé Anthropic de la configuration
-/// (user-secrets, pratique en développement), sinon rien.
+/// Le client du modèle d'un rôle : son modèle propre, sinon le modèle par défaut choisi dans l'application,
+/// sinon la clé Anthropic de la configuration (user-secrets, pratique en développement), sinon rien.
 /// </summary>
 internal sealed class LlmClientProvider(LlmDb db, IDataProtectionProvider protection, IConfiguration configuration) : ILlmClientProvider
 {
-    public async Task<LlmClient?> GetAsync(CancellationToken cancellationToken)
+    public async Task<LlmClient?> GetAsync(string role, CancellationToken cancellationToken)
     {
-        if (await ResolveAsync(cancellationToken) is var (connection, model) && connection is not null)
+        if (await ResolveAsync(role, cancellationToken) is var (connection, model) && connection is not null)
         {
             var provider = LlmProviders.Find(connection.Provider)!;
             return new LlmClient(
@@ -202,18 +216,51 @@ internal sealed class LlmClientProvider(LlmDb db, IDataProtectionProvider protec
         return new LlmClient(LlmProviders.CreateClient(LlmProviders.Anthropic, apiKey, "", configured), $"anthropic/{configured}");
     }
 
-    public async Task<string> GetModelAsync(CancellationToken cancellationToken) =>
-        await ResolveAsync(cancellationToken) is ({ } connection, var model) ? $"{connection.Provider}/{model}" : $"anthropic/{ConfiguredModel}";
+    public async Task<string> GetModelAsync(string role, CancellationToken cancellationToken) =>
+        await ResolveAsync(role, cancellationToken) is ({ } connection, var model) ? $"{connection.Provider}/{model}" : $"anthropic/{ConfiguredModel}";
 
     private string ConfiguredModel => configuration["Agents:Model"] ?? "claude-haiku-5-5";
 
-    private async Task<(LlmConnection? Connection, string Model)> ResolveAsync(CancellationToken cancellationToken)
+    private async Task<(LlmConnection? Connection, string Model)> ResolveAsync(string role, CancellationToken cancellationToken)
     {
+        if (await db.AgentModels.FindAsync([role], cancellationToken) is { } own
+            && await db.Connections.FindAsync([own.ConnectionId], cancellationToken) is { RevokedAt: null } ownConnection)
+            return (ownConnection, own.Model);
         var settings = await db.Settings.FindAsync([LlmSettings.SingletonId], cancellationToken);
         if (settings?.DefaultConnectionId is { } id && await db.Connections.FindAsync([id], cancellationToken) is { RevokedAt: null } connection)
             return (connection, settings.Model);
         return (null, "");
     }
+}
+
+internal sealed class LlmAgentModels(LlmDb db, ModelCatalog catalog, ILogger<LlmAgentModels> logger) : ILlmAgentModels
+{
+    public async Task<LlmSelectionDto?> GetAsync(string role, CancellationToken cancellationToken) =>
+        await db.AgentModels.FindAsync([role], cancellationToken) is { } own ? new LlmSelectionDto(own.ConnectionId, own.Model) : null;
+
+    public async Task<string?> SetAsync(string role, LlmSelectionDto? selection, string user, CancellationToken cancellationToken)
+    {
+        if (selection is not null && await LlmModule.ValidateAsync(selection, db, catalog, cancellationToken) is { } error)
+            return error;
+        var own = await db.AgentModels.FindAsync([role], cancellationToken);
+        if (own is not null)
+            db.AgentModels.Remove(own);
+        if (selection is not null)
+            db.AgentModels.Add(new LlmAgentModel { Role = role, ConnectionId = selection.ConnectionId, Model = selection.Model });
+        await db.SaveChangesAsync(cancellationToken);
+        logger.LogInformation("Modèle du rôle {Role} : {Model} (par {User})", role, selection?.Model ?? "par défaut", user);
+        return null;
+    }
+}
+
+/// <summary>Le modèle propre à un rôle d'agent.</summary>
+internal sealed class LlmAgentModel
+{
+    [System.ComponentModel.DataAnnotations.Key]
+    [System.ComponentModel.DataAnnotations.MaxLength(40)]
+    public required string Role { get; set; }
+    public Guid ConnectionId { get; set; }
+    public required string Model { get; set; }
 }
 
 /// <summary>Un fournisseur connecté (table historique « Credentials »).</summary>
@@ -283,6 +330,7 @@ internal sealed class LlmDb(DbContextOptions<LlmDb> options) : DbContext(options
 
     public DbSet<LlmConnection> Connections => Set<LlmConnection>();
     public DbSet<LlmSettings> Settings => Set<LlmSettings>();
+    public DbSet<LlmAgentModel> AgentModels => Set<LlmAgentModel>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

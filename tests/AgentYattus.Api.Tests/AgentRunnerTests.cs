@@ -18,7 +18,7 @@ public sealed class AgentRunnerTests
 
         Assert.Equal(MissionStatus.Completed, await client.WaitForFinalStatusAsync(mission.Id));
         Assert.Equal("Un fichier : a.txt.", (await client.GetFromJsonAsync<MissionDto>($"/missions/{mission.Id}", TestContext.Current.CancellationToken))!.Result);
-        Assert.Equal(["Running", "outil:list_files", "Completed"], await api.AuditOfAsync(mission.Id));
+        Assert.Equal(["Running", "modele:claude-haiku-5-5", "outil:list_files", "Completed"], await api.AuditOfAsync(mission.Id));
         Assert.Equal("Que contient le workspace ?", model.Requests[0].Last().Text);
         Assert.Contains("a.txt", model.Requests[1].SelectMany(m => m.Contents).OfType<Microsoft.Extensions.AI.FunctionResultContent>()
             .Single().Result?.ToString());
@@ -34,7 +34,7 @@ public sealed class AgentRunnerTests
         var mission = await client.CreateMissionAsync("Explore tout");
 
         Assert.Equal(MissionStatus.Completed, await client.WaitForFinalStatusAsync(mission.Id));
-        Assert.Equal(["Running", "outil:list_files", "limite-de-tours", "Completed"], await api.AuditOfAsync(mission.Id));
+        Assert.Equal(["Running", "modele:claude-haiku-5-5", "outil:list_files", "limite-de-tours", "Completed"], await api.AuditOfAsync(mission.Id));
     }
 
     [Fact]

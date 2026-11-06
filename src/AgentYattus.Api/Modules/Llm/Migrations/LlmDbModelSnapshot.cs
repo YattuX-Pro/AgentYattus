@@ -23,6 +23,24 @@ namespace AgentYattus.Api.Modules.Llm.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AgentYattus.Api.Modules.Llm.LlmAgentModel", b =>
+                {
+                    b.Property<string>("Role")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Role");
+
+                    b.ToTable("AgentModels", "llm");
+                });
+
             modelBuilder.Entity("AgentYattus.Api.Modules.Llm.LlmConnection", b =>
                 {
                     b.Property<Guid>("Id")

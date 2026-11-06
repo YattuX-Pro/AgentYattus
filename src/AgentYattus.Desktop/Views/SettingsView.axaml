@@ -137,6 +137,35 @@
           </Grid>
         </Border>
 
+        <!-- Un modèle par agent : le sien, ou celui par défaut. -->
+        <StackPanel Spacing="10">
+          <TextBlock Classes="eyebrow" Text="PAR AGENT" />
+          <ItemsControl ItemsSource="{Binding Agents}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel ItemSpacing="12" LineSpacing="12" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="core:AgentModelRow">
+                <Border Classes="card" Width="456" Padding="16">
+                  <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <StackPanel Spacing="3" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Medium" />
+                      <TextBlock Classes="mono" FontSize="12" Text="{Binding Label}" TextTrimming="CharacterEllipsis"
+                                 Foreground="{Binding HasOwn, Converter={x:Static views:SettingsTexts.OwnBrush}}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <Button Classes="action" Content="Par défaut" IsVisible="{Binding HasOwn}"
+                              Command="{Binding $parent[UserControl].((core:SettingsViewModel)DataContext).ResetAgentCommand}" CommandParameter="{Binding}" />
+                      <Button Classes="action" Content="Changer"
+                              Command="{Binding $parent[UserControl].((core:SettingsViewModel)DataContext).OpenAgentPickerCommand}" CommandParameter="{Binding}" />
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
         <!-- Les fournisseurs connectés -->
         <StackPanel Spacing="10">
           <TextBlock Classes="eyebrow" Text="FOURNISSEURS" />

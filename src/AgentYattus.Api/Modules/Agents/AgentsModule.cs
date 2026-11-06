@@ -1,5 +1,6 @@
 using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Contracts;
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 
 namespace AgentYattus.Api.Modules.Agents;
@@ -34,16 +35,29 @@ public static class AgentsModule
 
     public static IEndpointRouteBuilder MapAgentsEndpoints(this IEndpointRouteBuilder app)
     {
-        app.MapGet(AgentsProtocol.Path, async (IOptions<AgentsOptions> options, ILlmClientProvider llm, CancellationToken cancellationToken) =>
+        app.MapGet(AgentsProtocol.Path, async (
+            IOptions<AgentsOptions> options, ILlmClientProvider llm, ILlmAgentModels models, CancellationToken cancellationToken) =>
         {
-            var model = await llm.GetModelAsync(cancellationToken);
-            AgentDto Describe(AgentRole role) => new(role.Name, role.Summary, model, options.Value.MaxIterations,
-            [
-                .. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name))
-                    .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
-            ]);
-            return TypedResults.Ok(AgentRoles.All.Select(Describe).ToArray());
+            var agents = new List<AgentDto>();
+            foreach (var role in AgentRoles.All)
+                agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, cancellationToken), options.Value.MaxIterations,
+                [
+                    .. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name))
+                        .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
+                ], role.Key, await models.GetAsync(role.Key, cancellationToken)));
+            return TypedResults.Ok(agents);
         });
+
+        // Choisir le modèle d'un rôle : comme toute la gestion du LLM, réservé à llm-admin.
+        app.MapPut("/agents/{role}/model", async Task<Results<NoContent, NotFound, ValidationProblem>> (
+            string role, UpdateAgentModelRequest request, ILlmAgentModels models, HttpContext http, CancellationToken cancellationToken) =>
+        {
+            if (AgentRoles.All.All(r => r.Key != role))
+                return TypedResults.NotFound();
+            return await models.SetAsync(role, request.Model, http.User.Identity?.Name ?? "?", cancellationToken) is { } error
+                ? TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["model"] = [error] })
+                : TypedResults.NoContent();
+        }).RequireAuthorization(Authentication.LlmAdminPolicy);
         return app;
     }
 }

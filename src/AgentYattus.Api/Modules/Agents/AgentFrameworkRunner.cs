@@ -36,10 +36,6 @@ internal sealed class AgentFrameworkRunner(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, CancellationToken cancellationToken)
     {
         var settings = options.Value;
-        var client = await llm.GetAsync(cancellationToken) ?? throw new InvalidOperationException(
-            "Aucune clé d'API : ajoute-en une dans Paramètres › Modèle, ou lance " +
-            "dotnet user-secrets set \"Anthropic:ApiKey\" \"<ta-clé>\" --project src/AgentYattus.Api");
-        var model = client.Client;
         if (string.IsNullOrWhiteSpace(settings.Workspace))
             throw new InvalidOperationException(
                 "Workspace absent. Lance : dotnet user-secrets set \"Agents:Workspace\" \"<dossier>\" --project src/AgentYattus.Api");
@@ -59,7 +55,7 @@ internal sealed class AgentFrameworkRunner(
         {
             // Revue, étape 1 : l'Analyste explore et rend ses constats. Il n'a aucun outil d'écriture : il ne s'arrête jamais.
             await audit.AppendAsync(missionId, $"agent:{AgentRoles.Analyst.Key}", cancellationToken);
-            var analysis = await RunRoleAsync(missionId, AgentRoles.Analyst, model, tools, settings.MaxIterations,
+            var analysis = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, settings.MaxIterations,
                 [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], cancellationToken);
             var findings = analysis.Text;
 
@@ -69,7 +65,7 @@ internal sealed class AgentFrameworkRunner(
         }
 
         var role = AgentRoles.All.Single(r => r.Key == stage.Role);
-        var response = await RunRoleAsync(missionId, role, model, tools, settings.MaxIterations, stage.History, cancellationToken);
+        var response = await RunRoleAsync(missionId, role, tools, settings.MaxIterations, stage.History, cancellationToken);
 
         var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
         if (requests.Count > 0)
@@ -86,20 +82,26 @@ internal sealed class AgentFrameworkRunner(
 
         // Seulement des métadonnées : la réponse peut citer le contenu des fichiers lus, elle reste en base.
         logger.LogInformation(
-            "Mission {MissionId} ({Role}, {Model}) : {Tokens} tokens, réponse de {Length} caractères",
-            missionId, role.Key, client.Model, response.Usage?.TotalTokenCount, response.Text.Length);
+            "Mission {MissionId} ({Role}) : {Tokens} tokens, réponse de {Length} caractères",
+            missionId, role.Key, response.Usage?.TotalTokenCount, response.Text.Length);
         return new AgentOutcome(stage.Findings is null
             ? response.Text
             : $"{response.Text}\n\n---\nConstats de l'Analyste :\n{stage.Findings}");
     }
 
     private async Task<AgentResponse> RunRoleAsync(
-        Guid missionId, AgentRole role, IChatClient model, IReadOnlyList<AIFunction> allTools, int maxIterations,
+        Guid missionId, AgentRole role, IReadOnlyList<AIFunction> allTools, int maxIterations,
         List<ChatMessage> history, CancellationToken cancellationToken)
     {
+        // Chaque rôle a son modèle : le sien s'il en a un, sinon celui par défaut.
+        var client = await llm.GetAsync(role.Key, cancellationToken) ?? throw new InvalidOperationException(
+            "Aucun modèle : connecte un fournisseur dans Paramètres › Modèles, ou lance " +
+            "dotnet user-secrets set \"Anthropic:ApiKey\" \"<ta-clé>\" --project src/AgentYattus.Api");
+        await audit.AppendAsync(missionId, $"modele:{client.Model}", cancellationToken);
+
         // Chaque rôle ne reçoit que ses outils : l'Analyste ne peut pas écrire, même s'il le demandait.
         var tools = allTools.Where(t => role.Tools.Contains(t.Name)).ToList();
-        var agent = CreateAgent(role, model, tools, maxIterations);
+        var agent = CreateAgent(role, client.Client, tools, maxIterations);
         var response = await agent.RunAsync(history, cancellationToken: cancellationToken);
 
         var toolTurns = 0;

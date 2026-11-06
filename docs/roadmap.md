@@ -62,6 +62,7 @@ Calendrier indicatif (4 à 5 mois depuis le 24/10/2026) : MVP démontrable mi-f�
 ## Fournisseurs et modèles, comme opencode
 
 - [x] 34 `feat(llm): plusieurs fournisseurs et le catalogue models.dev` (ADR 0007)
+- [x] 35 `feat(llm): un modèle par agent`
 
 ## Ensuite
 

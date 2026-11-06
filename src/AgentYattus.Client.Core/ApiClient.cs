@@ -53,6 +53,13 @@ public sealed class ApiClient(HttpClient http)
         response.EnsureSuccessStatusCode();
     }
 
+    /// <param name="model">Null pour revenir au modèle par défaut.</param>
+    public async Task<string?> SetAgentModelAsync(string role, LlmSelectionDto? model, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PutAsJsonAsync(AgentsProtocol.Model(role).TrimStart('/'), new UpdateAgentModelRequest(model), cancellationToken);
+        return await ErrorOrNullAsync(response, cancellationToken);
+    }
+
     public async Task<string?> UpdateLlmSettingsAsync(UpdateLlmSettingsRequest request, CancellationToken cancellationToken = default)
     {
         using var response = await http.PutAsJsonAsync(LlmProtocol.Settings.TrimStart('/'), request, cancellationToken);

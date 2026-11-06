@@ -41,8 +41,8 @@ public sealed class ApprovalTests
         Assert.Contains("Program.cs:1", done.Result);
         Assert.Null(done.PendingApproval);
         Assert.Equal(
-            ["Running", "agent:analyste", "agent:redacteur", "approbation-demandee:write_file", "AwaitingApproval",
-             "decision:approuvee", "Running", "outil:write_file", "Completed"],
+            ["Running", "agent:analyste", "modele:claude-haiku-5-5", "agent:redacteur", "modele:claude-haiku-5-5", "approbation-demandee:write_file", "AwaitingApproval",
+             "decision:approuvee", "Running", "modele:claude-haiku-5-5", "outil:write_file", "Completed"],
             await api.AuditOfAsync(mission.Id));
     }
 
