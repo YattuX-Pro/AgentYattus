@@ -1,5 +1,6 @@
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Llm;
+using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
@@ -43,7 +44,10 @@ public static class AgentsModule
     {
         services.AddOptions<AgentsOptions>().BindConfiguration(AgentsOptions.Section);
         // Le modèle et sa clé viennent du module Llm (choisis dans l'application) ; voir ILlmClientProvider.
-        return services.AddScoped<IAgentRunner, AgentFrameworkRunner>();
+        return services
+            .AddScoped<IAgentRunner, AgentFrameworkRunner>()
+            .AddScoped<AgentDefinitions>()
+            .AddModuleDb<AgentsDb>(AgentsDb.Schema);
     }
 
     /// <summary>Lit les événements « usage:rôle:entrée:sortie » (leçon 52) et en fait des statistiques par rôle.</summary>
@@ -64,18 +68,53 @@ public static class AgentsModule
     public static IEndpointRouteBuilder MapAgentsEndpoints(this IEndpointRouteBuilder app)
     {
         app.MapGet(AgentsProtocol.Path, async (
-            IOptions<AgentsOptions> options, ILlmClientProvider llm, ILlmAgentModels models, AuditLog audit, CancellationToken cancellationToken) =>
+            IOptions<AgentsOptions> options, ILlmClientProvider llm, ILlmAgentModels models, AuditLog audit, AgentDefinitions definitions,
+            IInstanceSettings instance, CancellationToken cancellationToken) =>
         {
             var stats = Stats(await audit.TypesStartingWithAsync("usage:", cancellationToken));
+            var instanceMax = (await instance.GetAsync(cancellationToken)).MaxIterations ?? options.Value.MaxIterations;
             var agents = new List<AgentDto>();
             foreach (var role in AgentRoles.All)
-                agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, cancellationToken), options.Value.MaxIterations,
+            {
+                var current = await definitions.CurrentAsync(role.Key, cancellationToken);
+                agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, cancellationToken), current?.MaxIterations ?? instanceMax,
                 [
                     .. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name))
                         .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
-                ], role.Key, await models.GetAsync(role.Key, cancellationToken), stats.GetValueOrDefault(role.Key, new AgentStatsDto(0, 0, 0))));
+                ], role.Key, await models.GetAsync(role.Key, cancellationToken), stats.GetValueOrDefault(role.Key, new AgentStatsDto(0, 0, 0)),
+                current?.Instructions ?? role.Instructions, role.Instructions, AgentRoles.Guardrails(role), current?.Version ?? 0, current?.MaxIterations));
+            }
             return TypedResults.Ok(agents);
         });
+
+        // Modifier la consigne ou la limite de tours d'un rôle (ADR 0011) : une nouvelle version, jamais un écrasement.
+        app.MapPut("/agents/{role}", async Task<Results<NoContent, NotFound, ValidationProblem>> (
+            string role, UpdateAgentRequest request, AgentDefinitions definitions, HttpContext http, CancellationToken cancellationToken) =>
+        {
+            if (AgentRoles.All.FirstOrDefault(r => r.Key == role) is not { } agentRole)
+                return TypedResults.NotFound();
+            var instructions = request.Instructions?.Trim();
+            var errors = new Dictionary<string, string[]>();
+            if (instructions is not null && instructions.Length is < 20 or > 8000)
+                errors["instructions"] = ["La consigne fait entre 20 et 8 000 caractères."];
+            if (request.MaxIterations is not null and not (>= 1 and <= 50))
+                errors["maxIterations"] = ["Entre 1 et 50 tours, ou la limite de l'instance."];
+            if (errors.Count > 0)
+                return TypedResults.ValidationProblem(errors);
+            // Revenir exactement au texte d'origine, c'est revenir à l'origine : on enregistre null.
+            if (instructions == agentRole.Instructions)
+                instructions = null;
+            await definitions.SaveAsync(role, instructions, request.MaxIterations, http.User.Identity?.Name ?? "?", cancellationToken);
+            return TypedResults.NoContent();
+        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+
+        app.MapGet("/agents/{role}/versions", async Task<Results<Ok<AgentVersionDto[]>, NotFound>> (
+            string role, AgentDefinitions definitions, CancellationToken cancellationToken) =>
+            AgentRoles.All.Any(r => r.Key == role)
+                ? TypedResults.Ok((await definitions.HistoryAsync(role, cancellationToken))
+                    .Select(v => new AgentVersionDto(v.Version, v.Instructions, v.MaxIterations, v.CreatedAt, v.CreatedBy)).ToArray())
+                : TypedResults.NotFound())
+            .RequireAuthorization(Authentication.LlmAdminPolicy);
 
         // Choisir le modèle d'un rôle : comme toute la gestion du LLM, réservé à llm-admin.
         app.MapPut("/agents/{role}/model", async Task<Results<NoContent, NotFound, ValidationProblem>> (

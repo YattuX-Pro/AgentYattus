@@ -38,6 +38,7 @@ public class ApiFactory : WebApplicationFactory<Program>
             UseSqlite<IdentityDb>(services);
             UseSqlite<ProjectsDb>(services);
             UseSqlite<SettingsDb>(services);
+            UseSqlite<AgentsDb>(services);
             // Jamais d'appel au vrai modèle pendant les tests, même si une clé est dans les user-secrets.
             services.RemoveAll<ILlmClientProvider>();
             services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(null));

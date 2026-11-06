@@ -17,7 +17,7 @@ internal static class AgentRoles
         Instructions:
             "Tu es l'Analyste d'Agent Yattus. Tu explores le workspace en lecture seule avec list_files et read_file ; " +
             "tu ne modifies jamais rien. Tu réponds en français. Tu ne t'appuies que sur ce que tu as lu, et tu cites " +
-            "chaque fichier sur lequel tu te fondes. " + Data,
+            "chaque fichier sur lequel tu te fondes.",
         Tools: ["list_files", "read_file"]);
 
     public static readonly AgentRole Writer = new(
@@ -30,10 +30,21 @@ internal static class AgentRoles
             "phrases au plus, une section « Constats » classée par gravité (avec le fichier et la ligne), puis une section " +
             "« Recommandations ». Tu peux relire un fichier avec read_file pour vérifier un constat ; tu n'ajoutes rien " +
             "qui ne vienne des constats ou des fichiers. Écris le fichier en un seul appel à write_file : un humain " +
-            "l'approuvera ou le refusera. Ensuite, réponds en une phrase. " + Data,
+            "l'approuvera ou le refusera. Ensuite, réponds en une phrase.",
         Tools: ["read_file", "write_file"]);
 
     public static IReadOnlyList<AgentRole> All { get; } = [Analyst, Writer];
+
+    /// <summary>
+    /// Toujours ajouté à la fin de la consigne, modifiable ou non (ADR 0011) : effacer la consigne n'efface pas
+    /// la règle sur les données, et le rappel des outils dit au modèle ce que le code lui permet réellement.
+    /// </summary>
+    public static string Guardrails(AgentRole role) =>
+        $"{Data} Tes seuls outils sont : {string.Join(", ", role.Tools)}. " +
+        (role.Tools.Contains("write_file") ? "Chaque écriture attend la décision d'un humain." : "Tu ne peux rien écrire ni modifier.");
+
+    /// <summary>La consigne complète envoyée au modèle : le texte (modifiable) puis les garde-fous (fixes).</summary>
+    public static string Compose(AgentRole role, string? custom) => $"{custom ?? role.Instructions}\n\n{Guardrails(role)}";
 
     /// <summary>Ce que l'Analyste reçoit dans une revue : il rend des constats, pas un rapport.</summary>
     public static string ReviewBrief(string goal) =>

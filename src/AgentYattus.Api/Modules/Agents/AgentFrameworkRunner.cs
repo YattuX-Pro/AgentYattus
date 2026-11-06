@@ -30,7 +30,8 @@ internal sealed class AgentFrameworkRunner(
     ILogger<AgentFrameworkRunner> logger,
     ILlmClientProvider llm,
     ILlmPricing pricing,
-    IInstanceSettings instance) : IAgentRunner
+    IInstanceSettings instance,
+    AgentDefinitions definitions) : IAgentRunner
 {
     // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
@@ -41,7 +42,8 @@ internal sealed class AgentFrameworkRunner(
         var settings = options.Value;
         // Les réglages de l'instance (admin › Réglages) l'emportent sur la configuration de départ (ADR 0010).
         var tuning = await instance.GetAsync(cancellationToken);
-        var maxIterations = tuning.MaxIterations ?? settings.MaxIterations;
+        // Limite de tours : celle du rôle (ADR 0011), sinon celle de l'instance, sinon la configuration.
+        var instanceMax = tuning.MaxIterations ?? settings.MaxIterations;
         // Le dossier du projet (choisi par un administrateur de l'instance) ; null : celui de la configuration,
         // que MissionRunner n'autorise que pour les projets d'un administrateur et les missions antérieures aux projets.
         workspace ??= settings.Workspace;
@@ -65,7 +67,7 @@ internal sealed class AgentFrameworkRunner(
         {
             // Revue, étape 1 : l'Analyste explore et rend ses constats. Il n'a aucun outil d'écriture : il ne s'arrête jamais.
             await audit.AppendAsync(missionId, $"agent:{AgentRoles.Analyst.Key}", cancellationToken);
-            var (analysis, analysisUsage) = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, maxIterations,
+            var (analysis, analysisUsage) = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, instanceMax,
                 [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], cancellationToken);
             usage += analysisUsage;
             var findings = analysis.Text;
@@ -76,7 +78,7 @@ internal sealed class AgentFrameworkRunner(
         }
 
         var role = AgentRoles.All.Single(r => r.Key == stage.Role);
-        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, maxIterations, stage.History, cancellationToken);
+        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, cancellationToken);
         usage += roleUsage;
 
         var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
@@ -102,9 +104,14 @@ internal sealed class AgentFrameworkRunner(
     }
 
     private async Task<(AgentResponse Response, AgentUsage Usage)> RunRoleAsync(
-        Guid missionId, AgentRole role, IReadOnlyList<AIFunction> allTools, int maxIterations,
+        Guid missionId, AgentRole role, IReadOnlyList<AIFunction> allTools, int instanceMax,
         List<ChatMessage> history, CancellationToken cancellationToken)
     {
+        // La consigne et la limite en vigueur pour ce rôle ; les garde-fous sont toujours ajoutés par le code.
+        var definition = await definitions.CurrentAsync(role.Key, cancellationToken);
+        var maxIterations = definition?.MaxIterations ?? instanceMax;
+        var instructions = AgentRoles.Compose(role, definition?.Instructions);
+
         // Chaque rôle a son modèle : le sien s'il en a un, sinon celui par défaut.
         var client = await llm.GetAsync(role.Key, cancellationToken) ?? throw new InvalidOperationException(
             "Aucun modèle : connecte un fournisseur dans Paramètres › Modèles, ou lance " +
@@ -113,7 +120,7 @@ internal sealed class AgentFrameworkRunner(
 
         // Chaque rôle ne reçoit que ses outils : l'Analyste ne peut pas écrire, même s'il le demandait.
         var tools = allTools.Where(t => role.Tools.Contains(t.Name)).ToList();
-        var agent = CreateAgent(role, client.Client, tools, maxIterations);
+        var agent = CreateAgent(role, instructions, client.Client, tools, maxIterations);
         var response = await agent.RunAsync(history, cancellationToken: cancellationToken);
 
         // Mode Gratuit : chaque bascule vers le modèle suivant de la chaîne entre dans le journal.
@@ -157,7 +164,7 @@ internal sealed class AgentFrameworkRunner(
     }
 
     // Même montage que spikes/AgentLoop/FrameworkAgent.cs, plus la télémétrie : on règle nous-mêmes la limite de tours.
-    private static AIAgent CreateAgent(AgentRole role, IChatClient model, IReadOnlyList<AIFunction> tools, int maxIterations)
+    private static AIAgent CreateAgent(AgentRole role, string instructions, IChatClient model, IReadOnlyList<AIFunction> tools, int maxIterations)
     {
         var withTools = model.AsBuilder()
             .UseFunctionInvocation(configure: invoker =>
@@ -174,7 +181,7 @@ internal sealed class AgentFrameworkRunner(
         return new ChatClientAgent(withTools, new ChatClientAgentOptions
         {
             Name = role.Key,
-            ChatOptions = new ChatOptions { Instructions = role.Instructions, Tools = [.. tools] },
+            ChatOptions = new ChatOptions { Instructions = instructions, Tools = [.. tools] },
             UseProvidedChatClientAsIs = true,
         })
             .AsBuilder()
