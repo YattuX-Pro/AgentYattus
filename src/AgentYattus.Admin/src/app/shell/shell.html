@@ -1,0 +1,92 @@
+<aside
+  class="bg-sidebar text-sidebar-foreground border-sidebar-border fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r p-3 transition-transform lg:translate-x-0"
+  [class.-translate-x-full]="!menuOpen()"
+>
+  <div class="flex items-center gap-2 border-b px-2 pb-3 font-semibold tracking-tight">
+    <svg class="text-primary size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+      <path d="M5 3.5 12 11l7-7.5M12 11v9.5" /><circle cx="12" cy="11" r="2.2" fill="currentColor" stroke="none" />
+    </svg>
+    Agent Yattus
+    <span class="text-muted-foreground ml-auto rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-widest uppercase">Admin</span>
+  </div>
+
+  <nav class="mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto" aria-label="Sections">
+    @for (group of nav; track group.label) {
+      <div hlmCollapsible [expanded]="open()[group.label]" (expandedChange)="setGroup(group.label, $event)">
+        <button
+          hlmCollapsibleTrigger
+          class="text-muted-foreground hover:text-foreground flex w-full items-center justify-between rounded-md px-2 py-2 text-[10.5px] font-medium tracking-wider uppercase"
+        >
+          {{ group.label }}
+          <ng-icon name="lucideChevronDown" class="transition-transform" [class.-rotate-90]="!open()[group.label]" />
+        </button>
+        <div hlmCollapsibleContent class="flex flex-col gap-px">
+          @for (item of group.items; track item.path) {
+            <a
+              [routerLink]="item.path"
+              routerLinkActive="bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-border [&>ng-icon]:text-primary"
+              [routerLinkActiveOptions]="{ exact: item.path === '/' }"
+              (click)="menuOpen.set(false)"
+              class="text-muted-foreground hover:bg-sidebar-accent hover:text-foreground flex items-center gap-2.5 rounded-md px-2 py-2 font-medium"
+            >
+              <ng-icon [name]="item.icon" />
+              {{ item.label }}
+            </a>
+          }
+        </div>
+      </div>
+    }
+  </nav>
+
+  <div class="mt-2 flex items-center gap-2.5 border-t px-1 pt-3">
+    <hlm-avatar class="size-8">
+      <span hlmAvatarFallback class="text-xs font-semibold">{{ initials() }}</span>
+    </hlm-avatar>
+    <div class="min-w-0 flex-1">
+      <div class="truncate font-medium">{{ auth.name() }}</div>
+      <div class="text-muted-foreground text-xs">Administrateur</div>
+    </div>
+    <button hlmBtn variant="ghost" size="icon-sm" (click)="auth.logout()" aria-label="Se déconnecter">
+      <ng-icon name="lucideLogOut" />
+    </button>
+  </div>
+</aside>
+
+@if (menuOpen()) {
+  <div class="fixed inset-0 z-20 bg-black/40 lg:hidden" (click)="menuOpen.set(false)" aria-hidden="true"></div>
+}
+
+<div class="lg:pl-60">
+  <header class="bg-background/90 sticky top-0 z-10 flex h-14 items-center gap-3 border-b px-4 backdrop-blur">
+    <button hlmBtn variant="outline" size="icon-sm" class="lg:hidden" (click)="menuOpen.set(true)" aria-label="Ouvrir le menu">
+      <ng-icon name="lucideMenu" />
+    </button>
+    <div class="text-muted-foreground flex min-w-0 flex-1 items-center gap-2 truncate">
+      @if (here(); as h) {
+        <span class="hidden sm:inline">{{ h.group }}</span>
+        <span class="hidden sm:inline">/</span>
+        <span class="text-foreground font-semibold">{{ h.label }}</span>
+      }
+    </div>
+    <label class="bg-muted text-muted-foreground hidden h-8 w-56 items-center gap-2 rounded-md border px-2.5 md:flex">
+      <ng-icon name="lucideSearch" />
+      <input
+        id="search"
+        #q
+        class="text-foreground min-w-0 flex-1 bg-transparent outline-none"
+        placeholder="Chercher une mission"
+        aria-label="Chercher une mission"
+        (keydown.enter)="search(q.value)"
+      />
+      <kbd hlmKbd>⌘K</kbd>
+    </label>
+    <hlm-toggle-group type="single" variant="outline" size="sm" [value]="theme.choice()" (valueChange)="setTheme($event)" aria-label="Thème">
+      <button hlmToggleGroupItem value="light" aria-label="Clair"><ng-icon name="lucideSun" /></button>
+      <button hlmToggleGroupItem value="system" aria-label="Comme le système"><ng-icon name="lucideMonitor" /></button>
+      <button hlmToggleGroupItem value="dark" aria-label="Sombre"><ng-icon name="lucideMoon" /></button>
+    </hlm-toggle-group>
+  </header>
+  <main class="p-4">
+    <router-outlet />
+  </main>
+</div>

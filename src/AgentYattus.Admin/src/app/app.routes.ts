@@ -1,15 +1,22 @@
-import { Component, inject } from '@angular/core';
 import { Routes } from '@angular/router';
-import { AuthService, adminGuard } from './core/auth';
+import { adminGuard } from './core/auth';
 import { Forbidden } from './pages/forbidden';
-
-@Component({ template: `<p class="p-6">Connecté : {{ auth.name() }}</p>` })
-class Welcome {
-  protected readonly auth = inject(AuthService);
-}
+import { Soon } from './pages/soon';
+import { Shell } from './shell/shell';
 
 export const routes: Routes = [
   { path: 'interdit', component: Forbidden },
-  { path: '', component: Welcome, canActivate: [adminGuard] },
+  {
+    path: '',
+    component: Shell,
+    canActivate: [adminGuard],
+    children: [
+      { path: '', component: Soon, data: { title: 'Vue d’ensemble' } },
+      { path: 'missions', component: Soon, data: { title: 'Missions' } },
+      { path: 'audit', component: Soon, data: { title: 'Audit' } },
+      { path: 'agents', component: Soon, data: { title: 'Agents' } },
+      { path: 'modeles', component: Soon, data: { title: 'Modèles' } },
+    ],
+  },
   { path: '**', redirectTo: '' },
 ];
