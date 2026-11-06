@@ -1,4 +1,5 @@
 import { Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, viewChild } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideChevronRight, lucideRefreshCw, lucideSearch } from '@ng-icons/lucide';
 import { BrnDialogState } from '@spartan-ng/brain/dialog';
@@ -18,7 +19,7 @@ const REFRESH_MS = 10_000;
 
 @Component({
   selector: 'app-missions',
-  imports: [PageHeader, NgIcon, HlmButtonImports, HlmBadgeImports, HlmTableImports, HlmSheetImports, HlmSkeletonImports],
+  imports: [PageHeader, RouterLink, NgIcon, HlmButtonImports, HlmBadgeImports, HlmTableImports, HlmSheetImports, HlmSkeletonImports],
   providers: [provideIcons({ lucideChevronRight, lucideRefreshCw, lucideSearch })],
   templateUrl: './missions.html',
 })
@@ -31,11 +32,16 @@ export class Missions {
    */
   readonly q = input('', { transform: (value: string | undefined) => value ?? '' });
 
+  /** Les missions d'un seul projet (/missions?projet=…), depuis la page Projets. */
+  readonly projet = input('', { transform: (value: string | undefined) => value ?? '' });
+
   protected readonly missions = signal<Mission[] | null>(null);
   protected readonly filter = signal<MissionFilter>('all');
   protected readonly query = signal('');
-  protected readonly shown = computed(() => filterMissions(this.missions() ?? [], this.filter(), this.query()));
-  protected readonly count = (f: MissionFilter) => countBy(this.missions() ?? [], f);
+  protected readonly inProject = computed(() => (this.missions() ?? []).filter((m) => !this.projet() || m.projectId === this.projet()));
+  protected readonly projectName = computed(() => this.inProject()[0]?.projectName ?? null);
+  protected readonly shown = computed(() => filterMissions(this.inProject(), this.filter(), this.query()));
+  protected readonly count = (f: MissionFilter) => countBy(this.inProject(), f);
 
   // Détail
   protected readonly selected = signal<Mission | null>(null);

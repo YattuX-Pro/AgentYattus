@@ -14,6 +14,7 @@ export const NAV: NavGroup[] = [
     label: 'Pilotage',
     items: [
       { path: '/', label: 'Vue d’ensemble', icon: 'lucideLayoutDashboard' },
+      { path: '/projets', label: 'Projets', icon: 'lucideFolderKanban' },
       { path: '/missions', label: 'Missions', icon: 'lucideActivity' },
       { path: '/audit', label: 'Audit', icon: 'lucideScrollText' },
     ],

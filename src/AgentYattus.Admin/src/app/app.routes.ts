@@ -12,6 +12,7 @@ export const routes: Routes = [
     canActivate: [adminGuard],
     children: [
       { path: '', loadComponent: () => import('./pages/overview/overview').then((m) => m.Overview) },
+      { path: 'projets', loadComponent: () => import('./pages/projects/projects').then((m) => m.Projects) },
       { path: 'missions', loadComponent: () => import('./pages/missions/missions').then((m) => m.Missions) },
       { path: 'audit', loadComponent: () => import('./pages/audit/audit').then((m) => m.Audit) },
       { path: 'agents', loadComponent: () => import('./pages/agents/agents').then((m) => m.Agents) },

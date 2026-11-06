@@ -1,0 +1,163 @@
+<app-page-header title="Projets" description="Chaque projet a un propriétaire. Il le garde privé, le partage à des personnes ou à toute l'organisation.">
+  <button hlmBtn variant="outline" (click)="load()"><ng-icon name="lucideRefreshCw" /> Actualiser</button>
+  <button hlmBtn (click)="openCreate()"><ng-icon name="lucidePlus" /> Nouveau projet</button>
+</app-page-header>
+
+<div class="grid grid-cols-1 gap-2.5 lg:grid-cols-12">
+  <section class="bg-card rounded-xl border lg:col-span-8">
+    <div class="flex flex-wrap items-center gap-1.5 border-b px-3.5 py-2.5">
+      @for (s of scopes(); track s.id) {
+        <button hlmBtn size="sm" [variant]="scope() === s.id ? 'secondary' : 'ghost'" [attr.aria-pressed]="scope() === s.id" (click)="scope.set(s.id)">
+          {{ s.label }} <span class="num text-muted-foreground font-mono text-xs">{{ s.count }}</span>
+        </button>
+      }
+      <span class="flex-1"></span>
+      <label class="bg-muted text-muted-foreground flex h-8 w-56 max-w-full items-center gap-2 rounded-md border px-2.5">
+        <ng-icon name="lucideSearch" />
+        <input class="text-foreground min-w-0 flex-1 bg-transparent outline-none" placeholder="Projet ou propriétaire" aria-label="Filtrer les projets" [value]="query()" (input)="query.set($any($event.target).value)" />
+      </label>
+    </div>
+    <div hlmTableContainer>
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh>Projet</th>
+            <th hlmTh>Propriétaire</th>
+            <th hlmTh>Espace</th>
+            <th hlmTh>Visibilité</th>
+            <th hlmTh class="text-right">Invités</th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @if (!projects()) {
+            @for (i of [1, 2, 3]; track i) {
+              <tr hlmTr><td hlmTd colspan="5"><hlm-skeleton class="h-5 w-full" /></td></tr>
+            }
+          }
+          @for (p of shown(); track p.id) {
+            <tr hlmTr class="cursor-pointer" tabindex="0" [class.bg-primary-soft]="p.id === selected()?.id" (click)="select(p)" (keydown.enter)="select(p)">
+              <td hlmTd>
+                <div class="font-medium">{{ p.name }}</div>
+                <div class="text-muted-foreground font-mono text-xs">{{ p.workspace ?? 'dossier par défaut' }}</div>
+              </td>
+              <td hlmTd>{{ p.owner.displayName ?? p.owner.username }}</td>
+              <td hlmTd class="text-muted-foreground">{{ p.organizationName ?? 'Personnel' }}</td>
+              <td hlmTd>
+                <span hlmBadge [variant]="p.visibility === 'Organization' ? 'success' : p.visibility === 'Shared' ? 'warning' : 'outline'">{{ VISIBILITY[p.visibility].label }}</span>
+              </td>
+              <td hlmTd class="num text-right">{{ p.members.length }}</td>
+            </tr>
+          } @empty {
+            @if (projects()) {
+              <tr hlmTr><td hlmTd colspan="5" class="text-muted-foreground py-8 text-center">Aucun projet. Un projet personnel se crée à la première mission de chacun.</td></tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="bg-card flex flex-col rounded-xl border lg:col-span-4">
+    @if (selected(); as p) {
+      <div class="flex items-start justify-between gap-2 border-b p-3.5">
+        <div class="min-w-0">
+          <h2 class="truncate text-[15px] font-semibold">{{ p.name }}</h2>
+          <div class="text-muted-foreground text-xs">
+            {{ p.owner.displayName ?? p.owner.username }} · {{ p.organizationName ?? 'espace personnel' }} · créé le {{ when(p.createdAt).slice(0, 5) }}
+          </div>
+        </div>
+        <span hlmBadge variant="outline">{{ PROJECT_ROLE[p.myAccess] }}</span>
+      </div>
+
+      <div class="flex flex-col gap-2 border-b p-3.5">
+        <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Visibilité</span>
+        <hlm-toggle-group type="single" variant="outline" size="sm" [value]="p.visibility" (valueChange)="setVisibility(p, $event)" [disabled]="!p.canManage || busy()" aria-label="Visibilité">
+          @for (v of visibilities; track v) {
+            <button hlmToggleGroupItem [value]="v" [disabled]="v === 'Organization' && !p.organizationId">{{ VISIBILITY[v].label }}</button>
+          }
+        </hlm-toggle-group>
+        <span class="text-muted-foreground text-xs">
+          {{ VISIBILITY[p.visibility].hint }}
+          @if (!p.canManage) { Seuls le propriétaire et les administrateurs de l'organisation la changent. }
+        </span>
+      </div>
+
+      <div class="flex min-h-10 items-center justify-between px-3.5 pt-3">
+        <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Invités</span>
+        <span class="text-muted-foreground text-xs">{{ p.members.length }}</span>
+      </div>
+      <div class="flex flex-col">
+        @for (m of p.members; track m.userId) {
+          <div class="flex items-center gap-2 px-3.5 py-1.5">
+            <div class="min-w-0 flex-1">
+              <div class="truncate font-medium">{{ m.displayName ?? m.username }}</div>
+              <div class="text-muted-foreground font-mono text-xs">{{ m.username }}</div>
+            </div>
+            <hlm-toggle-group type="single" variant="outline" size="sm" [value]="m.role" (valueChange)="setRole(p, m.userId, $event)" [disabled]="!p.canManage || busy()" [attr.aria-label]="'Rôle de ' + m.username">
+              <button hlmToggleGroupItem value="Editor">Éditeur</button>
+              <button hlmToggleGroupItem value="Reader">Lecteur</button>
+            </hlm-toggle-group>
+            @if (p.canManage) {
+              <button hlmBtn variant="ghost" size="icon-xs" (click)="remove(p, m.userId)" [disabled]="busy()" [attr.aria-label]="'Retirer ' + m.username"><ng-icon name="lucideX" /></button>
+            }
+          </div>
+        } @empty {
+          <p class="text-muted-foreground px-3.5 py-2 text-xs">Personne n'est invité.</p>
+        }
+      </div>
+      @if (p.canManage) {
+        <div class="px-3.5 pt-1 pb-3"><app-user-picker placeholder="Inviter quelqu'un (lecteur)" (picked)="invite(p, $event)" /></div>
+      }
+
+      <div class="flex flex-col gap-2 border-t p-3.5">
+        <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Dossier de travail</span>
+        <form class="flex gap-2" (submit)="$event.preventDefault(); saveWorkspace(p)">
+          <input hlmInput class="min-w-0 flex-1 font-mono text-xs" placeholder="dossier par défaut (Agents:Workspace)" aria-label="Dossier de travail" [value]="workspace()" (input)="workspace.set($any($event.target).value)" />
+          <button hlmBtn type="submit" variant="outline" size="sm" [disabled]="busy()">Enregistrer</button>
+        </form>
+        <span class="text-muted-foreground text-xs">Chemin absolu sur le serveur. Les agents lisent ce dossier, sans pouvoir en sortir.</span>
+      </div>
+      <a hlmBtn variant="ghost" class="m-2 justify-between" [routerLink]="['/missions']" [queryParams]="{ projet: p.id }">
+        Missions de ce projet <ng-icon name="lucideFolderOpen" />
+      </a>
+    } @else {
+      <p class="text-muted-foreground p-6 text-center">Choisissez un projet.</p>
+    }
+  </section>
+</div>
+
+<hlm-dialog [state]="createState()" (closed)="createState.set('closed')">
+  <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+    <hlm-dialog-header>
+      <h3 hlmDialogTitle>Nouveau projet</h3>
+      <p hlmDialogDescription>Vous en serez le propriétaire.</p>
+    </hlm-dialog-header>
+    <form class="flex flex-col gap-4" (submit)="$event.preventDefault(); create()">
+      <div hlmField>
+        <label hlmFieldLabel for="projectName">Nom</label>
+        <input hlmInput id="projectName" maxlength="80" [value]="newName()" (input)="newName.set($any($event.target).value)" />
+      </div>
+      <div hlmField>
+        <span hlmFieldLabel>Espace</span>
+        <hlm-toggle-group type="single" variant="outline" size="sm" class="flex-wrap" [value]="newOrg()" (valueChange)="newOrg.set($any($event) ?? 'personal')" aria-label="Espace">
+          <button hlmToggleGroupItem value="personal">Personnel</button>
+          @for (o of creatableOrgs(); track o.organizationId) {
+            <button hlmToggleGroupItem [value]="o.organizationId">{{ o.name }}</button>
+          }
+        </hlm-toggle-group>
+      </div>
+      <div hlmField>
+        <span hlmFieldLabel>Visibilité</span>
+        <hlm-toggle-group type="single" variant="outline" size="sm" [value]="newVisibility()" (valueChange)="newVisibility.set($any($event) ?? 'Private')" aria-label="Visibilité du nouveau projet">
+          @for (v of visibilities; track v) {
+            <button hlmToggleGroupItem [value]="v" [disabled]="v === 'Organization' && newOrg() === 'personal'">{{ VISIBILITY[v].label }}</button>
+          }
+        </hlm-toggle-group>
+      </div>
+      <hlm-dialog-footer>
+        <button hlmBtn type="button" variant="outline" (click)="createState.set('closed')">Annuler</button>
+        <button hlmBtn type="submit" [disabled]="newName().trim().length < 2 || busy()">Créer</button>
+      </hlm-dialog-footer>
+    </form>
+  </hlm-dialog-content>
+</hlm-dialog>

@@ -1,4 +1,7 @@
-<app-page-header title="Missions" description="Lancées depuis le bureau et le mobile. Ici, on surveille et on décide.">
+<app-page-header title="Missions" [description]="projet() ? 'Projet ' + (projectName() ?? '') + '.' : 'Lancées depuis le bureau et le mobile. Ici, on surveille et on décide.'">
+  @if (projet()) {
+    <a hlmBtn variant="ghost" routerLink="/missions">Tous les projets</a>
+  }
   <button hlmBtn variant="outline" (click)="load()"><ng-icon name="lucideRefreshCw" /> Actualiser</button>
 </app-page-header>
 
@@ -28,6 +31,8 @@
         <tr hlmTr>
           <th hlmTh class="w-24">N°</th>
           <th hlmTh>But</th>
+          <th hlmTh>Projet</th>
+          <th hlmTh>Auteur</th>
           <th hlmTh>Type</th>
           <th hlmTh>Statut</th>
           <th hlmTh>Créée</th>
@@ -37,13 +42,15 @@
       <tbody hlmTBody>
         @if (!missions()) {
           @for (i of [1, 2, 3, 4]; track i) {
-            <tr hlmTr><td hlmTd colspan="6"><hlm-skeleton class="h-5 w-full" /></td></tr>
+            <tr hlmTr><td hlmTd colspan="8"><hlm-skeleton class="h-5 w-full" /></td></tr>
           }
         }
         @for (m of shown(); track m.id) {
           <tr hlmTr class="cursor-pointer" tabindex="0" (click)="open(m)" (keydown.enter)="open(m)">
             <td hlmTd class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }}</td>
-            <td hlmTd class="max-w-[520px] truncate">{{ m.goal }}</td>
+            <td hlmTd class="max-w-[420px] truncate">{{ m.goal }}</td>
+            <td hlmTd class="text-muted-foreground">{{ m.projectName ?? '—' }}</td>
+            <td hlmTd class="text-muted-foreground">{{ m.createdBy ?? '—' }}</td>
             <td hlmTd>{{ m.kind === 'Review' ? 'Revue' : 'Question' }}</td>
             <td hlmTd><span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span></td>
             <td hlmTd class="text-muted-foreground num">{{ when(m.createdAt) }}</td>
@@ -52,7 +59,7 @@
         } @empty {
           @if (missions()) {
             <tr hlmTr>
-              <td hlmTd colspan="6" class="text-muted-foreground py-8 text-center">
+              <td hlmTd colspan="8" class="text-muted-foreground py-8 text-center">
                 {{ missions()!.length ? 'Aucune mission ne correspond.' : 'Aucune mission pour l’instant : elles se lancent depuis le bureau ou le mobile.' }}
               </td>
             </tr>
@@ -67,7 +74,7 @@
   <hlm-sheet-content *hlmSheetPortal="let ctx" class="flex w-full flex-col gap-0 p-0 sm:max-w-xl">
     @if (selected(); as m) {
       <hlm-sheet-header class="border-b p-4">
-        <div class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }} · {{ m.kind === 'Review' ? 'Revue' : 'Question' }} · {{ when(m.createdAt) }}</div>
+        <div class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }} · {{ m.kind === 'Review' ? 'Revue' : 'Question' }} · {{ when(m.createdAt) }} · {{ m.projectName ?? 'sans projet' }} · {{ m.createdBy ?? '—' }}</div>
         <h3 hlmSheetTitle class="pr-6 text-[15px] leading-snug">{{ m.goal }}</h3>
         <p hlmSheetDescription><span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span></p>
       </hlm-sheet-header>

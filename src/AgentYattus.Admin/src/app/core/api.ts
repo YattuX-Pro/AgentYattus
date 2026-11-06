@@ -30,6 +30,28 @@ export interface ToolCall { tool: string; arguments: string }
 export interface Mission {
   id: string; goal: string; status: MissionStatus; createdAt: string; result: string | null;
   pendingApproval: { id: string; toolCalls: ToolCall[] } | null; kind: MissionKind;
+  projectId?: string | null; projectName?: string | null; createdBy?: string | null;
+}
+
+export type OrganizationRole = 'Admin' | 'Operator' | 'Observer';
+export type ProjectVisibility = 'Private' | 'Shared' | 'Organization';
+export type ProjectRole = 'Owner' | 'Editor' | 'Reader';
+export interface UserRef { id: string; username: string; displayName: string | null }
+export interface Membership { organizationId: string; name: string; slug: string; role: OrganizationRole }
+export interface Me { id: string; username: string; displayName: string | null; isInstanceAdmin: boolean; organizations: Membership[] }
+export interface User {
+  id: string; username: string; displayName: string | null; isInstanceAdmin: boolean;
+  firstSeenAt: string; lastSeenAt: string; organizations: Membership[];
+}
+export interface Member { userId: string; username: string; displayName: string | null; role: OrganizationRole }
+export interface Organization {
+  id: string; name: string; slug: string; defaultVisibility: ProjectVisibility; members: Member[]; myRole: OrganizationRole | null;
+}
+export interface ProjectMember { userId: string; username: string; displayName: string | null; role: ProjectRole }
+export interface Project {
+  id: string; name: string; organizationId: string | null; organizationName: string | null; owner: UserRef;
+  visibility: ProjectVisibility; isPersonalDefault: boolean; workspace: string | null; myAccess: ProjectRole; canManage: boolean;
+  members: ProjectMember[]; createdAt: string;
 }
 export interface AuditEntry { type: string; at: string }
 export interface AuditFeedEntry { missionId: string; type: string; at: string }
@@ -74,4 +96,30 @@ export class AdminApi {
   events(id: string) { return this.get<AuditEntry[]>(`/missions/${id}/events`); }
   decide(id: string, approvalId: string, approved: boolean) { return this.send('POST', `/missions/${id}/decision`, { approved, approvalId }); }
   audit(limit = 200) { return this.get<AuditFeedEntry[]>(`/audit?limit=${limit}`); }
+
+  me() { return this.get<Me>('/me'); }
+  users() { return this.get<User[]>('/users'); }
+  lookup(q: string) { return this.get<UserRef[]>(`/users/lookup?q=${encodeURIComponent(q)}`); }
+  organizations() { return this.get<Organization[]>('/organizations'); }
+  createOrganization(name: string, slug: string) { return this.send<Organization>('POST', '/organizations', { name, slug }); }
+  updateOrganization(id: string, name: string, defaultVisibility: ProjectVisibility) { return this.send('PUT', `/organizations/${id}`, { name, defaultVisibility }); }
+  setOrgMember(id: string, userId: string, role: OrganizationRole) { return this.send('PUT', `/organizations/${id}/members/${encodeURIComponent(userId)}`, { role }); }
+  removeOrgMember(id: string, userId: string) { return this.send('DELETE', `/organizations/${id}/members/${encodeURIComponent(userId)}`); }
+
+  projects() { return this.get<Project[]>('/projects'); }
+  createProject(name: string, organizationId: string | null, visibility: ProjectVisibility | null) {
+    return this.send<Project>('POST', '/projects', { name, organizationId, visibility });
+  }
+  updateProject(id: string, name: string, visibility: ProjectVisibility) { return this.send('PUT', `/projects/${id}`, { name, visibility }); }
+  setProjectMember(id: string, userId: string, role: ProjectRole) { return this.send('PUT', `/projects/${id}/members/${encodeURIComponent(userId)}`, { role }); }
+  removeProjectMember(id: string, userId: string) { return this.send('DELETE', `/projects/${id}/members/${encodeURIComponent(userId)}`); }
+  setWorkspace(id: string, path: string | null) { return this.send('PUT', `/projects/${id}/workspace`, { path }); }
 }
+
+export const VISIBILITY: Record<ProjectVisibility, { label: string; hint: string }> = {
+  Private: { label: 'Privé', hint: 'Le propriétaire seul.' },
+  Shared: { label: 'Partagé', hint: 'Le propriétaire et les personnes invitées.' },
+  Organization: { label: 'Organisation', hint: 'En plus, tous les membres de l’organisation, en lecture.' },
+};
+export const ORG_ROLE: Record<OrganizationRole, string> = { Admin: 'Administrateur', Operator: 'Opérateur', Observer: 'Observateur' };
+export const PROJECT_ROLE: Record<ProjectRole, string> = { Owner: 'Propriétaire', Editor: 'Éditeur', Reader: 'Lecteur' };
