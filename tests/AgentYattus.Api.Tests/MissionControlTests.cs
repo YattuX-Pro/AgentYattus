@@ -49,4 +49,28 @@ public sealed class MissionControlTests
         Assert.Equal(HttpStatusCode.Forbidden, (await CancelAsync(bob, done.Id)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await CancelAsync(alice, done.Id)).StatusCode);
     }
+
+    [Fact]
+    public async Task A_failed_mission_is_retried_as_a_new_linked_mission_and_a_completed_one_is_not()
+    {
+        await using var api = new ApiFactory();
+        var client = api.CreateClient();
+        var failed = await client.CreateMissionAsync(FakeAgentRunner.TimeoutGoal);
+        Assert.Equal(MissionStatus.Failed, await client.WaitForFinalStatusAsync(failed.Id));
+
+        var response = await client.PostAsync($"/missions/{failed.Id}/retry", null, Ct);
+        var retry = (await response.Content.ReadFromJsonAsync<MissionDto>(Ct))!;
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal((failed.Goal, failed.ProjectId, failed.Id), (retry.Goal, retry.ProjectId, retry.RetryOf!.Value));
+        Assert.NotEqual(failed.Id, retry.Id);
+        await client.WaitForFinalStatusAsync(retry.Id);
+        Assert.Equal(2, api.Runner.Goals.Count(g => g == FakeAgentRunner.TimeoutGoal));
+        // L'originale n'a pas bougé.
+        Assert.Equal(MissionStatus.Failed, (await client.GetFromJsonAsync<MissionDto>($"/missions/{failed.Id}", Ct))!.Status);
+
+        var done = await client.CreateMissionAsync("Réussie");
+        await client.WaitForFinalStatusAsync(done.Id);
+        Assert.Equal(HttpStatusCode.Conflict, (await client.PostAsync($"/missions/{done.Id}/retry", null, Ct)).StatusCode);
+    }
 }

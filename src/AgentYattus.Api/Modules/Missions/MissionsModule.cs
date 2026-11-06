@@ -33,6 +33,7 @@ public static class MissionsModule
         missions.MapGet("/{id:guid}", GetAsync);
         missions.MapPost("/{id:guid}/decision", DecideAsync);
         missions.MapPost("/{id:guid}/cancel", CancelAsync);
+        missions.MapPost("/{id:guid}/retry", RetryAsync);
         missions.MapGet("/{id:guid}/events", GetEventsAsync);
         app.MapHub<MissionsHub>(MissionsHubProtocol.Path);
         app.MapGet(SettingsProtocol.Budget, async (MissionsDb db, IInstanceSettings instance, CancellationToken ct) =>
@@ -202,6 +203,46 @@ public static class MissionsModule
         await hub.Clients.Users(await directory.ReadersAsync(mission.ProjectId ?? Guid.Empty, cancellationToken)).SendAsync(
             MissionsHubProtocol.MissionEvent, new MissionEventDto(id, MissionStatus.Cancelled, DateTimeOffset.UtcNow), cancellationToken);
         return TypedResults.Accepted($"/missions/{id}");
+    }
+
+    /// <summary>
+    /// Relancer une mission échouée ou arrêtée : une NOUVELLE mission, même but, même type, même projet, liée à l'originale.
+    /// L'originale reste telle quelle, avec son journal : on ne réécrit pas l'histoire.
+    /// </summary>
+    private static async Task<Results<Accepted<MissionDto>, NotFound, Conflict, ForbidHttpResult>> RetryAsync(
+        Guid id, MissionsDb db, MissionQueue queue, ICurrentUser me, IProjectAccess projects, IProjectDirectory directory,
+        CancellationToken cancellationToken)
+    {
+        if (await db.Missions.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, cancellationToken) is not { } original)
+            return TypedResults.NotFound();
+        switch (await AccessAsync(original, me, projects, cancellationToken))
+        {
+            case null:
+                return TypedResults.NotFound();
+            case ProjectRole.Reader:
+                return TypedResults.Forbid();
+        }
+        // Une mission antérieure aux projets n'a pas de projet où relancer : seul un admin la voit, et il la relance à la main.
+        if (original.Status is not (MissionStatus.Failed or MissionStatus.Cancelled) || original.ProjectId is not { } projectId)
+            return TypedResults.Conflict();
+
+        var retry = new Mission
+        {
+            Id = Guid.CreateVersion7(),
+            Goal = original.Goal,
+            Kind = original.Kind,
+            Status = MissionStatus.Pending,
+            CreatedAt = DateTimeOffset.UtcNow,
+            ProjectId = projectId,
+            CreatedBy = me.Id,
+            CreatedByName = me.Username,
+            RetryOf = original.Id,
+        };
+        db.Missions.Add(retry);
+        await db.SaveChangesAsync(cancellationToken);
+        await queue.Writer.WriteAsync(retry.Id, cancellationToken);
+        var names = await directory.NamesAsync([projectId], cancellationToken);
+        return TypedResults.Accepted($"/missions/{retry.Id}", retry.ToDto(names.GetValueOrDefault(projectId)));
     }
 
     private static async Task<Results<Ok<AuditEntryDto[]>, NotFound>> GetEventsAsync(

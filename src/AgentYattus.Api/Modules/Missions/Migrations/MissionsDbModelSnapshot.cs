@@ -77,6 +77,9 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.Property<string>("Result")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("RetryOf")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
