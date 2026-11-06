@@ -17,7 +17,6 @@
     <DataTemplate DataType="core:MissionViewModel"><views:MissionView /></DataTemplate>
     <DataTemplate DataType="core:AgentsViewModel"><views:AgentsView /></DataTemplate>
     <DataTemplate DataType="core:ReportsViewModel"><views:ReportsView /></DataTemplate>
-    <DataTemplate DataType="core:SettingsViewModel"><views:SettingsView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="Auto,*,Auto">
@@ -86,11 +85,11 @@
             <TextBlock Classes="mono" Text="{Binding UserName}" FontSize="12" />
           </StackPanel>
         </Border>
-        <!-- Paramètres : réservés aux administrateurs du LLM. -->
-        <Button Classes="square" Width="36" Height="36" Padding="0" Command="{Binding ShowSettingsCommand}" ToolTip.Tip="Paramètres : modèle et clés d’API"
+        <!-- La gestion se fait dans l'espace admin web (ADR 0008) : le bouton l'ouvre dans le navigateur. -->
+        <Button Classes="square" Width="36" Height="36" Padding="0" Command="{Binding OpenAdminCommand}" ToolTip.Tip="Ouvrir l’espace admin"
                 IsVisible="{Binding IsLlmAdmin}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-          <Path Data="M4 7h10M18 7h2M4 17h4M12 17h8M14 7a2 2 0 1 0 4 0a2 2 0 1 0-4 0M8 17a2 2 0 1 0 4 0a2 2 0 1 0-4 0"
-                Stroke="{StaticResource Pierre}" StrokeThickness="1.7" StrokeLineCap="Round" Width="15" Height="15" Stretch="Uniform" />
+          <Path Data="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"
+                Stroke="{StaticResource Pierre}" StrokeThickness="1.7" StrokeLineCap="Round" StrokeJoin="Round" Width="15" Height="15" Stretch="Uniform" />
         </Button>
         <Button Classes="square" Width="36" Height="36" Padding="0" Command="{Binding LogoutCommand}" ToolTip.Tip="Se déconnecter"
                 HorizontalContentAlignment="Center" VerticalContentAlignment="Center">

@@ -85,6 +85,13 @@ public sealed class MissionViewModelTests
         Assert.True(shell.IsMissionsSection);
         shell.GoHomeCommand.Execute(null);
         Assert.Same(home, shell.Current);
+
+        // La gestion se fait dans l'espace admin web : le bureau demande seulement à l'ouvrir.
+        Uri? opened = null;
+        var withAdmin = new ShellViewModel(api, home) { AdminUrl = new Uri("http://admin.local/") };
+        withAdmin.OpenUrlRequested += uri => opened = uri;
+        withAdmin.OpenAdminCommand.Execute(null);
+        Assert.Equal(new Uri("http://admin.local/"), opened);
     }
 
     [Fact]

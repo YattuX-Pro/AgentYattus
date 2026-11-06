@@ -25,7 +25,11 @@ public sealed partial class App : Application
                 BaseAddress = apiUrl,
             });
             var vm = new HomeViewModel(api);
-            var shell = new ShellViewModel(api, vm, new LoginViewModel(oidc, tokens, OpenBrowserAsync));
+            var shell = new ShellViewModel(api, vm, new LoginViewModel(oidc, tokens, OpenBrowserAsync))
+            {
+                AdminUrl = new Uri(Environment.GetEnvironmentVariable("AGENTYATTUS_ADMIN_URL") ?? "http://localhost:4200/"),
+            };
+            shell.OpenUrlRequested += uri => _ = OpenBrowserAsync(uri);
             var hub = new MissionsHubClient(apiUrl, accessTokenProvider: () => tokens.GetAccessTokenAsync());
             hub.MissionEventReceived += e => Dispatcher.UIThread.Post(() => _ = shell.ApplyAsync(e));
             // Le hub exige un jeton : on s'y connecte après la connexion, on s'en détache à la déconnexion.

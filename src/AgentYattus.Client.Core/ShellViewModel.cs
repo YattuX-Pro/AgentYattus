@@ -39,9 +39,18 @@ public sealed partial class ShellViewModel : ObservableObject
     [ObservableProperty]
     public partial string? UserName { get; set; }
 
-    /// <summary>Vrai si l'utilisateur a le rôle llm-admin : il peut gérer les clés et le modèle.</summary>
+    /// <summary>Vrai si l'utilisateur a le rôle llm-admin : le bouton de l'espace admin web lui est proposé.</summary>
     [ObservableProperty]
     public partial bool IsLlmAdmin { get; set; }
+
+    /// <summary>L'espace admin web (ADR 0008) : la gestion (modèles, agents, projets, réglages) se fait là, plus ici.</summary>
+    public Uri AdminUrl { get; init; } = new("http://localhost:4200/");
+
+    /// <summary>Pour l'application : ouvrir une adresse dans le navigateur du système.</summary>
+    public event Action<Uri>? OpenUrlRequested;
+
+    [RelayCommand]
+    private void OpenAdmin() => OpenUrlRequested?.Invoke(AdminUrl);
 
     /// <summary>Pour l'application : se connecter au hub après la connexion, s'en détacher à la déconnexion.</summary>
     public event Action? LoggedIn;
@@ -61,13 +70,12 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsAgentsSection), nameof(IsReportsSection), nameof(IsSettingsSection))]
+    [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsAgentsSection), nameof(IsReportsSection))]
     public partial ObservableObject Current { get; set; }
 
     public bool IsMissionsSection => Current is HomeViewModel or MissionViewModel;
     public bool IsAgentsSection => Current is AgentsViewModel;
     public bool IsReportsSection => Current is ReportsViewModel;
-    public bool IsSettingsSection => Current is SettingsViewModel;
 
     public async Task OpenMissionAsync(MissionItem mission)
     {
@@ -83,14 +91,6 @@ public sealed partial class ShellViewModel : ObservableObject
     private async Task ShowAgentsAsync()
     {
         var screen = new AgentsViewModel(_api);
-        Current = screen;
-        await screen.LoadAsync();
-    }
-
-    [RelayCommand]
-    private async Task ShowSettingsAsync()
-    {
-        var screen = new SettingsViewModel(_api);
         Current = screen;
         await screen.LoadAsync();
     }
