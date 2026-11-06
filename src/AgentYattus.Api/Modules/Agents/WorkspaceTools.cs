@@ -17,7 +17,8 @@ internal sealed class WorkspaceTools
     /// <param name="excluded">Motifs de noms (« .env », « *.pfx ») : ces fichiers et dossiers n'existent pas pour l'agent (ADR 0010).</param>
     public WorkspaceTools(string rootPath, long maxFileBytes = 256 * 1024, IReadOnlyList<string>? excluded = null)
     {
-        _excluded = excluded ?? [];
+        // Les motifs sous une seule forme Unicode (NFC), comme les noms auxquels on les compare.
+        _excluded = (excluded ?? []).Select(p => p.Normalize(System.Text.NormalizationForm.FormC)).ToList();
         var root = Path.GetFullPath(rootPath);
         if (!Directory.Exists(root))
         {
@@ -53,7 +54,8 @@ internal sealed class WorkspaceTools
         }
 
         return Directory.EnumerateFileSystemEntries(directory)
-            .Where(entry => !IsLink(entry) && !IsExcluded(entry))
+            // Les entrées lues ici sont les noms réels du disque : on les compare directement aux motifs.
+            .Where(entry => !IsLink(entry) && !MatchesExcluded(Path.GetFileName(entry)))
             .Select(entry => Path.GetRelativePath(_root, entry))
             .Order(StringComparer.Ordinal)
             .ToArray();
@@ -110,9 +112,9 @@ internal sealed class WorkspaceTools
         }
 
         // Un fichier exclu (secret probable) est refusé en lecture comme en écriture, et absent des listes.
-        if (IsExcluded(fullPath))
+        if (_excluded.Count > 0)
         {
-            throw new UnauthorizedAccessException($"Accès refusé : '{relativePath}' est exclu par la configuration.");
+            CheckExclusions(relativePath, fullPath);
         }
 
         // Un lien symbolique du workspace peut pointer n'importe où (un dépôt cloné peut en contenir un vers ~/.ssh).
@@ -133,36 +135,55 @@ internal sealed class WorkspaceTools
     private static bool IsLink(string path) => new FileInfo(path).LinkTarget is not null;
 
     /// <summary>
-    /// Vrai si un des éléments du chemin (dossier ou fichier) correspond à un motif exclu.
-    /// On compare le nom demandé ET le nom réel sur le disque : sur un disque insensible à la casse ou à la
-    /// normalisation Unicode (macOS), « .ENV » ou un « é » décomposé désignent le même fichier que le motif.
+    /// Refuse un chemin dont un élément correspond à un motif exclu. Pour ne pas se laisser tromper par un autre nom
+    /// du même fichier (casse, normalisation Unicode sur macOS, flux NTFS « :$DATA », nom court « ~1 » sous Windows),
+    /// chaque élément doit être EXACTEMENT un nom présent sur le disque, octet pour octet, ou un nom nouveau qui
+    /// ne ressemble à aucun nom existant. C'est ce nom exact qu'on compare aux motifs.
     /// </summary>
-    private bool IsExcluded(string fullPath)
+    private void CheckExclusions(string relativePath, string fullPath)
     {
-        if (_excluded.Count == 0 || fullPath == _root)
-            return false;
+        if (fullPath == _root)
+            return;
         var current = _root;
-        foreach (var raw in Path.GetRelativePath(_root, fullPath).Split(Path.DirectorySeparatorChar))
+        foreach (var part in Path.GetRelativePath(_root, fullPath).Split(Path.DirectorySeparatorChar))
         {
-            // Flux de données alternatifs NTFS (« .env::$DATA ») et noms courts 8.3 (« ENV~1 ») : d'autres noms
-            // pour un même fichier, sous Windows. Refusés d'office plutôt que de deviner à quoi ils mènent.
-            if (raw.IndexOfAny([':', '~']) >= 0)
-                return true;
-            var part = raw.Normalize(System.Text.NormalizationForm.FormC);
-            var actual = ActualName(current, part) ?? part;
-            if (Matches(part) || Matches(actual))
-                return true;
-            current = Path.Combine(current, actual);
-        }
-        return false;
+            if (part.IndexOfAny([':', '~']) >= 0 || part.Any(c => char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.Format or System.Globalization.UnicodeCategory.Control))
+            {
+                throw new UnauthorizedAccessException($"Accès refusé : '{relativePath}' contient un caractère non autorisé (:, ~ ou caractère invisible).");
+            }
 
-        bool Matches(string name) => _excluded.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, name, ignoreCase: true));
+            if (Directory.Exists(current))
+            {
+                // Un seul parcours du dossier par élément du chemin.
+                var exists = false;
+                var alias = false;
+                var key = part.Normalize(System.Text.NormalizationForm.FormC);
+                foreach (var name in Directory.EnumerateFileSystemEntries(current).Select(Path.GetFileName))
+                {
+                    if (string.Equals(name, part, StringComparison.Ordinal))
+                    {
+                        exists = true;
+                        break;
+                    }
+                    alias |= string.Equals(name!.Normalize(System.Text.NormalizationForm.FormC), key, StringComparison.OrdinalIgnoreCase);
+                }
+                if (!exists && alias)
+                {
+                    throw new UnauthorizedAccessException($"Accès refusé : '{part}' n'est pas le nom exact d'un fichier existant ; utilise le nom tel qu'il est listé.");
+                }
+            }
+
+            if (MatchesExcluded(part))
+            {
+                throw new UnauthorizedAccessException($"Accès refusé : '{relativePath}' est exclu par la configuration.");
+            }
+            current = Path.Combine(current, part);
+        }
     }
 
-    /// <summary>Le nom tel qu'il est écrit sur le disque (casse, normalisation), ou null s'il n'existe pas.</summary>
-    private static string? ActualName(string directory, string name) =>
-        Directory.Exists(directory)
-            ? Directory.EnumerateFileSystemEntries(directory).Select(Path.GetFileName)
-                .FirstOrDefault(n => string.Equals(n!.Normalize(System.Text.NormalizationForm.FormC), name, StringComparison.OrdinalIgnoreCase))
-            : null;
+    private bool MatchesExcluded(string name)
+    {
+        var normalized = name.Normalize(System.Text.NormalizationForm.FormC);
+        return _excluded.Any(pattern => FileSystemName.MatchesSimpleExpression(pattern, normalized, ignoreCase: true));
+    }
 }

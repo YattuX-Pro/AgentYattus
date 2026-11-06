@@ -84,5 +84,9 @@ public sealed class WorkspaceToolsTests : IDisposable
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile(".env::$DATA", Ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile("ENV~1", Ct));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => accents.ReadFile("cle\u0301.txt", Ct));
+        // Un caractère invisible (espace de largeur nulle) dans le nom : refusé.
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile(".e\u200Bnv", Ct));
+        // Le nom exact est exigé : « A.TXT » n'est pas « a.txt », même sur un disque qui les confond.
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => tools.ReadFile("A.TXT", Ct));
     }
 }

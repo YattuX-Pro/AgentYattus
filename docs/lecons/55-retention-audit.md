@@ -51,6 +51,15 @@ var actual = ActualName(current, part) ?? part;            // le nom tel qu'il e
 if (Matches(part) || Matches(actual)) return true;
 ```
 
+**Deuxième passage de la revue.** Retrouver le « vrai nom » par équivalence de chaînes restait fragile, et relire le dossier parent pour chaque entrée listée coûtait un temps quadratique. La règle finale est plus simple et plus stricte :
+
+- chaque élément du chemin doit être **exactement** (octet pour octet) un nom présent sur le disque, ou un nom nouveau qui ne ressemble à aucun nom existant ;
+- un nom qui ne diffère d'un nom existant que par la casse ou la normalisation est **refusé** : c'est un alias ;
+- les caractères invisibles (catégorie Unicode « format », comme l'espace de largeur nulle) sont refusés ;
+- `ListFiles` compare directement les noms qu'il lit sur le disque, sans relire le dossier.
+
+Conséquence assumée : un agent qui demande `README.MD` alors que le fichier s'appelle `README.md` reçoit un refus, avec le conseil d'utiliser le nom listé.
+
 C'est une faille de **différence d'interprétation** (*parser differential*) : le filtre et le système de fichiers ne lisent pas le même nom de la même façon. La parade est de vérifier ce que le système de fichiers **résout**, pas ce que l'on **demande**.
 
 ## 5. Quiz
