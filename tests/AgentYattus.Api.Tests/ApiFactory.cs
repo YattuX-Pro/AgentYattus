@@ -4,6 +4,7 @@ using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Identity;
 using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Missions;
+using AgentYattus.Api.Modules.Projects;
 using AgentYattus.Contracts;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
@@ -34,6 +35,7 @@ public class ApiFactory : WebApplicationFactory<Program>
             UseSqlite<AuditDb>(services);
             UseSqlite<LlmDb>(services);
             UseSqlite<IdentityDb>(services);
+            UseSqlite<ProjectsDb>(services);
             // Jamais d'appel au vrai modèle pendant les tests, même si une clé est dans les user-secrets.
             services.RemoveAll<ILlmClientProvider>();
             services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(null));

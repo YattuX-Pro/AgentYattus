@@ -29,6 +29,8 @@ public interface IDirectory
     Task<IReadOnlyList<string>> InstanceAdminsAsync(CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, UserRefDto>> ResolveAsync(IEnumerable<string> userIds, CancellationToken cancellationToken);
     Task<ProjectVisibility?> DefaultVisibilityAsync(Guid organizationId, CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<Guid, string>> OrganizationNamesAsync(IEnumerable<Guid> organizationIds, CancellationToken cancellationToken);
+    Task<IReadOnlyList<string>> AdminsOfAsync(Guid organizationId, CancellationToken cancellationToken);
 }
 
 public static partial class IdentityModule
@@ -74,15 +76,25 @@ public static partial class IdentityModule
                 [.. memberships.Where(m => m.UserId == u.Id).Select(m => m.Dto)])).ToArray());
         }).RequireAuthorization(Authentication.LlmAdminPolicy);
 
-        // Pour partager : chercher quelqu'un par son nom. Ouvert à tous, mais borné (10 résultats, 2 caractères au moins).
-        app.MapGet(IdentityProtocol.Lookup, async Task<Results<Ok<UserRefDto[]>, ValidationProblem>> (IdentityDb db, CancellationToken ct, string q = "") =>
+        // Pour partager : chercher quelqu'un. Pour ne pas laisser parcourir tout l'annuaire (« aa », « ab »…),
+        // la recherche partielle ne porte que sur les personnes qui partagent une organisation avec l'appelant ;
+        // les autres ne répondent qu'à leur nom d'utilisateur exact. Un administrateur de l'instance cherche partout.
+        // ponytail: pas de limite de débit ; en ajouter une (AddRateLimiter) si l'instance s'ouvre au-delà d'une équipe.
+        app.MapGet(IdentityProtocol.Lookup, async Task<Results<Ok<UserRefDto[]>, ValidationProblem>> (
+            ICurrentUser me, IdentityDb db, CancellationToken ct, string q = "") =>
         {
             q = q.Trim();
             if (q.Length is < 2 or > 64)
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["q"] = ["Entre 2 et 64 caractères."] });
             var needle = q.ToLowerInvariant();
+            var myOrgs = db.Memberships.Where(m => m.UserId == me.Id).Select(m => m.OrganizationId);
+            var peers = db.Memberships.Where(m => myOrgs.Contains(m.OrganizationId)).Select(m => m.UserId);
+            var instanceAdmin = me.IsInstanceAdmin;
             var found = await db.Users
-                .Where(u => u.Username.ToLower().Contains(needle) || (u.DisplayName != null && u.DisplayName.ToLower().Contains(needle)))
+                .Where(u => u.Id != me.Id)
+                .Where(u => u.Username.ToLower() == needle
+                    || ((instanceAdmin || peers.Contains(u.Id))
+                        && (u.Username.ToLower().Contains(needle) || (u.DisplayName != null && u.DisplayName.ToLower().Contains(needle)))))
                 .OrderBy(u => u.Username).Take(LookupMax)
                 .Select(u => new UserRefDto(u.Id, u.Username, u.DisplayName)).ToArrayAsync(ct);
             return TypedResults.Ok(found);
@@ -293,6 +305,15 @@ internal sealed class UserDirectory(IdentityDb db) : IDirectory
 
     public async Task<ProjectVisibility?> DefaultVisibilityAsync(Guid organizationId, CancellationToken ct) =>
         (await db.Organizations.FindAsync([organizationId], ct))?.DefaultVisibility;
+
+    public async Task<IReadOnlyDictionary<Guid, string>> OrganizationNamesAsync(IEnumerable<Guid> organizationIds, CancellationToken ct)
+    {
+        var ids = organizationIds.Distinct().ToList();
+        return await db.Organizations.Where(o => ids.Contains(o.Id)).ToDictionaryAsync(o => o.Id, o => o.Name, ct);
+    }
+
+    public async Task<IReadOnlyList<string>> AdminsOfAsync(Guid organizationId, CancellationToken ct) =>
+        await db.Memberships.Where(m => m.OrganizationId == organizationId && m.Role == OrganizationRole.Admin).Select(m => m.UserId).ToListAsync(ct);
 }
 
 internal sealed class User

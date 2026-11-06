@@ -4,6 +4,7 @@ using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Identity;
 using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Missions;
+using AgentYattus.Api.Modules.Projects;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,7 @@ builder.Services.AddTelemetry(builder.Configuration);
 builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment);
 builder.Services
     .AddIdentityModule()
+    .AddProjectsModule()
     .AddMissionsModule()
     .AddAgentsModule(builder.Configuration)
     .AddAuditModule()
@@ -29,5 +31,6 @@ app.MapAgentsEndpoints();
 app.MapLlmEndpoints();
 app.MapAuditEndpoints();
 app.MapIdentityEndpoints();
+app.MapProjectsEndpoints();
 
 app.Run();

@@ -75,13 +75,24 @@ public sealed class IdentityTests
     }
 
     [Fact]
-    public async Task Lookup_finds_people_by_name_with_at_least_two_characters()
+    public async Task Lookup_searches_colleagues_by_part_of_a_name_and_others_only_by_exact_username()
     {
         await using var api = new ApiFactory();
+        var root = As(api, "root", instanceAdmin: true);
         await As(api, "aicha.diallo").GetAsync(IdentityProtocol.Me, Ct);
         var bob = As(api, "bob");
+        await bob.GetAsync(IdentityProtocol.Me, Ct);
 
-        Assert.Equal("aicha.diallo", Assert.Single((await bob.GetFromJsonAsync<UserRefDto[]>($"{IdentityProtocol.Lookup}?q=DIAL", Ct))!).Id);
+        // Sans organisation commune : seul le nom exact répond, on ne parcourt pas l'annuaire.
+        Assert.Empty((await bob.GetFromJsonAsync<UserRefDto[]>($"{IdentityProtocol.Lookup}?q=dial", Ct))!);
+        Assert.Equal("aicha.diallo", Assert.Single((await bob.GetFromJsonAsync<UserRefDto[]>($"{IdentityProtocol.Lookup}?q=Aicha.Diallo", Ct))!).Id);
         Assert.Equal(HttpStatusCode.BadRequest, (await bob.GetAsync($"{IdentityProtocol.Lookup}?q=a", Ct)).StatusCode);
+
+        // Collègues d'une même organisation : la recherche partielle marche.
+        var org = (await (await root.PostAsJsonAsync(IdentityProtocol.Organizations, new CreateOrganizationRequest("Studio", "studio"), Ct))
+            .Content.ReadFromJsonAsync<OrganizationDto>(Ct))!;
+        await root.PutAsJsonAsync(IdentityProtocol.Members(org.Id, "aicha.diallo"), new SetMemberRequest(OrganizationRole.Operator), Ct);
+        await root.PutAsJsonAsync(IdentityProtocol.Members(org.Id, "bob"), new SetMemberRequest(OrganizationRole.Operator), Ct);
+        Assert.Equal("aicha.diallo", Assert.Single((await bob.GetFromJsonAsync<UserRefDto[]>($"{IdentityProtocol.Lookup}?q=DIAL", Ct))!).Id);
     }
 }
