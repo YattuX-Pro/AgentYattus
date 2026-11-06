@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
+using AgentYattus.Api.Modules.Identity;
 using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Missions;
 using AgentYattus.Contracts;
@@ -32,6 +33,7 @@ public class ApiFactory : WebApplicationFactory<Program>
             UseSqlite<MissionsDb>(services);
             UseSqlite<AuditDb>(services);
             UseSqlite<LlmDb>(services);
+            UseSqlite<IdentityDb>(services);
             // Jamais d'appel au vrai modèle pendant les tests, même si une clé est dans les user-secrets.
             services.RemoveAll<ILlmClientProvider>();
             services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(null));
@@ -82,11 +84,16 @@ public sealed class TestAuthHandler(
     /// <summary>En-tête de test pour choisir les rôles de l'utilisateur (par défaut : llm-admin).</summary>
     public const string RolesHeader = "X-Test-Roles";
 
+    /// <summary>En-tête de test pour choisir l'utilisateur (par défaut : « test ») : son « sub » et son nom.</summary>
+    public const string UserHeader = "X-Test-User";
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var roles = Request.Headers.TryGetValue(RolesHeader, out var header) ? header.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries) : ["llm-admin"];
+        var user = Request.Headers.TryGetValue(UserHeader, out var u) ? u.ToString() : "test";
         var identity = new ClaimsIdentity(
-            [new Claim("preferred_username", "test"), .. roles.Select(r => new Claim(ClaimTypes.Role, r))], SchemeName, "preferred_username", ClaimTypes.Role);
+            [new Claim("sub", user), new Claim("preferred_username", user), .. roles.Select(r => new Claim(ClaimTypes.Role, r))],
+            SchemeName, "preferred_username", ClaimTypes.Role);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(identity), SchemeName)));
     }
 }
