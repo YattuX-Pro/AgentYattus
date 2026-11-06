@@ -11,7 +11,7 @@ export const routes: Routes = [
     component: Shell,
     canActivate: [adminGuard],
     children: [
-      { path: '', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Vue d’ensemble' } },
+      { path: '', loadComponent: () => import('./pages/overview/overview').then((m) => m.Overview) },
       { path: 'missions', loadComponent: () => import('./pages/missions/missions').then((m) => m.Missions) },
       { path: 'audit', loadComponent: () => import('./pages/audit/audit').then((m) => m.Audit) },
       { path: 'agents', loadComponent: () => import('./pages/agents/agents').then((m) => m.Agents) },

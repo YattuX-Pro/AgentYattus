@@ -1,0 +1,156 @@
+<app-page-header title="Vue d’ensemble" description="Les 100 dernières missions et les 500 derniers événements.">
+  <button hlmBtn variant="outline" (click)="load()"><ng-icon name="lucideRefreshCw" /> Actualiser</button>
+</app-page-header>
+
+<div class="grid grid-cols-1 gap-2.5 lg:grid-cols-12">
+  <!-- Indicateurs -->
+  <section class="bg-card grid grid-cols-2 rounded-xl border sm:grid-cols-3 lg:col-span-12 xl:grid-cols-6">
+    @for (k of [
+      { label: 'Missions', value: s().total, hint: s().active + ' en cours' },
+      { label: 'Réussite', value: s().successRate === null ? '—' : s().successRate + ' %', hint: s().failed + ' échecs' },
+      { label: 'À approuver', value: s().awaiting.length, hint: 'décisions humaines', warn: s().awaiting.length > 0 },
+      { label: 'Appels d’outils', value: s().toolCalls, hint: 'dans le journal récent' },
+      { label: 'Bascules', value: s().switches, hint: 'quotas épuisés' },
+      { label: 'Connexions', value: activeConnections(), hint: llm()?.freeMode ? 'mode Gratuit actif' : 'mode Gratuit inactif' }
+    ]; track k.label) {
+      <div class="-ml-px -mt-px flex min-w-0 flex-col gap-1.5 border-t border-l px-3.5 py-3">
+        <span class="text-muted-foreground text-[10.5px] font-medium tracking-wider uppercase">{{ k.label }}</span>
+        @if (missions()) {
+          <span class="num text-2xl leading-none font-semibold tracking-tight" [class.text-warning]="k.warn">{{ k.value }}</span>
+        } @else {
+          <hlm-skeleton class="h-6 w-16" />
+        }
+        <span class="text-muted-foreground truncate text-xs">{{ k.hint }}</span>
+      </div>
+    }
+  </section>
+
+  <!-- Graphique -->
+  <section class="bg-card flex flex-col rounded-xl border lg:col-span-8">
+    <div class="flex min-h-11 flex-wrap items-center justify-between gap-2 border-b px-3.5">
+      <h2 class="font-semibold">Missions, 14 derniers jours</h2>
+      <div class="text-muted-foreground flex gap-3.5 text-xs">
+        <span class="flex items-center gap-1.5"><i class="bg-primary inline-block size-2.5 rounded-sm"></i>Terminées</span>
+        <span class="flex items-center gap-1.5"><i class="bg-destructive inline-block size-2.5 rounded-sm"></i>Échouées</span>
+      </div>
+    </div>
+    <div class="overflow-x-auto px-3.5 pt-2 pb-3">
+      <svg class="block h-[210px] w-full min-w-[480px]" [attr.viewBox]="'0 0 ' + W + ' ' + H" preserveAspectRatio="none" role="img" aria-label="Missions terminées et échouées par jour">
+        @for (t of ticks(); track t) {
+          <line [attr.x1]="L" [attr.x2]="W - 4" [attr.y1]="y(t)" [attr.y2]="y(t)" stroke="var(--border)" [attr.stroke-dasharray]="t ? '2 4' : null" />
+          <text [attr.x]="L - 8" [attr.y]="y(t) + 3.5" text-anchor="end" font-size="10" fill="var(--muted-foreground)" font-family="var(--font-mono)">{{ t }}</text>
+        }
+        @for (d of bars(); track $index) {
+          @if (d.done) {
+            <rect [attr.x]="d.x" [attr.y]="y(d.done)" [attr.width]="d.w" [attr.height]="y(0) - y(d.done)" rx="2" fill="var(--primary)" [attr.opacity]="d.last ? 1 : 0.6" />
+          }
+          @if (d.failed) {
+            <rect [attr.x]="d.x" [attr.y]="y(d.total)" [attr.width]="d.w" [attr.height]="y(d.done) - y(d.total) - 1" rx="2" fill="var(--destructive)" />
+          }
+          <text [attr.x]="d.x + d.w / 2" [attr.y]="H - 8" text-anchor="middle" font-size="10" fill="var(--muted-foreground)" font-family="var(--font-mono)">{{ d.label }}</text>
+          @if (d.last && d.total) {
+            <text [attr.x]="d.x + d.w / 2" [attr.y]="y(d.total) - 6" text-anchor="middle" font-size="11" font-weight="600" fill="var(--foreground)" font-family="var(--font-mono)">{{ d.total }}</text>
+          }
+        }
+      </svg>
+    </div>
+  </section>
+
+  <!-- À décider -->
+  <section class="bg-card flex flex-col rounded-xl border lg:col-span-4">
+    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+      <h2 class="font-semibold">À décider</h2>
+      @if (s().awaiting.length) {
+        <span hlmBadge variant="warning">{{ s().awaiting.length }} en attente</span>
+      }
+    </div>
+    @for (m of s().awaiting; track m.id) {
+      <a class="hover:bg-accent flex items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0" [routerLink]="['/missions']" [queryParams]="{ q: m.id }">
+        <div class="min-w-0 flex-1">
+          <div class="truncate font-medium">{{ m.goal }}</div>
+          <div class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }} · {{ when(m.createdAt) }}</div>
+        </div>
+        <span class="text-primary text-xs font-medium">Examiner</span>
+      </a>
+    } @empty {
+      <p class="text-muted-foreground px-3.5 py-6 text-center">Aucune écriture n'attend de décision.</p>
+    }
+  </section>
+
+  <!-- En cours -->
+  <section class="bg-card flex flex-col rounded-xl border lg:col-span-5">
+    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+      <h2 class="font-semibold">En cours</h2>
+      <a class="text-muted-foreground hover:text-foreground text-xs" routerLink="/missions">Toutes les missions</a>
+    </div>
+    @for (m of s().running.slice(0, 6); track m.id) {
+      <a class="hover:bg-accent flex items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0" [routerLink]="['/missions']" [queryParams]="{ q: m.id }">
+        <div class="min-w-0 flex-1">
+          <div class="truncate font-medium">{{ m.goal }}</div>
+          <div class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }} · {{ m.kind === 'Review' ? 'Revue' : 'Question' }}</div>
+        </div>
+        <span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span>
+      </a>
+    } @empty {
+      <p class="text-muted-foreground px-3.5 py-6 text-center">Aucune mission en cours.</p>
+    }
+  </section>
+
+  <!-- Modèles utilisés -->
+  <section class="bg-card flex flex-col rounded-xl border lg:col-span-4">
+    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+      <h2 class="font-semibold">Modèles utilisés</h2>
+      <span class="text-muted-foreground text-xs">prises de main d'un agent</span>
+    </div>
+    <div class="flex flex-col gap-3 p-3.5">
+      @for (u of s().models; track u.model) {
+        <div>
+          <div class="mb-1.5 flex justify-between gap-2">
+            <span class="truncate font-mono text-xs">{{ u.model }}</span>
+            <span class="num text-muted-foreground text-xs">{{ u.share }} %</span>
+          </div>
+          <div class="bg-muted h-1.5 overflow-hidden rounded-full border">
+            <div class="bg-primary h-full rounded-full" [style.width.%]="u.share"></div>
+          </div>
+        </div>
+      } @empty {
+        <p class="text-muted-foreground py-3 text-center">Pas encore de mission dans le journal.</p>
+      }
+    </div>
+  </section>
+
+  <!-- Configuration -->
+  <section class="bg-card flex flex-col rounded-xl border lg:col-span-3">
+    <div class="flex min-h-11 items-center border-b px-3.5"><h2 class="font-semibold">Configuration</h2></div>
+    <a routerLink="/modeles" class="hover:bg-accent flex items-center justify-between gap-2 border-b px-3.5 py-2.5">
+      <span>Modèle par défaut</span><span class="text-muted-foreground truncate font-mono text-xs">{{ defaultLabel() }}</span>
+    </a>
+    <a routerLink="/modeles" class="hover:bg-accent flex items-center justify-between gap-2 border-b px-3.5 py-2.5">
+      <span>Mode Gratuit</span>
+      <span hlmBadge [variant]="llm()?.freeMode ? 'success' : 'outline'">{{ llm()?.freeMode ? (llm()?.freeChain?.length ?? 0) + ' modèles' : 'inactif' }}</span>
+    </a>
+    <a routerLink="/agents" class="hover:bg-accent flex items-center justify-between gap-2 px-3.5 py-2.5">
+      <span>Agents</span><span class="text-muted-foreground text-xs">modèle et outils</span>
+    </a>
+  </section>
+
+  <!-- Activité récente -->
+  <section class="bg-card rounded-xl border lg:col-span-12">
+    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+      <h2 class="font-semibold">Activité récente</h2>
+      <a class="text-muted-foreground hover:text-foreground text-xs" routerLink="/audit">Ouvrir l'audit</a>
+    </div>
+    <div class="overflow-x-auto">
+      @for (r of recent(); track $index) {
+        <div class="flex min-w-[560px] items-center gap-3 border-b px-3.5 py-2 font-mono text-xs last:border-b-0">
+          <span class="text-muted-foreground num w-24">{{ when(r.at) }}</span>
+          <span class="text-muted-foreground w-20">{{ r.missionId.slice(0, 8) }}</span>
+          <span class="w-44" [class.text-primary]="r.view.tone === 'success'" [class.text-warning]="r.view.tone === 'warning'" [class.text-destructive]="r.view.tone === 'destructive'">{{ r.view.label }}</span>
+          <span class="text-muted-foreground min-w-0 flex-1 truncate">{{ r.view.detail }}</span>
+        </div>
+      } @empty {
+        <p class="text-muted-foreground px-3.5 py-6 text-center font-sans">Le journal est vide.</p>
+      }
+    </div>
+  </section>
+</div>
