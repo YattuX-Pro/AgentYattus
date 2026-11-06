@@ -24,6 +24,7 @@ PHASES = [  # (première leçon, numéro, titre, objectif)
     (27, "4", "MVP", "Deux agents qui collaborent, un banc d'évaluation, la sécurité documentée."),
     (30, "5", "Authentification et LLM", "Keycloak, connexion PKCE, clés d'API chiffrées et choix du modèle."),
     (34, "6", "Fournisseurs et modèles", "Comme opencode : tous les fournisseurs, un modèle par agent, et un mode Gratuit."),
+    (37, "7", "Espace admin web", "Séparer gérer et travailler : un espace d'administration en Angular et spartan/ui."),
 ]
 
 
@@ -178,7 +179,7 @@ doc = f"""<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Agen
   <div class="kicker">Support de cours</div>
   <h1>Construire une plateforme d'agents IA, <em>commit par commit</em></h1>
   <p class="lead">De la boucle d'agent écrite à la main à une application desktop connectée, sécurisée, où rien de sensible ne se passe sans ton accord. En .NET 10.</p>
-  <div class="stats"><div><b>{len(lessons)}</b><span>leçons</span></div><div><b>{len(PHASES)}</b><span>phases</span></div><div><b>.NET 10</b><span>Avalonia · Keycloak</span></div></div>
+  <div class="stats"><div><b>{len(lessons)}</b><span>leçons</span></div><div><b>{len(PHASES)}</b><span>phases</span></div><div><b>.NET 10</b><span>Avalonia · Angular · Keycloak</span></div></div>
   <div class="meta"><span>Licence MIT</span><span>Édition du {today}</span></div></section>
 <section class="front"><div class="eyebrow">Avant de commencer</div><h2 class="big">Comment lire ce cours</h2>
   <p>Chaque leçon correspond à <b>un commit</b> du dépôt Agent Yattus. Elle explique ce qui a été construit, le problème que cela résout, les options possibles, le choix retenu et pourquoi. Tu peux lire le code de chaque étape avec <code>git show</code> suivi du nom du commit.</p>

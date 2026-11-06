@@ -30,6 +30,8 @@ Un modèle peut se tromper ou être manipulé. Chaque protection ci-dessous est 
 | Clé envoyée au mauvais serveur | Une adresse piégée ou en HTTP fait partir la clé ailleurs, ou en clair | Adresse imposée pour les fournisseurs à clé ; HTTPS obligatoire hors `localhost` ; ni identifiants ni paramètres dans l'adresse | `LlmProviders.ValidateBaseUrl`, ADR 0007 |
 | Catalogue ou serveur de modèles piégé | models.dev ou un serveur local renvoie des identifiants ou des noms malveillants | Identifiants filtrés (caractères sûrs, longueur bornée), noms nettoyés, nombre de modèles borné ; copie embarquée si le catalogue est injoignable | `ModelCatalog` |
 | Dépense imprévue en mode Gratuit | Une bascule automatique part vers un modèle payant | La chaîne n'accepte que des modèles à prix nul au catalogue ou locaux, vérifié par le serveur ; seule une erreur de quota (429, 402, 503, serveur muet) déclenche une bascule ; chaque bascule entre dans le journal | `UpdateFreeModeAsync`, `FallbackChatClient` |
+| Jeton volé dans le navigateur | Un script injecté (XSS) lit le jeton de l'espace admin | Jetons en mémoire seulement (jamais `localStorage`) ; jeton joint aux seuls appels `/api/` ; retour de connexion limité à un chemin local (pas de redirection ouverte) ; l'API vérifie elle-même chaque rôle | `core/auth.ts`, ADR 0008 |
+| Journal global exposé | Un compte sans privilège lit l'activité de toutes les missions | `GET /audit` réservé à `llm-admin`, borné à 500 lignes | `AuditModule.MapAuditEndpoints` |
 | Fuite de la clé d'API | Clé commitée dans le dépôt | Clé dans les user-secrets, hors du dépôt ; les tests retirent tout client de modèle et ne peuvent pas appeler le vrai service | `AgentsModule`, `ApiFactory` |
 
 ## Les limites connues

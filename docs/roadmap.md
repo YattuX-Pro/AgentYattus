@@ -65,7 +65,21 @@ Calendrier indicatif (4 à 5 mois depuis le 24/10/2026) : MVP démontrable mi-f�
 - [x] 35 `feat(llm): un modèle par agent`
 - [x] 36 `feat(llm): mode Gratuit, chaîne de modèles et bascule automatique`
 
+## Espace admin web
+
+- [x] 37 `docs(adr): espace d'administration web, séparé des apps de travail` (ADR 0008)
+- [x] 38 `feat(admin): projet Angular avec spartan/ui, thème clair et sombre, CI`
+- [x] 39 `feat(admin): connexion Keycloak (PKCE), garde admin et relais vers l'API`
+- [x] 40 `feat(admin): coque avec menu latéral déroulant, recherche et thème`
+- [x] 41 `feat(admin): page Modèles (fournisseurs, défaut, mode Gratuit, catalogue)`
+- [x] 42 `feat(admin): page Agents (modèle par rôle, outils et garde-fous)`
+- [x] 43 `feat(admin): pages Missions et Audit, journal de toutes les missions`
+- [x] 44 `feat(admin): vue d'ensemble (indicateurs, graphique, décisions, activité)`
+
 ## Ensuite
+
+- [ ] Multi-utilisateur : projets (propriétaire, privé, partagé, organisation), organisations, rôles Administrateur / Opérateur / Observateur ; pages Projets, Organisation, Utilisateurs (API d'admin Keycloak).
+- [ ] Retirer l'écran Modèles du bureau, maintenant géré par l'admin web.
 
 - [ ] Lancer l'évaluation sur Haiku et Sonnet (payant, quelques dizaines de centimes) et choisir le modèle par défaut.
 - [ ] `feat(mobile): squelette MAUI` (le code existe, non commité ; à brancher sur la connexion OIDC avec `WebAuthenticator`).
