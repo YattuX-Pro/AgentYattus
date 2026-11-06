@@ -37,16 +37,19 @@ public sealed class ApiClient(HttpClient http)
     public async Task<LlmStatusDto> GetLlmStatusAsync(CancellationToken cancellationToken = default) =>
         (await http.GetFromJsonAsync<LlmStatusDto>(LlmProtocol.Path.TrimStart('/'), cancellationToken))!;
 
+    public async Task<LlmModelsDto> GetLlmModelsAsync(CancellationToken cancellationToken = default) =>
+        (await http.GetFromJsonAsync<LlmModelsDto>(LlmProtocol.Models.TrimStart('/'), cancellationToken))!;
+
     /// <returns>Null si tout va bien, sinon le message d'erreur renvoyé par l'API.</returns>
-    public async Task<string?> AddLlmCredentialAsync(AddLlmCredentialRequest request, CancellationToken cancellationToken = default)
+    public async Task<string?> ConnectLlmAsync(AddLlmConnectionRequest request, CancellationToken cancellationToken = default)
     {
-        using var response = await http.PostAsJsonAsync(LlmProtocol.Credentials.TrimStart('/'), request, cancellationToken);
+        using var response = await http.PostAsJsonAsync(LlmProtocol.Connections.TrimStart('/'), request, cancellationToken);
         return await ErrorOrNullAsync(response, cancellationToken);
     }
 
-    public async Task RevokeLlmCredentialAsync(Guid id, CancellationToken cancellationToken = default)
+    public async Task RevokeLlmConnectionAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        using var response = await http.DeleteAsync($"{LlmProtocol.Credentials.TrimStart('/')}/{id}", cancellationToken);
+        using var response = await http.DeleteAsync($"{LlmProtocol.Connections.TrimStart('/')}/{id}", cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 

@@ -11,6 +11,7 @@
   <ItemGroup>
     <PackageReference Include="Anthropic" />
     <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <!-- Outillage des migrations (dotnet ef), absent du binaire publié. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
@@ -18,6 +19,11 @@
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting" />
     <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Le catalogue de modèles, quand models.dev est injoignable (voir scripts/update-models-snapshot.py). -->
+    <EmbeddedResource Include="Modules\Llm\models-snapshot.json" LogicalName="models-snapshot.json" />
   </ItemGroup>
 
   <ItemGroup>

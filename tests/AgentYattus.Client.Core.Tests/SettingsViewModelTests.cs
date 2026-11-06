@@ -7,13 +7,29 @@ namespace AgentYattus.Client.Core.Tests;
 
 public sealed class SettingsViewModelTests
 {
-    private static readonly Guid KeyId = Guid.NewGuid();
+    private static readonly Guid AnthropicId = Guid.NewGuid();
+    private static readonly Guid OllamaId = Guid.NewGuid();
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    private static LlmStatusDto Status(bool revoked = false) => new(
-        [new LlmProviderDto("anthropic", "Anthropic",
-            [new LlmModelDto("claude-haiku-5-5", "Claude Haiku 5.5", 0.10m, 0.50m), new LlmModelDto("claude-sonnet-5-5", "Claude Sonnet 5.5", 2m, 10m)])],
-        [new LlmCredentialDto(KeyId, "anthropic", "Clé perso", "WXYZ", DateTimeOffset.UtcNow, "dev", revoked ? DateTimeOffset.UtcNow : null, !revoked)],
-        revoked ? null : KeyId, "claude-haiku-5-5");
+    private static readonly LlmProviderDto[] Providers =
+    [
+        new("anthropic", "Anthropic", LlmConnectionKind.ApiKey, null, 3),
+        new("ollama", "Ollama", LlmConnectionKind.Local, "http://localhost:11434/v1", 0),
+    ];
+
+    private static LlmStatusDto Status(bool revoked = false) => new(Providers,
+        [
+            new LlmConnectionDto(AnthropicId, "anthropic", "Anthropic", "Clé perso", "WXYZ", null, DateTimeOffset.UtcNow, "dev", revoked ? DateTimeOffset.UtcNow : null),
+            new LlmConnectionDto(OllamaId, "ollama", "Ollama", "Ollama", null, "http://localhost:11434/v1", DateTimeOffset.UtcNow, "dev", null),
+        ],
+        revoked ? null : new LlmSelectionDto(AnthropicId, "claude-haiku-5-5"));
+
+    private static LlmModelsDto Models() => new(
+        [
+            new LlmModelDto(AnthropicId, "anthropic", "claude-haiku-5-5", "Claude Haiku 5.5", 200_000, 0.10m, 0.50m, true, false),
+            new LlmModelDto(AnthropicId, "anthropic", "claude-sonnet-5-5", "Claude Sonnet 5.5", 1_000_000, 2m, 10m, true, false),
+            new LlmModelDto(OllamaId, "ollama", "qwen3:8b", "qwen3:8b", null, 0, 0, false, true),
+        ], []);
 
     private static (SettingsViewModel Vm, List<(HttpMethod Method, string Path, string? Body)> Calls) Create(Func<HttpRequestMessage, HttpResponseMessage?>? respond = null)
     {
@@ -27,61 +43,90 @@ public sealed class SettingsViewModelTests
                 return custom;
             if (request.Method == HttpMethod.Delete)
                 revoked = true;
-            return request.Method == HttpMethod.Get
-                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(Status(revoked)) }
-                : new HttpResponseMessage(request.Method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.NoContent);
+            if (request.Method != HttpMethod.Get)
+                return new HttpResponseMessage(request.Method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.NoContent);
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = request.RequestUri.AbsolutePath == LlmProtocol.Models ? JsonContent.Create(Models()) : JsonContent.Create(Status(revoked)),
+            };
         });
         return (new SettingsViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") })), calls);
     }
 
     [Fact]
-    public async Task Load_shows_models_keys_and_the_current_model_without_saving()
+    public async Task Load_shows_connections_models_and_the_default_without_saving()
     {
         var (vm, calls) = Create();
 
-        await vm.LoadAsync(TestContext.Current.CancellationToken);
+        await vm.LoadAsync(Ct);
 
-        Assert.Equal(2, vm.Models.Count);
-        Assert.Equal("claude-haiku-5-5", vm.SelectedModel!.Id);
-        Assert.Equal("WXYZ", Assert.Single(vm.Credentials).Last4);
-        Assert.Equal(KeyId, vm.ActiveCredentialId);
-        // Charger ne doit pas déclencher d'enregistrement.
+        Assert.Equal(2, vm.Connections.Count);
+        Assert.Equal(3, vm.FilteredModels.Count);
+        Assert.Equal("Claude Haiku 5.5", vm.DefaultModel!.Model.Name);
+        Assert.Equal(("200k", "0.1 $ · 0.5 $"), (vm.DefaultModel.Context, vm.DefaultModel.Price));
+        Assert.Equal("gratuit", vm.FilteredModels.Single(m => m.Model.Id == "qwen3:8b").Price);
         Assert.All(calls, c => Assert.Equal(HttpMethod.Get, c.Method));
     }
 
     [Fact]
-    public async Task Choosing_a_model_saves_it_with_the_active_key()
+    public async Task The_picker_searches_by_name_and_provider_then_saves_the_choice()
     {
         var (vm, calls) = Create();
-        await vm.LoadAsync(TestContext.Current.CancellationToken);
+        await vm.LoadAsync(Ct);
+        vm.OpenPickerCommand.Execute(null);
 
-        vm.SelectedModel = vm.Models[1];
-        for (var i = 0; i < 50 && vm.Info is null; i++)
-            await Task.Delay(10, TestContext.Current.CancellationToken);
+        vm.ModelQuery = "sonnet";
+        Assert.Equal("claude-sonnet-5-5", Assert.Single(vm.FilteredModels).Model.Id);
+        vm.ModelQuery = "ollama";
+        var local = Assert.Single(vm.FilteredModels);
+
+        await vm.ChooseCommand.ExecuteAsync(local);
 
         var put = Assert.Single(calls, c => c.Method == HttpMethod.Put);
         Assert.Equal("/llm/settings", put.Path);
-        Assert.Contains("\"model\":\"claude-sonnet-5-5\"", put.Body);
-        Assert.Contains($"\"credentialId\":\"{KeyId}\"", put.Body);
+        Assert.Contains($"\"connectionId\":\"{OllamaId}\"", put.Body);
+        Assert.Contains("\"model\":\"qwen3:8b\"", put.Body);
+        Assert.False(vm.IsPickerOpen);
     }
 
     [Fact]
-    public async Task Adding_a_key_sends_it_once_then_forgets_it()
+    public async Task Connecting_a_provider_sends_the_key_once_forgets_it_then_opens_the_picker()
     {
         var (vm, calls) = Create();
-        vm.NewLabel = "Clé perso";
+        await vm.LoadAsync(Ct);
+        vm.OpenConnectCommand.Execute(null);
+        vm.PickCommand.Execute(Providers[0]);
+        Assert.True(vm.NeedsKey);
+        Assert.False(vm.ConnectCommand.CanExecute(null));
         vm.NewKey = "sk-ant-secret-0123456789WXYZ";
 
-        await vm.AddCommand.ExecuteAsync(null);
+        await vm.ConnectCommand.ExecuteAsync(null);
 
         var post = Assert.Single(calls, c => c.Method == HttpMethod.Post);
         Assert.Contains("sk-ant-secret-0123456789WXYZ", post.Body);
         Assert.Equal("", vm.NewKey);
         Assert.Contains("chiffrée", vm.Info);
+        Assert.True(vm.IsPickerOpen);
+        Assert.Equal("Anthropic", vm.ModelQuery);
     }
 
     [Fact]
-    public async Task A_rejected_key_shows_the_reason_and_is_still_forgotten()
+    public async Task A_local_server_needs_an_address_but_no_key()
+    {
+        var (vm, calls) = Create();
+        vm.PickCommand.Execute(Providers[1]);
+
+        Assert.Equal((false, true, "http://localhost:11434/v1"), (vm.NeedsKey, vm.HasAddress, vm.NewBaseUrl));
+        Assert.True(vm.ConnectCommand.CanExecute(null));
+        await vm.ConnectCommand.ExecuteAsync(null);
+
+        var post = Assert.Single(calls, c => c.Method == HttpMethod.Post);
+        Assert.Contains("\"apiKey\":null", post.Body);
+        Assert.Contains("\"baseUrl\":\"http://localhost:11434/v1\"", post.Body);
+    }
+
+    [Fact]
+    public async Task A_rejected_connection_shows_the_reason_and_the_key_is_still_forgotten()
     {
         var (vm, _) = Create(request => request.Method == HttpMethod.Post
             ? new HttpResponseMessage(HttpStatusCode.BadRequest)
@@ -90,10 +135,10 @@ public sealed class SettingsViewModelTests
                     System.Text.Encoding.UTF8, "application/problem+json"),
             }
             : null);
-        vm.NewLabel = "x";
+        vm.PickCommand.Execute(Providers[0]);
         vm.NewKey = "trop courte";
 
-        await vm.AddCommand.ExecuteAsync(null);
+        await vm.ConnectCommand.ExecuteAsync(null);
 
         Assert.Contains("16 et 512", vm.Error);
         Assert.Equal("", vm.NewKey);
@@ -103,15 +148,16 @@ public sealed class SettingsViewModelTests
     public async Task Revoking_asks_for_confirmation_first()
     {
         var (vm, calls) = Create();
-        await vm.LoadAsync(TestContext.Current.CancellationToken);
+        await vm.LoadAsync(Ct);
 
-        vm.AskRevokeCommand.Execute(vm.Credentials[0]);
+        vm.AskRevokeCommand.Execute(vm.Connections[0]);
         Assert.DoesNotContain(calls, c => c.Method == HttpMethod.Delete);
 
         await vm.ConfirmRevokeCommand.ExecuteAsync(null);
 
-        Assert.Equal($"/llm/credentials/{KeyId}", Assert.Single(calls, c => c.Method == HttpMethod.Delete).Path);
-        Assert.NotNull(vm.Credentials[0].RevokedAt);
+        Assert.Equal($"/llm/connections/{AnthropicId}", Assert.Single(calls, c => c.Method == HttpMethod.Delete).Path);
+        Assert.NotNull(vm.Connections[0].RevokedAt);
+        Assert.Null(vm.Default);
         Assert.Null(vm.PendingRevoke);
     }
 

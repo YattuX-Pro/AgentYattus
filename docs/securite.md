@@ -27,6 +27,8 @@ Un modèle peut se tromper ou être manipulé. Chaque protection ci-dessous est 
 | Double décision | Deux appareils décident en même temps | Une seule requête SQL vérifie et écrit (`ExecuteUpdate`) ; la seconde reçoit 409 | `MissionsModule.DecideAsync` |
 | Accès non authentifié | Un programme pilote les agents sans être connecté | Jeton Keycloak exigé sur toutes les routes sauf `/health` (politique par défaut) ; audience vérifiée ; l'API n'écoute encore que sur la boucle locale | `Authentication.cs`, ADR 0005 |
 | Vol ou fuite d'une clé d'API | La base est volée ; un écran ou un journal montre la clé | Clés chiffrées (Data Protection), trousseau hors de la base ; jamais renvoyées (4 derniers caractères) ; révocation qui efface ; gestion réservée à `llm-admin` | `Modules/Llm`, ADR 0006 |
+| Clé envoyée au mauvais serveur | Une adresse piégée ou en HTTP fait partir la clé ailleurs, ou en clair | Adresse imposée pour les fournisseurs à clé ; HTTPS obligatoire hors `localhost` ; ni identifiants ni paramètres dans l'adresse | `LlmProviders.ValidateBaseUrl`, ADR 0007 |
+| Catalogue ou serveur de modèles piégé | models.dev ou un serveur local renvoie des identifiants ou des noms malveillants | Identifiants filtrés (caractères sûrs, longueur bornée), noms nettoyés, nombre de modèles borné ; copie embarquée si le catalogue est injoignable | `ModelCatalog` |
 | Fuite de la clé d'API | Clé commitée dans le dépôt | Clé dans les user-secrets, hors du dépôt ; les tests retirent tout client de modèle et ne peuvent pas appeler le vrai service | `AgentsModule`, `ApiFactory` |
 
 ## Les limites connues

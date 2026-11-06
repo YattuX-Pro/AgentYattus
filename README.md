@@ -14,7 +14,7 @@
 - **Traçabilité** : chaque outil appelé, chaque décision, est inscrit dans un journal.
 - **Observabilité** : durée et tokens de chaque appel au modèle (OpenTelemetry).
 - **Évaluation** : coût par mission réussie, par modèle.
-- **Connexion et gestion du LLM** : connexion Keycloak (OIDC + PKCE) ; modèle et clés d'API gérés dans l'application, clés chiffrées et révocables.
+- **Connexion et gestion du LLM** : connexion Keycloak (OIDC + PKCE) ; comme dans opencode, n'importe quel fournisseur (Anthropic, OpenAI, Gemini, Mistral, Groq, OpenRouter, Ollama en local…) et un sélecteur unique de modèles, tiré de models.dev ; clés chiffrées et révocables.
 
 Projet open source (licence MIT), construit en .NET 10 comme support d'apprentissage : chaque commit est accompagné d'une leçon dans [`docs/lecons/`](docs/lecons/).
 
@@ -38,7 +38,7 @@ dotnet run --project src/AgentYattus.Api --launch-profile http
 dotnet run --project src/AgentYattus.Desktop
 ```
 
-Dans l'application : **Se connecter** (compte de développement `dev` / `agent-yattus-dev`, voir [`deploy/keycloak/README.md`](deploy/keycloak/README.md)), puis l'icône de réglages : choisir le modèle et ajouter ta clé d'API Anthropic. Elle est chiffrée sur le serveur et ne sera plus jamais affichée.
+Dans l'application : **Se connecter** (compte de développement `dev` / `agent-yattus-dev`, voir [`deploy/keycloak/README.md`](deploy/keycloak/README.md)), puis l'icône de réglages : **Connecter un fournisseur** (une clé d'API, ou Ollama en local, sans clé), puis choisir le modèle. Les clés sont chiffrées sur le serveur et ne sont plus jamais affichées.
 
 Tableau de bord des traces : <http://localhost:18888>. Console Keycloak : <http://localhost:8380/admin>.
 

@@ -23,11 +23,14 @@ namespace AgentYattus.Api.Modules.Llm.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("AgentYattus.Api.Modules.Llm.LlmCredential", b =>
+            modelBuilder.Entity("AgentYattus.Api.Modules.Llm.LlmConnection", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("BaseUrl")
+                        .HasColumnType("text");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -67,8 +70,9 @@ namespace AgentYattus.Api.Modules.Llm.Migrations
                     b.Property<int>("Id")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("ActiveCredentialId")
-                        .HasColumnType("uuid");
+                    b.Property<Guid?>("DefaultConnectionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("ActiveCredentialId");
 
                     b.Property<string>("Model")
                         .IsRequired()

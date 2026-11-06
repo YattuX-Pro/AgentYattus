@@ -26,7 +26,8 @@ public class ApiFactory : WebApplicationFactory<Program>
     public FakeAgentRunner Runner { get; } = new();
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) =>
-        builder.ConfigureServices(services =>
+        // Pas d'appel à models.dev pendant les tests : le catalogue embarqué suffit.
+        builder.UseSetting("Llm:CatalogUrl", "").ConfigureServices(services =>
         {
             UseSqlite<MissionsDb>(services);
             UseSqlite<AuditDb>(services);

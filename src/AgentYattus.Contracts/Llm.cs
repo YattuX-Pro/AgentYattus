@@ -3,26 +3,44 @@ namespace AgentYattus.Contracts;
 public static class LlmProtocol
 {
     public const string Path = "/llm";
-    public const string Credentials = "/llm/credentials";
+    public const string Connections = "/llm/connections";
+    public const string Models = "/llm/models";
     public const string Settings = "/llm/settings";
 }
 
-/// <summary>Un modèle proposé, avec son prix public en dollars par million de tokens.</summary>
-public sealed record LlmModelDto(string Id, string Name, decimal InputPricePerMillion, decimal OutputPricePerMillion);
+/// <summary>Comment on se connecte à un fournisseur : une clé d'API, un serveur local, ou une adresse au choix.</summary>
+public enum LlmConnectionKind { ApiKey, Local, Custom }
 
-public sealed record LlmProviderDto(string Id, string Name, IReadOnlyList<LlmModelDto> Models);
+/// <summary>Un fournisseur que l'on peut connecter.</summary>
+public sealed record LlmProviderDto(string Id, string Name, LlmConnectionKind Kind, string? DefaultBaseUrl, int ModelCount);
 
 /// <summary>
-/// Une clé d'API enregistrée. La clé elle-même n'est jamais renvoyée : seulement ses 4 derniers caractères,
-/// pour la reconnaître.
+/// Un fournisseur connecté. La clé n'est jamais renvoyée : seulement ses 4 derniers caractères, pour la reconnaître.
 /// </summary>
-public sealed record LlmCredentialDto(
-    Guid Id, string Provider, string Label, string Last4, DateTimeOffset CreatedAt, string CreatedBy,
-    DateTimeOffset? RevokedAt, bool IsActive);
+public sealed record LlmConnectionDto(
+    Guid Id, string Provider, string ProviderName, string Label, string? Last4, string? BaseUrl,
+    DateTimeOffset CreatedAt, string CreatedBy, DateTimeOffset? RevokedAt);
+
+/// <summary>
+/// Un modèle utilisable par une connexion. Prix en dollars par million de tokens ; null quand on ne le connaît pas
+/// (serveur local, adresse personnalisée).
+/// </summary>
+public sealed record LlmModelDto(
+    Guid ConnectionId, string Provider, string Id, string Name, int? ContextWindow,
+    decimal? InputPricePerMillion, decimal? OutputPricePerMillion, bool Reasoning, bool Free);
+
+/// <summary>Une connexion dont on n'a pas pu lister les modèles (serveur local éteint, par exemple).</summary>
+public sealed record LlmConnectionErrorDto(Guid ConnectionId, string Message);
+
+public sealed record LlmModelsDto(IReadOnlyList<LlmModelDto> Models, IReadOnlyList<LlmConnectionErrorDto> Errors);
+
+/// <summary>Un modèle choisi : par quelle connexion, et lequel.</summary>
+public sealed record LlmSelectionDto(Guid ConnectionId, string Model);
 
 public sealed record LlmStatusDto(
-    IReadOnlyList<LlmProviderDto> Providers, IReadOnlyList<LlmCredentialDto> Credentials, Guid? ActiveCredentialId, string Model);
+    IReadOnlyList<LlmProviderDto> Providers, IReadOnlyList<LlmConnectionDto> Connections, LlmSelectionDto? Default);
 
-public sealed record AddLlmCredentialRequest(string Provider, string Label, string ApiKey);
+/// <summary>Connecter un fournisseur. <paramref name="ApiKey"/> est facultative pour un serveur local.</summary>
+public sealed record AddLlmConnectionRequest(string Provider, string Label, string? ApiKey, string? BaseUrl);
 
-public sealed record UpdateLlmSettingsRequest(Guid? CredentialId, string Model);
+public sealed record UpdateLlmSettingsRequest(LlmSelectionDto Default);

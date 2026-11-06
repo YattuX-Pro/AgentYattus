@@ -59,6 +59,10 @@ Calendrier indicatif (4 à 5 mois depuis le 24/10/2026) : MVP démontrable mi-f�
 - [x] 32 `feat(llm): clés d'API chiffrées, choix du modèle et révocation` (ADR 0006)
 - [x] 33 `feat(desktop): écran Paramètres, modèle et clés d'API`
 
+## Fournisseurs et modèles, comme opencode
+
+- [x] 34 `feat(llm): plusieurs fournisseurs et le catalogue models.dev` (ADR 0007)
+
 ## Ensuite
 
 - [ ] Lancer l'évaluation sur Haiku et Sonnet (payant, quelques dizaines de centimes) et choisir le modèle par défaut.
