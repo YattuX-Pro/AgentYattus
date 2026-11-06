@@ -14,11 +14,13 @@ public static partial class TeamModule
     public const int MaxImageBytes = 2 * 1024 * 1024;
 
     public static IServiceCollection AddTeamModule(this IServiceCollection services) =>
-        services.AddModuleDb<TeamDb>(TeamDb.Schema);
+        services.AddScoped<ITeamDirectory, TeamDirectory>().AddModuleDb<TeamDb>(TeamDb.Schema);
 
     public static IEndpointRouteBuilder MapTeamEndpoints(this IEndpointRouteBuilder app)
     {
         MapPortraits(app);
+        MapContent(app);
+        MapColleagues(app);
         return app;
     }
 
