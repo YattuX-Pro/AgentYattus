@@ -14,7 +14,8 @@
 - **Traçabilité** : chaque outil appelé, chaque décision, est inscrit dans un journal.
 - **Observabilité** : durée et tokens de chaque appel au modèle (OpenTelemetry).
 - **Évaluation** : coût par mission réussie, par modèle.
-- **Espace admin web** (Angular + spartan/ui) : vue d'ensemble, missions et approbations, audit, agents, modèles. Le bureau et le mobile servent à travailler ; la gestion se fait sur le web (ADR 0008).
+- **Plusieurs utilisateurs** : organisations (Administrateur, Opérateur, Observateur), projets privés, partagés à des personnes ou ouverts à l'organisation ; chaque mission appartient à un projet, et l'on ne voit que ce qu'on a le droit de voir (ADR 0009).
+- **Espace admin web** (Angular + spartan/ui) : vue d'ensemble, projets, missions et approbations, audit, agents, modèles, organisations, utilisateurs. Le bureau et le mobile servent à travailler ; la gestion se fait sur le web (ADR 0008).
 - **Connexion et gestion du LLM** : connexion Keycloak (OIDC + PKCE) ; comme dans opencode, n'importe quel fournisseur (Anthropic, OpenAI, Gemini, Mistral, Groq, OpenRouter, Ollama en local…) et un sélecteur unique de modèles, tiré de models.dev ; clés chiffrées et révocables ; un modèle par agent ; un **mode Gratuit** qui enchaîne les modèles gratuits (Ollama, OpenRouter, NVIDIA, OpenCode Zen) et bascule tout seul quand un quota est épuisé, sans jamais passer à un modèle payant.
 
 Projet open source (licence MIT), construit en .NET 10 comme support d'apprentissage : chaque commit est accompagné d'une leçon dans [`docs/lecons/`](docs/lecons/).
@@ -77,11 +78,11 @@ Aucun test n'appelle le vrai modèle : ils utilisent un faux modèle scripté. L
 
 | Partie | Rôle |
 |---|---|
-| `src/AgentYattus.Api` | Monolithe modulaire ASP.NET Core : modules Missions, Agents, Audit, Llm ; PostgreSQL ; exécution en arrière-plan ; SignalR ; OpenTelemetry ; jetons Keycloak |
+| `src/AgentYattus.Api` | Monolithe modulaire ASP.NET Core : modules Identity, Projects, Missions, Agents, Audit, Llm ; PostgreSQL ; exécution en arrière-plan ; SignalR ; OpenTelemetry ; jetons Keycloak |
 | `src/AgentYattus.Contracts` | Objets échangés entre l'API et les clients |
 | `src/AgentYattus.Client.Core` | Client HTTP et SignalR, ViewModels partagés (sans dépendance d'interface) |
 | `src/AgentYattus.Desktop` | Application Avalonia : Connexion, Accueil, Mission en direct, Agents, Rapports, Paramètres |
-| `src/AgentYattus.Admin` | Espace admin web Angular 21 + spartan/ui : Vue d'ensemble, Missions, Audit, Agents, Modèles |
+| `src/AgentYattus.Admin` | Espace admin web Angular 21 + spartan/ui : Vue d'ensemble, Projets, Missions, Audit, Agents, Modèles, Organisations, Utilisateurs |
 | `deploy/keycloak` | Realm Keycloak de développement (comptes de test) |
 | `spikes/AgentLoop` | La boucle d'agent écrite à la main, puis avec Agent Framework |
 | `evals/` | Banc d'évaluation : cas, workspace à défauts plantés, coût par mission réussie |

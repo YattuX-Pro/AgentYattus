@@ -76,9 +76,19 @@ Calendrier indicatif (4 à 5 mois depuis le 24/10/2026) : MVP démontrable mi-f�
 - [x] 43 `feat(admin): pages Missions et Audit, journal de toutes les missions`
 - [x] 44 `feat(admin): vue d'ensemble (indicateurs, graphique, décisions, activité)`
 
+## Plusieurs utilisateurs
+
+- [x] 45 `docs(adr): plusieurs utilisateurs, organisations, projets et partage` (ADR 0009)
+- [x] 46 `feat(identity): annuaire des utilisateurs, organisations et rôles`
+- [x] 47 `feat(projects): projets, visibilité, invités et règle d'accès`
+- [x] 48 `feat(missions): chaque mission appartient à un projet et à son auteur`
+- [x] 49 `feat(admin): page Projets (visibilité, invités, dossier de travail)`
+- [x] 50 `feat(admin): pages Organisations et Utilisateurs, groupe Administration`
+
 ## Ensuite
 
-- [ ] Multi-utilisateur : projets (propriétaire, privé, partagé, organisation), organisations, rôles Administrateur / Opérateur / Observateur ; pages Projets, Organisation, Utilisateurs (API d'admin Keycloak).
+- [ ] Clés de modèle personnelles (une clé ne sert qu'aux projets de son propriétaire), modèle par projet, budget par organisation et par projet (ADR 0009, reporté).
+- [ ] `feat(desktop)` : choisir le projet d'une mission (aujourd'hui, le projet personnel).
 - [ ] Retirer l'écran Modèles du bureau, maintenant géré par l'admin web.
 
 - [ ] Lancer l'évaluation sur Haiku et Sonnet (payant, quelques dizaines de centimes) et choisir le modèle par défaut.
