@@ -26,6 +26,13 @@ export const NAV: NavGroup[] = [
       { path: '/modeles', label: 'Modèles', icon: 'lucideCpu' },
     ],
   },
+  {
+    label: 'Administration',
+    items: [
+      { path: '/organisations', label: 'Organisations', icon: 'lucideBuilding2' },
+      { path: '/utilisateurs', label: 'Utilisateurs', icon: 'lucideUsers' },
+    ],
+  },
 ];
 
 /** Le groupe et la page qui correspondent à une adresse, pour le fil d'Ariane. */

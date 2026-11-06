@@ -16,6 +16,8 @@ export const routes: Routes = [
       { path: 'missions', loadComponent: () => import('./pages/missions/missions').then((m) => m.Missions) },
       { path: 'audit', loadComponent: () => import('./pages/audit/audit').then((m) => m.Audit) },
       { path: 'agents', loadComponent: () => import('./pages/agents/agents').then((m) => m.Agents) },
+      { path: 'organisations', loadComponent: () => import('./pages/organizations/organizations').then((m) => m.Organizations) },
+      { path: 'utilisateurs', loadComponent: () => import('./pages/users/users').then((m) => m.Users) },
       { path: 'modeles', loadComponent: () => import('./pages/models/models').then((m) => m.Models) },
     ],
   },

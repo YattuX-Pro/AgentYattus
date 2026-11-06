@@ -85,6 +85,10 @@ export class Projects {
       await this.load();
     } catch (e) {
       toast.error(errorMessage(e));
+      // Refusé : une bascule a déjà changé d'état dans l'écran, mais la valeur du serveur n'a pas bougé,
+      // donc Angular ne la repousserait pas. On redessine la section à partir du serveur.
+      this.projects.set(null);
+      await this.load();
     } finally {
       this.busy.set(false);
     }

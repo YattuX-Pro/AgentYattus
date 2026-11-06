@@ -3,8 +3,8 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
-  lucideActivity, lucideBot, lucideChevronDown, lucideCpu, lucideFolderKanban, lucideLayoutDashboard, lucideLogOut,
-  lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSun,
+  lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideCpu, lucideFolderKanban, lucideLayoutDashboard, lucideLogOut,
+  lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSun, lucideUsers,
 } from '@ng-icons/lucide';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -26,8 +26,8 @@ import { NAV, locate } from './nav';
   ],
   providers: [
     provideIcons({
-      lucideActivity, lucideBot, lucideChevronDown, lucideCpu, lucideFolderKanban, lucideLayoutDashboard, lucideLogOut,
-      lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSun,
+      lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideCpu, lucideFolderKanban, lucideLayoutDashboard, lucideLogOut,
+      lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSun, lucideUsers,
     }),
   ],
   host: { '(document:keydown)': 'onKey($event)' },

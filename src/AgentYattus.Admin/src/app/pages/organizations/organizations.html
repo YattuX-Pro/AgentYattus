@@ -1,0 +1,120 @@
+<app-page-header title="Organisations" description="Les espaces partagés des équipes. Chacun garde aussi son espace personnel.">
+  <button hlmBtn variant="outline" (click)="load()"><ng-icon name="lucideRefreshCw" /> Actualiser</button>
+  <button hlmBtn (click)="openCreate()"><ng-icon name="lucidePlus" /> Nouvelle organisation</button>
+</app-page-header>
+
+<div class="grid grid-cols-1 gap-2.5 lg:grid-cols-12">
+  <section class="bg-card flex flex-col rounded-xl border lg:col-span-3">
+    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+      <h2 class="font-semibold">Organisations</h2>
+      <span class="text-muted-foreground text-xs">{{ orgs()?.length ?? 0 }}</span>
+    </div>
+    @for (o of orgs(); track o.id) {
+      <button type="button" class="hover:bg-accent flex items-center gap-3 border-b px-3.5 py-2.5 text-left" [class.bg-primary-soft]="o.id === selected()?.id" (click)="select(o)">
+        <span class="bg-primary-soft text-primary grid size-8 shrink-0 place-items-center rounded-md text-xs font-bold">{{ o.name.slice(0, 2).toUpperCase() }}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate font-medium">{{ o.name }}</span>
+          <span class="text-muted-foreground block font-mono text-xs">{{ o.slug }} · {{ o.members.length }} membres</span>
+        </span>
+      </button>
+    } @empty {
+      @if (orgs()) {
+        <div hlmEmpty class="p-6">
+          <div hlmEmptyHeader>
+            <div hlmEmptyMedia variant="icon"><ng-icon name="lucideBuilding2" /></div>
+            <div hlmEmptyTitle>Aucune organisation</div>
+            <div hlmEmptyDescription>Créez-en une pour partager des projets en équipe.</div>
+          </div>
+        </div>
+      }
+    }
+  </section>
+
+  @if (selected(); as org) {
+    <section class="bg-card flex flex-col rounded-xl border lg:col-span-5">
+      <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+        <h2 class="font-semibold">{{ org.name }}</h2>
+        @if (org.myRole) {
+          <span hlmBadge variant="outline">Vous : {{ ORG_ROLE[org.myRole] }}</span>
+        }
+      </div>
+      <form class="flex flex-col gap-3 border-b p-3.5" (submit)="$event.preventDefault(); save(org)">
+        <div hlmField>
+          <label hlmFieldLabel for="orgName">Nom</label>
+          <input hlmInput id="orgName" maxlength="80" [value]="name()" (input)="name.set($any($event.target).value)" />
+        </div>
+        <div hlmField>
+          <span hlmFieldLabel>Visibilité par défaut des nouveaux projets</span>
+          <hlm-toggle-group type="single" variant="outline" size="sm" [value]="defaultVisibility()" (valueChange)="defaultVisibility.set($any($event) ?? 'Private')" aria-label="Visibilité par défaut">
+            @for (v of visibilities; track v) {
+              <button hlmToggleGroupItem [value]="v">{{ VISIBILITY[v].label }}</button>
+            }
+          </hlm-toggle-group>
+        </div>
+        <div><button hlmBtn type="submit" size="sm" [disabled]="busy() || name().trim().length < 2">Enregistrer</button></div>
+      </form>
+
+      <div class="flex min-h-10 items-center justify-between px-3.5 pt-3">
+        <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Membres</span>
+        <span class="text-muted-foreground text-xs">{{ org.members.length }}</span>
+      </div>
+      @for (m of org.members; track m.userId) {
+        <div class="flex flex-wrap items-center gap-2 px-3.5 py-1.5">
+          <div class="min-w-0 flex-1">
+            <div class="truncate font-medium">{{ m.displayName ?? m.username }}</div>
+            <div class="text-muted-foreground font-mono text-xs">{{ m.username }}</div>
+          </div>
+          <hlm-toggle-group type="single" variant="outline" size="sm" [value]="m.role" (valueChange)="setRole(org, m.userId, $event)" [disabled]="busy()" [attr.aria-label]="'Rôle de ' + m.username">
+            @for (r of roles; track r) {
+              <button hlmToggleGroupItem [value]="r">{{ ORG_ROLE[r] }}</button>
+            }
+          </hlm-toggle-group>
+          <button hlmBtn variant="ghost" size="icon-xs" (click)="remove(org, m.userId)" [disabled]="busy()" [attr.aria-label]="'Retirer ' + m.username"><ng-icon name="lucideX" /></button>
+        </div>
+      }
+      <div class="px-3.5 pt-1 pb-3.5"><app-user-picker placeholder="Ajouter un membre (observateur)" (picked)="add(org, $event)" /></div>
+    </section>
+  }
+
+  <section class="bg-card rounded-xl border" [class.lg:col-span-4]="selected()" [class.lg:col-span-9]="!selected()">
+    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+      <h2 class="font-semibold">Qui possède quoi</h2>
+      <span class="text-muted-foreground text-xs">règles du serveur</span>
+    </div>
+    @for (row of OWNERSHIP; track row[0]) {
+      <div class="flex flex-col gap-0.5 border-b px-3.5 py-2.5 last:border-b-0">
+        <div class="flex items-center justify-between gap-2">
+          <span class="font-medium">{{ row[0] }}</span>
+          <span hlmBadge variant="secondary">{{ row[1] }}</span>
+        </div>
+        <span class="text-muted-foreground text-xs">{{ row[2] }}</span>
+      </div>
+    }
+  </section>
+</div>
+
+<hlm-dialog [state]="createState()" (closed)="createState.set('closed')">
+  <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-md">
+    <hlm-dialog-header>
+      <h3 hlmDialogTitle>Nouvelle organisation</h3>
+      <p hlmDialogDescription>Vous en serez le premier administrateur.</p>
+    </hlm-dialog-header>
+    <form class="flex flex-col gap-4" (submit)="$event.preventDefault(); create()">
+      <div hlmField>
+        <label hlmFieldLabel for="newOrgName">Nom</label>
+        <input hlmInput id="newOrgName" maxlength="80" [value]="newName()" (input)="typeName($any($event.target).value)" />
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="newOrgSlug">Identifiant</label>
+        <input hlmInput id="newOrgSlug" class="font-mono" maxlength="40" [value]="newSlug()" (input)="newSlug.set($any($event.target).value); slugEdited.set(true)" />
+      </div>
+      @if (createError()) {
+        <p class="text-destructive text-sm" role="alert">{{ createError() }}</p>
+      }
+      <hlm-dialog-footer>
+        <button hlmBtn type="button" variant="outline" (click)="createState.set('closed')">Annuler</button>
+        <button hlmBtn type="submit" [disabled]="newName().trim().length < 2 || newSlug().length < 2 || busy()">Créer</button>
+      </hlm-dialog-footer>
+    </form>
+  </hlm-dialog-content>
+</hlm-dialog>
