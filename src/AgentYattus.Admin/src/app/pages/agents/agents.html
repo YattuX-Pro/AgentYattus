@@ -1,0 +1,108 @@
+<app-page-header title="Agents" description="Les rôles, leur modèle et leurs outils. Les apps de travail n'en montrent que le résultat.">
+  <button hlmBtn variant="outline" (click)="load()"><ng-icon name="lucideRefreshCw" /> Actualiser</button>
+</app-page-header>
+
+<div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+  @if (!agents()) {
+    @for (i of [1, 2]; track i) {
+      <div class="bg-card flex flex-col gap-3 rounded-xl border p-4"><hlm-skeleton class="h-6 w-40" /><hlm-skeleton class="h-24 w-full" /></div>
+    }
+  }
+  @for (agent of agents(); track agent.key; let odd = $odd) {
+    <section class="bg-card flex flex-col rounded-xl border">
+      <div class="flex items-center gap-3 border-b p-3.5">
+        <div
+          class="bg-muted grid size-9 shrink-0 place-items-center rounded-full border"
+          [class.text-primary]="!odd"
+          [class.text-warning]="odd"
+        >
+          <ng-icon name="lucideBot" />
+        </div>
+        <div class="min-w-0 flex-1">
+          <div class="flex items-center gap-2">
+            <h2 class="text-[15px] font-semibold">{{ agent.name }}</h2>
+            <span class="text-muted-foreground font-mono text-xs">{{ agent.key }}</span>
+          </div>
+          <div class="text-muted-foreground">{{ agent.role }}</div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 divide-x border-b">
+        <div class="flex flex-col gap-1 px-3.5 py-2.5">
+          <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Tours max</span>
+          <b class="num text-[15px]">{{ agent.maxIterations }}</b>
+        </div>
+        <div class="flex flex-col gap-1 px-3.5 py-2.5">
+          <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">Outils</span>
+          <b class="num text-[15px]">{{ agent.tools.length }}</b>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b px-3.5 py-3">
+        <div class="min-w-0">
+          <div class="font-medium">Modèle</div>
+          <div class="text-muted-foreground text-xs">{{ source(agent) }}</div>
+        </div>
+        <div class="flex min-w-0 items-center gap-2">
+          <span class="truncate font-mono text-xs">{{ agent.model }}</span>
+          @if (agent.modelOverride) {
+            <button hlmBtn variant="ghost" size="xs" (click)="set(agent, null)" [disabled]="busy()">Par défaut</button>
+          }
+          <button hlmBtn variant="outline" size="xs" (click)="change(agent)" [disabled]="busy() || !models().length">Changer</button>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-1.5 px-3.5 py-3">
+        @for (tool of agent.tools; track tool.name) {
+          <span hlmBadge [variant]="tool.requiresApproval ? 'warning' : 'secondary'" class="font-mono">
+            {{ tool.name }}{{ tool.requiresApproval ? ' · approbation' : '' }}
+          </span>
+        }
+      </div>
+    </section>
+  }
+
+  <section class="bg-card rounded-xl border lg:col-span-2">
+    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
+      <h2 class="font-semibold">Outils</h2>
+      <span class="text-muted-foreground text-xs">bac à sable en lecture seule, sauf écriture approuvée</span>
+    </div>
+    <div hlmTableContainer>
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh>Outil</th>
+            <th hlmTh>Ce qu'il fait</th>
+            <th hlmTh>Utilisé par</th>
+            <th hlmTh>Garde-fou</th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (tool of tools(); track tool.name) {
+            <tr hlmTr>
+              <td hlmTd class="font-mono text-xs">{{ tool.name }}</td>
+              <td hlmTd class="text-muted-foreground whitespace-normal">{{ tool.description }}</td>
+              <td hlmTd>{{ tool.agents.join(', ') }}</td>
+              <td hlmTd>
+                @if (tool.requiresApproval) {
+                  <span hlmBadge variant="warning"><ng-icon name="lucideShieldCheck" /> Approbation humaine</span>
+                } @else {
+                  <span class="text-muted-foreground">—</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<app-model-picker
+  [(open)]="pickerOpen"
+  [models]="models()"
+  [title]="'Modèle de ' + (editing()?.name ?? '')"
+  [current]="key(editing()?.modelOverride)"
+  [providerName]="providerName"
+  (chosen)="set(editing()!, $event)"
+/>

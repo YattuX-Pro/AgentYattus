@@ -14,7 +14,7 @@ export const routes: Routes = [
       { path: '', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Vue d’ensemble' } },
       { path: 'missions', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Missions' } },
       { path: 'audit', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Audit' } },
-      { path: 'agents', loadComponent: () => import('./pages/soon').then((m) => m.Soon), data: { title: 'Agents' } },
+      { path: 'agents', loadComponent: () => import('./pages/agents/agents').then((m) => m.Agents) },
       { path: 'modeles', loadComponent: () => import('./pages/models/models').then((m) => m.Models) },
     ],
   },
