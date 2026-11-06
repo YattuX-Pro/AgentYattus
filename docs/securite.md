@@ -29,6 +29,7 @@ Un modèle peut se tromper ou être manipulé. Chaque protection ci-dessous est 
 | Vol ou fuite d'une clé d'API | La base est volée ; un écran ou un journal montre la clé | Clés chiffrées (Data Protection), trousseau hors de la base ; jamais renvoyées (4 derniers caractères) ; révocation qui efface ; gestion réservée à `llm-admin` | `Modules/Llm`, ADR 0006 |
 | Clé envoyée au mauvais serveur | Une adresse piégée ou en HTTP fait partir la clé ailleurs, ou en clair | Adresse imposée pour les fournisseurs à clé ; HTTPS obligatoire hors `localhost` ; ni identifiants ni paramètres dans l'adresse | `LlmProviders.ValidateBaseUrl`, ADR 0007 |
 | Catalogue ou serveur de modèles piégé | models.dev ou un serveur local renvoie des identifiants ou des noms malveillants | Identifiants filtrés (caractères sûrs, longueur bornée), noms nettoyés, nombre de modèles borné ; copie embarquée si le catalogue est injoignable | `ModelCatalog` |
+| Dépense imprévue en mode Gratuit | Une bascule automatique part vers un modèle payant | La chaîne n'accepte que des modèles à prix nul au catalogue ou locaux, vérifié par le serveur ; seule une erreur de quota (429, 402, 503, serveur muet) déclenche une bascule ; chaque bascule entre dans le journal | `UpdateFreeModeAsync`, `FallbackChatClient` |
 | Fuite de la clé d'API | Clé commitée dans le dépôt | Clé dans les user-secrets, hors du dépôt ; les tests retirent tout client de modèle et ne peuvent pas appeler le vrai service | `AgentsModule`, `ApiFactory` |
 
 ## Les limites connues

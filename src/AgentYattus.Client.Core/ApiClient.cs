@@ -60,6 +60,12 @@ public sealed class ApiClient(HttpClient http)
         return await ErrorOrNullAsync(response, cancellationToken);
     }
 
+    public async Task<string?> UpdateFreeModeAsync(UpdateFreeModeRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PutAsJsonAsync(LlmProtocol.Free.TrimStart('/'), request, cancellationToken);
+        return await ErrorOrNullAsync(response, cancellationToken);
+    }
+
     public async Task<string?> UpdateLlmSettingsAsync(UpdateLlmSettingsRequest request, CancellationToken cancellationToken = default)
     {
         using var response = await http.PutAsJsonAsync(LlmProtocol.Settings.TrimStart('/'), request, cancellationToken);

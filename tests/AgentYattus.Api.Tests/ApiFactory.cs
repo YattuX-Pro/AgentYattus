@@ -117,7 +117,7 @@ public sealed class FixedLlmClientProvider(IChatClient? client, string model = "
 }
 
 /// <summary>Le vrai exécuteur Agent Framework, branché sur un faux modèle et un workspace temporaire.</summary>
-public sealed class ScriptedModelApiFactory(ScriptedChatClient? model, bool withWorkspace = true, int maxIterations = 10)
+public sealed class ScriptedModelApiFactory(IChatClient? model, bool withWorkspace = true, int maxIterations = 10)
     : ApiFactory
 {
     private readonly string _workspace = Directory.CreateTempSubdirectory("yattus-ws-").FullName;

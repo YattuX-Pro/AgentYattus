@@ -14,7 +14,7 @@
 - **Traçabilité** : chaque outil appelé, chaque décision, est inscrit dans un journal.
 - **Observabilité** : durée et tokens de chaque appel au modèle (OpenTelemetry).
 - **Évaluation** : coût par mission réussie, par modèle.
-- **Connexion et gestion du LLM** : connexion Keycloak (OIDC + PKCE) ; comme dans opencode, n'importe quel fournisseur (Anthropic, OpenAI, Gemini, Mistral, Groq, OpenRouter, Ollama en local…) et un sélecteur unique de modèles, tiré de models.dev ; clés chiffrées et révocables.
+- **Connexion et gestion du LLM** : connexion Keycloak (OIDC + PKCE) ; comme dans opencode, n'importe quel fournisseur (Anthropic, OpenAI, Gemini, Mistral, Groq, OpenRouter, Ollama en local…) et un sélecteur unique de modèles, tiré de models.dev ; clés chiffrées et révocables ; un modèle par agent ; un **mode Gratuit** qui enchaîne les modèles gratuits (Ollama, OpenRouter, NVIDIA, OpenCode Zen) et bascule tout seul quand un quota est épuisé, sans jamais passer à un modèle payant.
 
 Projet open source (licence MIT), construit en .NET 10 comme support d'apprentissage : chaque commit est accompagné d'une leçon dans [`docs/lecons/`](docs/lecons/).
 

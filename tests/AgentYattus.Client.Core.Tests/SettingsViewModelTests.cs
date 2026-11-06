@@ -119,6 +119,31 @@ public sealed class SettingsViewModelTests
     }
 
     [Fact]
+    public async Task The_free_chain_only_offers_free_models_and_can_be_filled_reordered_and_switched_on()
+    {
+        var (vm, calls) = Create();
+        await vm.LoadAsync(Ct);
+
+        vm.OpenChainPickerCommand.Execute(null);
+        Assert.Equal(["qwen3:8b"], vm.FilteredModels.Select(m => m.Model.Id));
+        await vm.ChooseCommand.ExecuteAsync(vm.FilteredModels[0]);
+        await vm.FillChainCommand.ExecuteAsync(null);
+        vm.FreeMode = true;
+        for (var i = 0; i < 50 && calls.Count(c => c.Path == LlmProtocol.Free) < 3; i++)
+            await Task.Delay(10, Ct);
+
+        var free = calls.Where(c => c.Path == LlmProtocol.Free).Select(c => c.Body!).ToList();
+        Assert.Equal(3, free.Count);
+        Assert.Contains("\"enabled\":false", free[0]);
+        Assert.Contains("\"model\":\"qwen3:8b\"", free[0]);
+        Assert.DoesNotContain("claude", free[1]); // « Tout ajouter » ne prend que les modèles gratuits
+        Assert.Contains("\"enabled\":true", free[2]);
+        // Le sélecteur rouvert normalement montre de nouveau tous les modèles.
+        vm.OpenPickerCommand.Execute(null);
+        Assert.Equal(3, vm.FilteredModels.Count);
+    }
+
+    [Fact]
     public async Task Connecting_a_provider_sends_the_key_once_forgets_it_then_opens_the_picker()
     {
         var (vm, calls) = Create();

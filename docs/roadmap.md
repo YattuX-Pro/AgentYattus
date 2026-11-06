@@ -63,6 +63,7 @@ Calendrier indicatif (4 à 5 mois depuis le 24/10/2026) : MVP démontrable mi-f�
 
 - [x] 34 `feat(llm): plusieurs fournisseurs et le catalogue models.dev` (ADR 0007)
 - [x] 35 `feat(llm): un modèle par agent`
+- [x] 36 `feat(llm): mode Gratuit, chaîne de modèles et bascule automatique`
 
 ## Ensuite
 
@@ -72,4 +73,3 @@ Calendrier indicatif (4 à 5 mois depuis le 24/10/2026) : MVP démontrable mi-f�
 - [ ] Déploiement serveur (HTTPS, Keycloak de production, trousseau Data Protection protégé).
 - [ ] `feat(desktop): backend local en sidecar` (ADR 0004).
 - [ ] Reprise des missions après redémarrage, MCP, RAG, compétences et mémoire des agents : un plan chacun.
-- [ ] Rassembler les leçons dans le PDF du cours.

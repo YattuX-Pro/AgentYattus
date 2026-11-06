@@ -92,6 +92,13 @@ namespace AgentYattus.Api.Modules.Llm.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("ActiveCredentialId");
 
+                    b.Property<string>("FreeChain")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("FreeMode")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Model")
                         .IsRequired()
                         .HasColumnType("text");

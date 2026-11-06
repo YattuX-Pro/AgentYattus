@@ -62,6 +62,13 @@
       <Setter Property="Foreground" Value="{StaticResource Cendre}" />
       <Setter Property="BorderThickness" Value="0" />
     </Style>
+    <!-- L'interrupteur du mode Gratuit, aux couleurs de l'application plutôt qu'au bleu par défaut. -->
+    <Style Selector="ToggleSwitch:checked /template/ Border#SwitchKnobBounds">
+      <Setter Property="Background" Value="{StaticResource VertDeGris}" />
+    </Style>
+    <Style Selector="ToggleSwitch:checked:pointerover /template/ Border#SwitchKnobBounds">
+      <Setter Property="Background" Value="{StaticResource VertDeGris}" />
+    </Style>
     <Style Selector="Border.card.revoked">
       <Setter Property="Opacity" Value="0.5" />
     </Style>
@@ -135,6 +142,47 @@
             </StackPanel>
             <Button Grid.Column="2" Classes="action primary" Content="Changer" Command="{Binding OpenPickerCommand}" VerticalAlignment="Center" />
           </Grid>
+        </Border>
+
+        <!-- Le mode Gratuit : une chaîne de modèles gratuits, avec bascule automatique quand un quota est épuisé. -->
+        <Border Classes="card">
+          <StackPanel Spacing="12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+              <StackPanel Spacing="3">
+                <TextBlock Classes="eyebrow" Text="MODE GRATUIT" />
+                <TextBlock Text="Quota épuisé ? On passe au modèle suivant. Jamais vers un modèle payant."
+                           FontSize="12.5" Foreground="{StaticResource Pierre}" TextWrapping="Wrap" />
+              </StackPanel>
+              <ToggleSwitch Grid.Column="1" IsChecked="{Binding FreeMode}" OnContent="" OffContent="" VerticalAlignment="Center" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding FreeChain}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="core:ModelItem">
+                  <Border Padding="0,8" BorderBrush="{StaticResource Filet}" BorderThickness="0,1,0,0">
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                      <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <Border Classes="chip" Background="#1A5E9E92">
+                          <TextBlock Text="gratuit" FontSize="11" Foreground="{StaticResource VertDeGris}" VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="{Binding Model.Name}" FontSize="13.5" FontWeight="Medium" VerticalAlignment="Center" />
+                        <TextBlock Classes="mono" Text="{Binding ProviderName}" FontSize="11.5" Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                        <Button Classes="action" Content="↑" ToolTip.Tip="Essayer plus tôt"
+                                Command="{Binding $parent[UserControl].((core:SettingsViewModel)DataContext).MoveUpCommand}" CommandParameter="{Binding}" />
+                        <Button Classes="action danger" Content="Retirer"
+                                Command="{Binding $parent[UserControl].((core:SettingsViewModel)DataContext).RemoveFromChainCommand}" CommandParameter="{Binding}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Classes="action" Content="＋  Modèle gratuit" Command="{Binding OpenChainPickerCommand}" />
+              <Button Classes="action" Content="Tout ajouter" Command="{Binding FillChainCommand}" />
+            </StackPanel>
+          </StackPanel>
         </Border>
 
         <!-- Un modèle par agent : le sien, ou celui par défaut. -->
@@ -278,6 +326,8 @@
 
           <!-- Le formulaire -->
           <StackPanel DockPanel.Dock="Top" Spacing="10" IsVisible="{Binding Connecting, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <TextBlock Text="{Binding Connecting.Notice}" FontSize="12.5" Foreground="{StaticResource Laiton}" TextWrapping="Wrap"
+                       IsVisible="{Binding Connecting.Notice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
             <TextBox Classes="field" Text="{Binding NewLabel}" PlaceholderText="Libellé" MaxLength="60" />
             <TextBox Classes="field" Text="{Binding NewBaseUrl}" PlaceholderText="https://…/v1" FontFamily="{StaticResource Mono}"
                      IsVisible="{Binding HasAddress}" />
@@ -294,7 +344,11 @@
                 <DataTemplate x:DataType="contracts:LlmProviderDto">
                   <Button Classes="row" Command="{Binding $parent[UserControl].((core:SettingsViewModel)DataContext).PickCommand}" CommandParameter="{Binding}">
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                      <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+                      <StackPanel Spacing="2" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="{Binding Notice}" FontSize="11.5" Foreground="{StaticResource Cendre}" TextTrimming="CharacterEllipsis"
+                                   IsVisible="{Binding Notice, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                      </StackPanel>
                       <TextBlock Grid.Column="1" Classes="mono" FontSize="11.5" Foreground="{StaticResource Cendre}" VerticalAlignment="Center"
                                  Text="{Binding Kind, Converter={x:Static views:SettingsTexts.KindLabel}}" />
                     </Grid>

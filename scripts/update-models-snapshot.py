@@ -9,7 +9,7 @@ import json
 import urllib.request
 from pathlib import Path
 
-PROVIDERS = ["anthropic", "openai", "google", "mistral", "groq", "deepseek", "openrouter", "xai", "opencode"]
+PROVIDERS = ["anthropic", "openai", "google", "mistral", "groq", "deepseek", "openrouter", "xai", "opencode", "nvidia"]
 OUT = Path(__file__).resolve().parents[1] / "src/AgentYattus.Api/Modules/Llm/models-snapshot.json"
 
 # models.dev refuse les requêtes sans User-Agent explicite.

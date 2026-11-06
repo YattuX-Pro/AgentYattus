@@ -6,13 +6,15 @@ public static class LlmProtocol
     public const string Connections = "/llm/connections";
     public const string Models = "/llm/models";
     public const string Settings = "/llm/settings";
+    public const string Free = "/llm/free";
 }
 
 /// <summary>Comment on se connecte à un fournisseur : une clé d'API, un serveur local, ou une adresse au choix.</summary>
 public enum LlmConnectionKind { ApiKey, Local, Custom }
 
 /// <summary>Un fournisseur que l'on peut connecter.</summary>
-public sealed record LlmProviderDto(string Id, string Name, LlmConnectionKind Kind, string? DefaultBaseUrl, int ModelCount);
+/// <param name="Notice">Ce qu'il faut savoir avant de s'y connecter (offre gratuite à quota, usage des données).</param>
+public sealed record LlmProviderDto(string Id, string Name, LlmConnectionKind Kind, string? DefaultBaseUrl, int ModelCount, string? Notice = null);
 
 /// <summary>
 /// Un fournisseur connecté. La clé n'est jamais renvoyée : seulement ses 4 derniers caractères, pour la reconnaître.
@@ -37,10 +39,15 @@ public sealed record LlmModelsDto(IReadOnlyList<LlmModelDto> Models, IReadOnlyLi
 /// <summary>Un modèle choisi : par quelle connexion, et lequel.</summary>
 public sealed record LlmSelectionDto(Guid ConnectionId, string Model);
 
+/// <param name="FreeMode">Mode Gratuit : les agents sans modèle propre utilisent la chaîne gratuite, avec bascule automatique.</param>
 public sealed record LlmStatusDto(
-    IReadOnlyList<LlmProviderDto> Providers, IReadOnlyList<LlmConnectionDto> Connections, LlmSelectionDto? Default);
+    IReadOnlyList<LlmProviderDto> Providers, IReadOnlyList<LlmConnectionDto> Connections, LlmSelectionDto? Default,
+    bool FreeMode = false, IReadOnlyList<LlmSelectionDto>? FreeChain = null);
 
 /// <summary>Connecter un fournisseur. <paramref name="ApiKey"/> est facultative pour un serveur local.</summary>
 public sealed record AddLlmConnectionRequest(string Provider, string Label, string? ApiKey, string? BaseUrl);
 
 public sealed record UpdateLlmSettingsRequest(LlmSelectionDto Default);
+
+/// <summary>Le mode Gratuit : activé ou non, et la chaîne de modèles gratuits, dans l'ordre où les essayer.</summary>
+public sealed record UpdateFreeModeRequest(bool Enabled, IReadOnlyList<LlmSelectionDto> Chain);

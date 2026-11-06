@@ -60,6 +60,7 @@ public static class LlmModule
         llm.MapPost("/connections", ConnectAsync);
         llm.MapDelete("/connections/{id:guid}", RevokeAsync);
         llm.MapPut("/settings", UpdateSettingsAsync);
+        llm.MapPut("/free", UpdateFreeModeAsync);
         return app;
     }
 
@@ -69,9 +70,9 @@ public static class LlmModule
         // Identifiants v7 : trier par Id, c'est trier par date de création (SQLite ne trie pas un DateTimeOffset).
         var connections = await db.Connections.OrderByDescending(c => c.Id).ToListAsync(cancellationToken);
         return TypedResults.Ok(new LlmStatusDto(
-            [.. LlmProviders.All.Select(p => new LlmProviderDto(p.Id, p.Name, p.Kind, p.BaseUrl, catalog.ModelsOf(p.Id).Count))],
+            [.. LlmProviders.All.Select(p => new LlmProviderDto(p.Id, p.Name, p.Kind, p.BaseUrl, catalog.ModelsOf(p.Id).Count, p.Notice))],
             [.. connections.Select(c => c.ToDto())],
-            settings?.Default));
+            settings?.Default, settings?.FreeMode ?? false, settings?.Chain ?? []));
     }
 
     /// <summary>Les modèles de chaque fournisseur connecté : le catalogue, ou ce que le serveur local annonce.</summary>
@@ -156,6 +157,7 @@ public static class LlmModule
             var settings = await LlmSettings.GetOrCreateAsync(db, cancellationToken);
             if (settings.DefaultConnectionId == id)
                 settings.DefaultConnectionId = null;
+            settings.Chain = [.. settings.Chain.Where(c => c.ConnectionId != id)];
             // Les rôles qui utilisaient cette connexion reviennent au modèle par défaut.
             db.AgentModels.RemoveRange(await db.AgentModels.Where(a => a.ConnectionId == id).ToListAsync(cancellationToken));
             await db.SaveChangesAsync(cancellationToken);
@@ -180,6 +182,45 @@ public static class LlmModule
         return TypedResults.NoContent();
     }
 
+    /// <summary>
+    /// Le mode Gratuit. La chaîne n'accepte que des modèles gratuits (prix nul au catalogue, ou serveur local) :
+    /// c'est la garantie qu'elle ne bascule jamais vers un modèle payant.
+    /// </summary>
+    private static async Task<Results<NoContent, ValidationProblem>> UpdateFreeModeAsync(
+        UpdateFreeModeRequest request, LlmDb db, ModelCatalog catalog, HttpContext http, CancellationToken cancellationToken)
+    {
+        string? error = request.Chain.Count > 10 ? "La chaîne compte au plus 10 modèles."
+            : request.Enabled && request.Chain.Count == 0 ? "Ajoute au moins un modèle gratuit à la chaîne."
+            : null;
+        foreach (var selection in request.Chain)
+        {
+            if (error is not null)
+                break;
+            error = await ValidateAsync(selection, db, catalog, cancellationToken);
+            if (error is null && !await IsFreeAsync(selection, db, catalog, cancellationToken))
+                error = $"{selection.Model} n'est pas gratuit : la chaîne n'accepte que des modèles gratuits.";
+        }
+
+        if (error is not null)
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["chain"] = [error] });
+
+        var settings = await LlmSettings.GetOrCreateAsync(db, cancellationToken);
+        settings.FreeMode = request.Enabled;
+        settings.Chain = [.. request.Chain.DistinctBy(c => (c.ConnectionId, c.Model))];
+        settings.UpdatedBy = http.User.Identity?.Name ?? "?";
+        settings.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    private static async Task<bool> IsFreeAsync(LlmSelectionDto selection, LlmDb db, ModelCatalog catalog, CancellationToken cancellationToken)
+    {
+        var connection = (await db.Connections.FindAsync([selection.ConnectionId], cancellationToken))!;
+        // Un serveur local tourne sur ta machine : il est gratuit. Une adresse personnalisée, on n'en sait rien.
+        return LlmProviders.Find(connection.Provider)!.Kind == LlmConnectionKind.Local
+            || catalog.Find(connection.Provider, selection.Model)?.Free == true;
+    }
+
     /// <summary>Un choix est valable si la connexion existe, n'est pas révoquée, et propose ce modèle.</summary>
     internal static async Task<string?> ValidateAsync(LlmSelectionDto selection, LlmDb db, ModelCatalog catalog, CancellationToken cancellationToken)
     {
@@ -202,13 +243,14 @@ internal sealed class LlmClientProvider(LlmDb db, IDataProtectionProvider protec
 {
     public async Task<LlmClient?> GetAsync(string role, CancellationToken cancellationToken)
     {
-        if (await ResolveAsync(role, cancellationToken) is var (connection, model) && connection is not null)
+        if (await FreeChainAsync(role, cancellationToken) is { Count: > 0 } chain)
         {
-            var provider = LlmProviders.Find(connection.Provider)!;
-            return new LlmClient(
-                LlmProviders.CreateClient(provider, connection.ApiKey(protection), connection.BaseUrlOf(provider), model),
-                $"{provider.Id}/{model}");
+            var links = chain.Select(link => Create(link.Connection, link.Model)).ToList();
+            return new LlmClient(new FallbackChatClient(links), links[0].Model);
         }
+
+        if (await ResolveAsync(role, cancellationToken) is var (connection, model) && connection is not null)
+            return Create(connection, model);
 
         if (configuration["Anthropic:ApiKey"] is not { Length: > 0 } apiKey)
             return null;
@@ -216,8 +258,36 @@ internal sealed class LlmClientProvider(LlmDb db, IDataProtectionProvider protec
         return new LlmClient(LlmProviders.CreateClient(LlmProviders.Anthropic, apiKey, "", configured), $"anthropic/{configured}");
     }
 
-    public async Task<string> GetModelAsync(string role, CancellationToken cancellationToken) =>
-        await ResolveAsync(role, cancellationToken) is ({ } connection, var model) ? $"{connection.Provider}/{model}" : $"anthropic/{ConfiguredModel}";
+    public async Task<string> GetModelAsync(string role, CancellationToken cancellationToken)
+    {
+        if (await FreeChainAsync(role, cancellationToken) is { Count: > 0 } chain)
+            return $"gratuit : {chain[0].Connection.Provider}/{chain[0].Model}" + (chain.Count > 1 ? $" (+{chain.Count - 1})" : "");
+        return await ResolveAsync(role, cancellationToken) is ({ } connection, var model) ? $"{connection.Provider}/{model}" : $"anthropic/{ConfiguredModel}";
+    }
+
+    private LlmClient Create(LlmConnection connection, string model)
+    {
+        var provider = LlmProviders.Find(connection.Provider)!;
+        return new LlmClient(
+            LlmProviders.CreateClient(provider, connection.ApiKey(protection), connection.BaseUrlOf(provider), model),
+            $"{provider.Id}/{model}");
+    }
+
+    /// <summary>
+    /// La chaîne gratuite, si le mode Gratuit est actif et que le rôle n'a pas son propre modèle
+    /// (un modèle choisi exprès pour un rôle l'emporte). Les connexions révoquées sont sautées.
+    /// </summary>
+    private async Task<List<(LlmConnection Connection, string Model)>> FreeChainAsync(string role, CancellationToken cancellationToken)
+    {
+        var settings = await db.Settings.FindAsync([LlmSettings.SingletonId], cancellationToken);
+        if (settings is not { FreeMode: true } || await db.AgentModels.FindAsync([role], cancellationToken) is not null)
+            return [];
+        var chain = new List<(LlmConnection, string)>();
+        foreach (var link in settings.Chain)
+            if (await db.Connections.FindAsync([link.ConnectionId], cancellationToken) is { RevokedAt: null } connection)
+                chain.Add((connection, link.Model));
+        return chain;
+    }
 
     private string ConfiguredModel => configuration["Agents:Model"] ?? "claude-haiku-5-5";
 
@@ -313,6 +383,18 @@ internal sealed class LlmSettings
     public DateTimeOffset UpdatedAt { get; set; }
 
     public LlmSelectionDto? Default => DefaultConnectionId is { } id ? new LlmSelectionDto(id, Model) : null;
+
+    public bool FreeMode { get; set; }
+
+    /// <summary>La chaîne gratuite, rangée en JSON : une petite liste ordonnée, lue et écrite d'un bloc.</summary>
+    public string FreeChain { get; set; } = "[]";
+
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public List<LlmSelectionDto> Chain
+    {
+        get => string.IsNullOrEmpty(FreeChain) ? [] : System.Text.Json.JsonSerializer.Deserialize<List<LlmSelectionDto>>(FreeChain) ?? [];
+        set => FreeChain = System.Text.Json.JsonSerializer.Serialize(value);
+    }
 
     public static async Task<LlmSettings> GetOrCreateAsync(LlmDb db, CancellationToken cancellationToken)
     {

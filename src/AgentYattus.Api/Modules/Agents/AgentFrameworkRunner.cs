@@ -104,6 +104,11 @@ internal sealed class AgentFrameworkRunner(
         var agent = CreateAgent(role, client.Client, tools, maxIterations);
         var response = await agent.RunAsync(history, cancellationToken: cancellationToken);
 
+        // Mode Gratuit : chaque bascule vers le modèle suivant de la chaîne entre dans le journal.
+        if (client.Client.GetService<FallbackChatClient>() is { } fallback)
+            foreach (var used in fallback.Used.Skip(1))
+                await audit.AppendAsync(missionId, $"bascule:{used}", cancellationToken);
+
         var toolTurns = 0;
         foreach (var message in response.Messages)
         {

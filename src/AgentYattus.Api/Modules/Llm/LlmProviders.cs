@@ -13,7 +13,8 @@ namespace AgentYattus.Api.Modules.Llm;
 internal enum LlmWire { Anthropic, OpenAI }
 
 /// <param name="BaseUrl">L'adresse de l'API ; imposée pour un fournisseur à clé, proposée pour un serveur local.</param>
-internal sealed record LlmProvider(string Id, string Name, LlmConnectionKind Kind, LlmWire Wire, string? BaseUrl);
+/// <param name="Notice">Ce qu'il faut savoir avant de s'y connecter (offre gratuite, usage des données).</param>
+internal sealed record LlmProvider(string Id, string Name, LlmConnectionKind Kind, LlmWire Wire, string? BaseUrl, string? Notice = null);
 
 /// <summary>Les fournisseurs branchés, comme dans opencode : à clé d'API, locaux, ou compatibles OpenAI à l'adresse de son choix.</summary>
 internal static class LlmProviders
@@ -24,13 +25,19 @@ internal static class LlmProviders
     [
         Anthropic,
         new("openai", "OpenAI", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://api.openai.com/v1"),
-        new("google", "Google Gemini", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://generativelanguage.googleapis.com/v1beta/openai/"),
+        new("google", "Google Gemini", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://generativelanguage.googleapis.com/v1beta/openai/",
+            "Offre gratuite à quota. En offre gratuite, Google peut utiliser tes requêtes pour améliorer ses produits."),
         new("mistral", "Mistral", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://api.mistral.ai/v1"),
-        new("groq", "Groq", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://api.groq.com/openai/v1"),
+        new("groq", "Groq", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://api.groq.com/openai/v1",
+            "Offre gratuite à quota (limites par minute et par jour)."),
         new("deepseek", "DeepSeek", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://api.deepseek.com/v1"),
         new("xai", "xAI", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://api.x.ai/v1"),
-        new("openrouter", "OpenRouter", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://openrouter.ai/api/v1"),
-        new("opencode", "OpenCode Zen", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://opencode.ai/inference/openai/v1"),
+        new("openrouter", "OpenRouter", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://openrouter.ai/api/v1",
+            "Les modèles « :free » sont limités en débit, et leurs hébergeurs peuvent conserver tes requêtes."),
+        new("opencode", "OpenCode Zen", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://opencode.ai/inference/openai/v1",
+            "Modèles gratuits pour une durée limitée ; tes requêtes peuvent servir à améliorer ces modèles."),
+        new("nvidia", "NVIDIA", LlmConnectionKind.ApiKey, LlmWire.OpenAI, "https://integrate.api.nvidia.com/v1",
+            "Accès gratuit d'essai, limité en débit."),
         new("ollama", "Ollama", LlmConnectionKind.Local, LlmWire.OpenAI, "http://localhost:11434/v1"),
         new("lmstudio", "LM Studio", LlmConnectionKind.Local, LlmWire.OpenAI, "http://127.0.0.1:1234/v1"),
         new("openai-compatible", "Compatible OpenAI", LlmConnectionKind.Custom, LlmWire.OpenAI, null),

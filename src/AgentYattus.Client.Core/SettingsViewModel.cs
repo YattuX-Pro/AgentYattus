@@ -46,6 +46,17 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     public ObservableCollection<ModelItem> FilteredModels { get; } = [];
     public ObservableCollection<AgentModelRow> Agents { get; } = [];
 
+    /// <summary>La chaîne gratuite, dans l'ordre où les modèles sont essayés.</summary>
+    public ObservableCollection<ModelItem> FreeChain { get; } = [];
+
+    /// <summary>Mode Gratuit : les agents sans modèle propre passent par la chaîne, avec bascule automatique.</summary>
+    [ObservableProperty]
+    public partial bool FreeMode { get; set; }
+
+    /// <summary>Le sélecteur ne montre que les modèles gratuits (pour la chaîne).</summary>
+    [ObservableProperty]
+    public partial bool PickerFreeOnly { get; set; }
+
     /// <summary>Le rôle dont on choisit le modèle dans le sélecteur ; null pour le modèle par défaut.</summary>
     private string? _pickerRole;
 
@@ -118,6 +129,14 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
             _allModels.AddRange(models.Models.Select(m => new ModelItem(m, names.GetValueOrDefault(m.ConnectionId, m.Provider),
                 IsDefault: m.ConnectionId == Default?.ConnectionId && m.Id == Default?.Model)));
             DefaultModel = _allModels.FirstOrDefault(m => m.IsDefault);
+            _loadingFree = true;
+            FreeMode = status.FreeMode;
+            _loadingFree = false;
+            // Un modèle d'un serveur local éteint reste dans la chaîne : on l'affiche par son identifiant.
+            Replace(FreeChain, (status.FreeChain ?? []).Select(link =>
+                _allModels.FirstOrDefault(m => m.Model.ConnectionId == link.ConnectionId && m.Model.Id == link.Model)
+                ?? new ModelItem(new LlmModelDto(link.ConnectionId, "", link.Model, link.Model, null, 0, 0, false, true),
+                    names.GetValueOrDefault(link.ConnectionId, ""))));
             Replace(Agents, agents.Where(a => a.Key.Length > 0).Select(a => new AgentModelRow(a.Key, a.Name, a.Model,
                 _allModels.FirstOrDefault(m => m.Model.ConnectionId == a.ModelOverride?.ConnectionId && m.Model.Id == a.ModelOverride?.Model),
                 a.ModelOverride is not null)));
@@ -135,9 +154,65 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
 
     partial void OnModelQueryChanged(string value) => FilterModels();
 
+    partial void OnPickerFreeOnlyChanged(bool value) => FilterModels();
+
     partial void OnProviderQueryChanged(string value) => FilterProviders();
 
-    private void FilterModels() => Replace(FilteredModels, _allModels.Where(m => m.Matches(ModelQuery.Trim())));
+    private void FilterModels() => Replace(FilteredModels, _allModels.Where(m => (!PickerFreeOnly || m.Model.Free) && m.Matches(ModelQuery.Trim())));
+
+    private bool _loadingFree;
+    private bool _pickingForChain;
+
+    partial void OnFreeModeChanged(bool value)
+    {
+        if (!_loadingFree)
+            _ = SaveFreeAsync(value, FreeChain, value ? "Mode Gratuit activé : les agents sans modèle propre passent par la chaîne." : "Mode Gratuit désactivé.");
+    }
+
+    [RelayCommand]
+    private void OpenChainPicker()
+    {
+        _pickingForChain = true;
+        PickerFreeOnly = true;
+        ModelQuery = "";
+        IsPickerOpen = true;
+    }
+
+    /// <summary>Remplit la chaîne avec tous les modèles gratuits : d'abord ceux de cette machine, puis les autres.</summary>
+    [RelayCommand]
+    private Task FillChainAsync() => SaveFreeAsync(FreeMode,
+        _allModels.Where(m => m.Model.Free).OrderBy(m => m.Model.Provider is "ollama" or "lmstudio" ? 0 : 1).Take(10).ToList(),
+        "Chaîne remplie avec les modèles gratuits.");
+
+    [RelayCommand]
+    private Task RemoveFromChainAsync(ModelItem item) =>
+        SaveFreeAsync(FreeMode && FreeChain.Count > 1, [.. FreeChain.Where(m => m != item)], $"{item.Model.Name} retiré de la chaîne.");
+
+    [RelayCommand]
+    private Task MoveUpAsync(ModelItem item)
+    {
+        var list = FreeChain.ToList();
+        var i = list.IndexOf(item);
+        if (i <= 0)
+            return Task.CompletedTask;
+        (list[i - 1], list[i]) = (list[i], list[i - 1]);
+        return SaveFreeAsync(FreeMode, list, $"{item.Model.Name} sera essayé plus tôt.");
+    }
+
+    private Task SaveFreeAsync(bool enabled, IEnumerable<ModelItem> chain, string done) => RunAsync(async () =>
+    {
+        var request = new UpdateFreeModeRequest(enabled, [.. chain.Select(m => new LlmSelectionDto(m.Model.ConnectionId, m.Model.Id))]);
+        if (await api.UpdateFreeModeAsync(request) is { } error)
+        {
+            Error = error;
+            await LoadAsync();
+        }
+        else
+        {
+            await LoadAsync();
+            Info = done;
+        }
+    });
 
     private void FilterProviders() => Replace(FilteredProviders,
         Providers.Where(p => ProviderQuery.Trim() is var q && (q.Length == 0 || p.Name.Contains(q, StringComparison.OrdinalIgnoreCase))));
@@ -146,6 +221,8 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     private void OpenPicker()
     {
         _pickerRole = null;
+        _pickingForChain = false;
+        PickerFreeOnly = false;
         ModelQuery = "";
         IsPickerOpen = true;
     }
@@ -154,6 +231,8 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     private void OpenAgentPicker(AgentModelRow agent)
     {
         _pickerRole = agent.Key;
+        _pickingForChain = false;
+        PickerFreeOnly = false;
         ModelQuery = "";
         IsPickerOpen = true;
     }
@@ -174,7 +253,7 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     private void ClosePicker() => IsPickerOpen = false;
 
     [RelayCommand]
-    private Task ChooseAsync(ModelItem item) => RunAsync(async () =>
+    private Task ChooseAsync(ModelItem item) => _pickingForChain ? AddToChainAsync(item) : RunAsync(async () =>
     {
         IsPickerOpen = false;
         var selection = new LlmSelectionDto(item.Model.ConnectionId, item.Model.Id);
@@ -192,6 +271,13 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
                 : $"{role.Name} utilisera {item.Model.Name}.";
         }
     });
+
+    private Task AddToChainAsync(ModelItem item)
+    {
+        IsPickerOpen = false;
+        return SaveFreeAsync(FreeMode, [.. FreeChain.Where(m => m.Model.ConnectionId != item.Model.ConnectionId || m.Model.Id != item.Model.Id), item],
+            $"{item.Model.Name} ajouté à la chaîne.");
+    }
 
     [RelayCommand]
     private void OpenConnect()
@@ -239,6 +325,9 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
                 await LoadAsync(cancellationToken);
                 Info = request.ApiKey is null ? $"{provider.Name} connecté." : $"{provider.Name} connecté. La clé est chiffrée sur le serveur et ne sera plus affichée.";
                 // Comme opencode : une fois le fournisseur connecté, on choisit son modèle.
+                _pickerRole = null;
+                _pickingForChain = false;
+                PickerFreeOnly = false;
                 ModelQuery = provider.Name;
                 IsPickerOpen = true;
             }
