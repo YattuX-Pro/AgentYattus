@@ -6,6 +6,7 @@ using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Missions;
 using AgentYattus.Api.Modules.Projects;
 using AgentYattus.Api.Modules.Settings;
+using AgentYattus.Api.Modules.Team;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,7 +20,8 @@ builder.Services
     .AddMissionsModule()
     .AddAgentsModule(builder.Configuration)
     .AddAuditModule()
-    .AddLlmModule(builder.Configuration);
+    .AddLlmModule(builder.Configuration)
+    .AddTeamModule();
 
 var app = builder.Build();
 
@@ -35,5 +37,6 @@ app.MapAuditEndpoints();
 app.MapIdentityEndpoints();
 app.MapProjectsEndpoints();
 app.MapSettingsEndpoints();
+app.MapTeamEndpoints();
 
 app.Run();

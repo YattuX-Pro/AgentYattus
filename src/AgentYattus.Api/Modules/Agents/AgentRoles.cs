@@ -55,3 +55,9 @@ internal static class AgentRoles
     public static string Handoff(string goal, string findings) =>
         $"Objectif de la mission : {goal}\n\nConstats de l'Analyste :\n{findings}";
 }
+
+/// <summary>Les rôles qui existent, pour les autres modules (l'équipe d'un projet a un siège par rôle).</summary>
+public static class AgentCatalog
+{
+    public static IReadOnlyList<string> RoleKeys { get; } = [.. AgentRoles.All.Select(r => r.Key)];
+}

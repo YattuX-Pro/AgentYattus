@@ -39,6 +39,7 @@ public class ApiFactory : WebApplicationFactory<Program>
             UseSqlite<ProjectsDb>(services);
             UseSqlite<SettingsDb>(services);
             UseSqlite<AgentsDb>(services);
+            UseSqlite<AgentYattus.Api.Modules.Team.TeamDb>(services);
             // Jamais d'appel au vrai modèle pendant les tests, même si une clé est dans les user-secrets.
             services.RemoveAll<ILlmClientProvider>();
             services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(null));
@@ -92,8 +93,13 @@ public sealed class TestAuthHandler(
     /// <summary>En-tête de test pour choisir l'utilisateur (par défaut : « test ») : son « sub » et son nom.</summary>
     public const string UserHeader = "X-Test-User";
 
+    /// <summary>En-tête de test pour une requête sans connexion (images publiques, par exemple).</summary>
+    public const string AnonymousHeader = "X-Test-Anonymous";
+
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
+        if (Request.Headers.ContainsKey(AnonymousHeader))
+            return Task.FromResult(AuthenticateResult.NoResult());
         var roles = Request.Headers.TryGetValue(RolesHeader, out var header) ? header.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries) : ["llm-admin"];
         var user = Request.Headers.TryGetValue(UserHeader, out var u) ? u.ToString() : "test";
         var identity = new ClaimsIdentity(
