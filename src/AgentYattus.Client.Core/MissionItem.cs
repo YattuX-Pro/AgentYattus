@@ -25,6 +25,7 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
         MissionStatus.Running => "En cours",
         MissionStatus.Completed => "Terminée",
         MissionStatus.AwaitingApproval => "À valider",
+        MissionStatus.Cancelled => "Arrêtée",
         _ => "Échec",
     };
 
@@ -35,6 +36,7 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
         MissionStatus.Running => "au travail",
         MissionStatus.AwaitingApproval => "en pause",
         MissionStatus.Completed => "terminé",
+        MissionStatus.Cancelled => "arrêté",
         _ => "échec",
     };
 }

@@ -12,6 +12,9 @@ public enum MissionStatus
 
     /// <summary>L'agent attend une décision humaine avant une action sensible.</summary>
     AwaitingApproval,
+
+    /// <summary>Arrêtée par un humain, en file, en cours ou en pause.</summary>
+    Cancelled,
 }
 
 /// <summary>Question : l'Analyste répond. Revue : l'Analyste rend ses constats, le Rédacteur écrit REPORT.md.</summary>

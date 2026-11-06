@@ -12,6 +12,31 @@ namespace AgentYattus.Api.Modules.Missions;
 
 // ponytail: file en mémoire ; au redémarrage, une mission en attente est perdue et une mission
 // en cours reste « Running ». La reprise après redémarrage est prévue après le MVP.
+/// <summary>
+/// Les missions en cours d'exécution et de quoi les arrêter. Un arrêt demandé par un humain est noté,
+/// pour que le runner termine la mission en « Arrêtée » plutôt qu'en échec.
+/// </summary>
+internal sealed class MissionCancellations
+{
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, (CancellationTokenSource Source, bool ByUser)> _running = new();
+
+    public void Register(Guid missionId, CancellationTokenSource source) => _running[missionId] = (source, false);
+
+    public void Remove(Guid missionId) => _running.TryRemove(missionId, out _);
+
+    /// <summary>Vrai si la mission tournait : son exécution est annulée.</summary>
+    public bool Cancel(Guid missionId)
+    {
+        if (!_running.TryGetValue(missionId, out var entry))
+            return false;
+        _running[missionId] = (entry.Source, true);
+        entry.Source.Cancel();
+        return true;
+    }
+
+    public bool CancelledByUser(Guid missionId) => _running.TryGetValue(missionId, out var entry) && entry.ByUser;
+}
+
 internal sealed class MissionQueue
 {
     private readonly Channel<Guid> _channel = Channel.CreateUnbounded<Guid>();
@@ -79,12 +104,29 @@ internal sealed class MissionRunner(
     ILlmClientProvider llm,
     ILlmPricing pricing,
     IHubContext<MissionsHub> hub,
+    MissionCancellations cancellations,
     ILogger<MissionRunner> logger)
 {
     public async Task RunAsync(Guid missionId, CancellationToken cancellationToken)
     {
+        // Le jeton de la mission est enregistré avant toute chose : un arrêt demandé pendant le démarrage n'est pas perdu.
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cancellations.Register(missionId, limit);
+        try
+        {
+            await RunCoreAsync(missionId, limit, cancellationToken);
+        }
+        finally
+        {
+            cancellations.Remove(missionId);
+        }
+    }
+
+    private async Task RunCoreAsync(Guid missionId, CancellationTokenSource limit, CancellationToken cancellationToken)
+    {
         var mission = await db.Missions.FindAsync([missionId], cancellationToken);
-        if (mission is null)
+        // Arrêtée pendant qu'elle attendait son tour : elle ne part pas.
+        if (mission is null or { Status: MissionStatus.Cancelled })
             return;
 
         AgentResume? resume = null;
@@ -131,7 +173,7 @@ internal sealed class MissionRunner(
         var status = MissionStatus.Completed;
         // La durée maximum (admin › Réglages) : au-delà, l'exécution est annulée et la mission échoue.
         var maxDuration = TimeSpan.FromMinutes(tuning.MaxDurationMinutes);
-        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // Le même jeton sert au bouton Arrêter (POST /missions/{id}/cancel).
         limit.CancelAfter(maxDuration);
         try
         {
@@ -159,6 +201,11 @@ internal sealed class MissionRunner(
             }
         }
         // Filtre sur le jeton, pas sur le type : un délai HTTP dépassé dans le runner est un échec.
+        catch (Exception) when (!cancellationToken.IsCancellationRequested && cancellations.CancelledByUser(missionId))
+        {
+            status = MissionStatus.Cancelled;
+            mission.Result = "Arrêtée à la demande d'un humain.";
+        }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
             logger.LogError(ex, "Mission {MissionId} en échec", missionId);

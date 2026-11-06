@@ -4,6 +4,7 @@ using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Api.Modules.Projects;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentYattus.Api.Modules.Missions;
@@ -18,6 +19,7 @@ public static class MissionsModule
     {
         services.AddSignalR();
         services.AddSingleton<MissionQueue>();
+        services.AddSingleton<MissionCancellations>();
         services.AddScoped<MissionRunner>();
         services.AddHostedService<MissionWorker>();
         return services.AddModuleDb<MissionsDb>(MissionsDb.Schema);
@@ -30,6 +32,7 @@ public static class MissionsModule
         missions.MapPost("/", CreateAsync);
         missions.MapGet("/{id:guid}", GetAsync);
         missions.MapPost("/{id:guid}/decision", DecideAsync);
+        missions.MapPost("/{id:guid}/cancel", CancelAsync);
         missions.MapGet("/{id:guid}/events", GetEventsAsync);
         app.MapHub<MissionsHub>(MissionsHubProtocol.Path);
         app.MapGet(SettingsProtocol.Budget, async (MissionsDb db, IInstanceSettings instance, CancellationToken ct) =>
@@ -156,6 +159,48 @@ public static class MissionsModule
 
         await audit.AppendAsync(id, request.Approved ? "decision:approuvee" : "decision:refusee", cancellationToken);
         await queue.Writer.WriteAsync(id, cancellationToken);
+        return TypedResults.Accepted($"/missions/{id}");
+    }
+
+    /// <summary>
+    /// Arrêter une mission (éditeur du projet). En file ou en pause : elle passe tout de suite à « Arrêtée ».
+    /// En cours : son exécution est annulée, et le runner la termine en « Arrêtée ». Déjà finie : 409.
+    /// </summary>
+    private static async Task<Results<Accepted, NotFound, Conflict, ForbidHttpResult>> CancelAsync(
+        Guid id, MissionsDb db, AuditLog audit, ICurrentUser me, IProjectAccess projects, IProjectDirectory directory,
+        MissionCancellations cancellations, IHubContext<MissionsHub> hub, CancellationToken cancellationToken)
+    {
+        if (await db.Missions.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, cancellationToken) is not { } mission)
+            return TypedResults.NotFound();
+        switch (await AccessAsync(mission, me, projects, cancellationToken))
+        {
+            case null:
+                return TypedResults.NotFound();
+            case ProjectRole.Reader:
+                return TypedResults.Forbid();
+        }
+
+        if (cancellations.Cancel(id))
+        {
+            await audit.AppendAsync(id, "arret-demande", cancellationToken);
+            return TypedResults.Accepted($"/missions/{id}");
+        }
+
+        // Pas en cours d'exécution : en file ou en pause. Une seule requête vérifie et écrit (pas de double arrêt).
+        var updated = await db.Missions
+            .Where(m => m.Id == id && (m.Status == MissionStatus.Pending || (m.Status == MissionStatus.AwaitingApproval && m.Decision == null)))
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(m => m.Status, MissionStatus.Cancelled)
+                .SetProperty(m => m.Conversation, (string?)null)
+                .SetProperty(m => m.PendingApproval, (string?)null)
+                .SetProperty(m => m.ApprovalId, (Guid?)null)
+                .SetProperty(m => m.Result, "Arrêtée à la demande d'un humain."), cancellationToken);
+        if (updated == 0)
+            return TypedResults.Conflict();
+
+        await audit.AppendAsync(id, nameof(MissionStatus.Cancelled), cancellationToken);
+        await hub.Clients.Users(await directory.ReadersAsync(mission.ProjectId ?? Guid.Empty, cancellationToken)).SendAsync(
+            MissionsHubProtocol.MissionEvent, new MissionEventDto(id, MissionStatus.Cancelled, DateTimeOffset.UtcNow), cancellationToken);
         return TypedResults.Accepted($"/missions/{id}");
     }
 
