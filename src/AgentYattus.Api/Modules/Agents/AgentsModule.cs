@@ -16,7 +16,14 @@ public interface IAgentRunner
 /// Soit l'agent a fini (<see cref="Answer"/>), soit il attend une décision humaine (<see cref="Approval"/>).
 /// Dans ce cas, <see cref="Conversation"/> est l'état à conserver tel quel pour reprendre plus tard.
 /// </summary>
-public sealed record AgentOutcome(string? Answer, AgentApproval? Approval = null, string? Conversation = null);
+public sealed record AgentOutcome(string? Answer, AgentApproval? Approval = null, string? Conversation = null, AgentUsage? Usage = null);
+
+/// <summary>Ce qu'a consommé une exécution : tokens et coût estimé en micro-dollars (ADR 0010).</summary>
+public sealed record AgentUsage(long InputTokens, long OutputTokens, long CostMicros)
+{
+    public static AgentUsage operator +(AgentUsage a, AgentUsage b) =>
+        new(a.InputTokens + b.InputTokens, a.OutputTokens + b.OutputTokens, a.CostMicros + b.CostMicros);
+}
 
 /// <summary>Les actions que l'agent veut faire et qui attendent une décision humaine.</summary>
 public sealed record AgentApproval(IReadOnlyList<AgentToolCall> ToolCalls);

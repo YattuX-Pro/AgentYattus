@@ -130,7 +130,7 @@ public sealed class FixedLlmClientProvider(IChatClient? client, string model = "
 }
 
 /// <summary>Le vrai exécuteur Agent Framework, branché sur un faux modèle et un workspace temporaire.</summary>
-public sealed class ScriptedModelApiFactory(IChatClient? model, bool withWorkspace = true, int maxIterations = 10)
+public sealed class ScriptedModelApiFactory(IChatClient? model, bool withWorkspace = true, int maxIterations = 10, string modelName = "claude-haiku-5-5")
     : ApiFactory
 {
     private readonly string _workspace = Directory.CreateTempSubdirectory("yattus-ws-").FullName;
@@ -141,7 +141,7 @@ public sealed class ScriptedModelApiFactory(IChatClient? model, bool withWorkspa
     {
         File.WriteAllText(Path.Combine(_workspace, "a.txt"), "contenu A");
         services.RemoveAll<ILlmClientProvider>();
-        services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(model));
+        services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(model, modelName));
         // Enregistré après la lecture de la configuration : ces valeurs l'emportent sur les user-secrets.
         services.Configure<AgentsOptions>(options =>
         {

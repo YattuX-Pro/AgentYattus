@@ -9,6 +9,16 @@ namespace AgentYattus.Api.Modules.Llm;
 /// <summary>Un client de modèle prêt à servir, et le modèle qu'il utilise (« fournisseur/modèle »).</summary>
 public sealed record LlmClient(IChatClient Client, string Model);
 
+/// <summary>Le prix d'un modèle (« fournisseur/modèle »), au catalogue models.dev (ADR 0010). Inconnu ou gratuit : 0.</summary>
+public interface ILlmPricing
+{
+    /// <summary>Le coût estimé, en micro-dollars (un millionième de dollar).</summary>
+    long CostMicros(string model, long inputTokens, long outputTokens);
+
+    /// <summary>Vrai si le catalogue donne un prix non nul à ce modèle.</summary>
+    bool IsPaid(string model);
+}
+
 /// <summary>Ce que le module montre aux agents : le client du modèle choisi pour un rôle, sans jamais exposer la clé.</summary>
 public interface ILlmClientProvider
 {
@@ -48,6 +58,7 @@ public static class LlmModule
         services.AddSingleton<ModelCatalog>();
         services.AddHostedService<CatalogRefresher>();
         services.AddScoped<ILlmClientProvider, LlmClientProvider>();
+        services.AddSingleton<ILlmPricing, LlmPricing>();
         services.AddScoped<ILlmAgentModels, LlmAgentModels>();
         return services.AddModuleDb<LlmDb>(LlmDb.Schema);
     }
@@ -422,4 +433,18 @@ internal sealed class LlmDb(DbContextOptions<LlmDb> options) : DbContext(options
         modelBuilder.Entity<LlmSettings>().Property(s => s.Id).ValueGeneratedNever();
         modelBuilder.Entity<LlmSettings>().Property(s => s.DefaultConnectionId).HasColumnName("ActiveCredentialId");
     }
+}
+
+internal sealed class LlmPricing(ModelCatalog catalog) : ILlmPricing
+{
+    // Le prix du catalogue est en dollars par million de tokens : tokens × prix = des micro-dollars.
+    public long CostMicros(string model, long inputTokens, long outputTokens) =>
+        Find(model) is { InputPrice: { } input, OutputPrice: { } output }
+            ? (long)Math.Round(inputTokens * input + outputTokens * output, MidpointRounding.AwayFromZero)
+            : 0;
+
+    public bool IsPaid(string model) => Find(model) is { } m && (m.InputPrice > 0 || m.OutputPrice > 0);
+
+    private CatalogModel? Find(string model) =>
+        model.IndexOf('/') is > 0 and var slash ? catalog.Find(model[..slash], model[(slash + 1)..]) : null;
 }

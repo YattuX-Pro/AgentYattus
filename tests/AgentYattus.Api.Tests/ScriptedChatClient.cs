@@ -44,8 +44,11 @@ public sealed class ScriptedChatClient(params ChatResponse[] script) : IChatClie
     {
     }
 
-    public static ChatResponse Text(string text, long tokens = 0) =>
-        new(new ChatMessage(ChatRole.Assistant, text)) { Usage = new UsageDetails { TotalTokenCount = tokens } };
+    public static ChatResponse Text(string text, long tokens = 0, long input = 0, long output = 0) =>
+        new(new ChatMessage(ChatRole.Assistant, text))
+        {
+            Usage = new UsageDetails { TotalTokenCount = tokens, InputTokenCount = input, OutputTokenCount = output },
+        };
 
     public static ChatResponse ToolCall(string name, Dictionary<string, object?>? arguments = null, string callId = "call_1", long tokens = 0) =>
         new(new ChatMessage(ChatRole.Assistant, [new FunctionCallContent(callId, name, arguments)]))

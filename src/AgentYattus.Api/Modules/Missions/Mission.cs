@@ -18,6 +18,11 @@ internal sealed class Mission
     public string? CreatedBy { get; set; }
     public string? CreatedByName { get; set; }
 
+    // Ce qu'a consommé la mission, toutes exécutions confondues (ADR 0010). Coût en micro-dollars : un entier.
+    public long InputTokens { get; set; }
+    public long OutputTokens { get; set; }
+    public long CostMicros { get; set; }
+
     // Mission en pause : la conversation de l'agent (opaque pour ce module), ce qui attend une décision, et la décision.
     public string? Conversation { get; set; }
     public string? PendingApproval { get; set; }
@@ -27,7 +32,7 @@ internal sealed class Mission
     public MissionDto ToDto(string? projectName = null) => new(
         Id, Goal, Status, CreatedAt, Result,
         PendingApproval is null ? null : JsonSerializer.Deserialize<ApprovalDto>(PendingApproval, JsonSerializerOptions.Web),
-        Kind, ProjectId, projectName, CreatedByName);
+        Kind, ProjectId, projectName, CreatedByName, InputTokens, OutputTokens, CostMicros / 1_000_000m);
 }
 
 internal sealed class MissionsDb(DbContextOptions<MissionsDb> options) : DbContext(options)

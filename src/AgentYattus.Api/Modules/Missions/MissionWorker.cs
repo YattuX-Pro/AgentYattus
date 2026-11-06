@@ -93,6 +93,12 @@ internal sealed class MissionRunner(
         try
         {
             var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, workspace, cancellationToken);
+            if (outcome.Usage is { } usage)
+            {
+                mission.InputTokens += usage.InputTokens;
+                mission.OutputTokens += usage.OutputTokens;
+                mission.CostMicros += usage.CostMicros;
+            }
             if (outcome.Approval is { } approval)
             {
                 // Pause : on enregistre de quoi reprendre, et le worker passe à la mission suivante.

@@ -27,7 +27,8 @@ internal sealed class AgentFrameworkRunner(
     IOptions<AgentsOptions> options,
     AuditLog audit,
     ILogger<AgentFrameworkRunner> logger,
-    ILlmClientProvider llm) : IAgentRunner
+    ILlmClientProvider llm,
+    ILlmPricing pricing) : IAgentRunner
 {
     // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
@@ -44,6 +45,7 @@ internal sealed class AgentFrameworkRunner(
                 "Workspace absent. Lance : dotnet user-secrets set \"Agents:Workspace\" \"<dossier>\" --project src/AgentYattus.Api");
         var tools = new WorkspaceTools(workspace).AsAIFunctions();
 
+        var usage = new AgentUsage(0, 0, 0);
         Stage stage;
         if (resume is not null)
         {
@@ -58,8 +60,9 @@ internal sealed class AgentFrameworkRunner(
         {
             // Revue, étape 1 : l'Analyste explore et rend ses constats. Il n'a aucun outil d'écriture : il ne s'arrête jamais.
             await audit.AppendAsync(missionId, $"agent:{AgentRoles.Analyst.Key}", cancellationToken);
-            var analysis = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, settings.MaxIterations,
+            var (analysis, analysisUsage) = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, settings.MaxIterations,
                 [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], cancellationToken);
+            usage += analysisUsage;
             var findings = analysis.Text;
 
             // Étape 2, le passage de relais : le Rédacteur part des constats, pas de zéro.
@@ -68,7 +71,8 @@ internal sealed class AgentFrameworkRunner(
         }
 
         var role = AgentRoles.All.Single(r => r.Key == stage.Role);
-        var response = await RunRoleAsync(missionId, role, tools, settings.MaxIterations, stage.History, cancellationToken);
+        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, settings.MaxIterations, stage.History, cancellationToken);
+        usage += roleUsage;
 
         var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
         if (requests.Count > 0)
@@ -80,7 +84,7 @@ internal sealed class AgentFrameworkRunner(
                 .ToList();
             foreach (var call in calls)
                 await audit.AppendAsync(missionId, $"approbation-demandee:{call.Tool}", cancellationToken);
-            return new AgentOutcome(null, new AgentApproval(calls), stage.Serialize());
+            return new AgentOutcome(null, new AgentApproval(calls), stage.Serialize(), usage);
         }
 
         // Seulement des métadonnées : la réponse peut citer le contenu des fichiers lus, elle reste en base.
@@ -89,10 +93,10 @@ internal sealed class AgentFrameworkRunner(
             missionId, role.Key, response.Usage?.TotalTokenCount, response.Text.Length);
         return new AgentOutcome(stage.Findings is null
             ? response.Text
-            : $"{response.Text}\n\n---\nConstats de l'Analyste :\n{stage.Findings}");
+            : $"{response.Text}\n\n---\nConstats de l'Analyste :\n{stage.Findings}", Usage: usage);
     }
 
-    private async Task<AgentResponse> RunRoleAsync(
+    private async Task<(AgentResponse Response, AgentUsage Usage)> RunRoleAsync(
         Guid missionId, AgentRole role, IReadOnlyList<AIFunction> allTools, int maxIterations,
         List<ChatMessage> history, CancellationToken cancellationToken)
     {
@@ -127,7 +131,12 @@ internal sealed class AgentFrameworkRunner(
         if (toolTurns >= maxIterations)
             await audit.AppendAsync(missionId, "limite-de-tours", cancellationToken);
 
-        return response;
+        // Les tokens de tous les tours d'outils, cumulés par la boucle ; le coût au prix du catalogue (ADR 0010).
+        // En mode Gratuit, le dernier modèle de la chaîne a fait le travail : il est gratuit, comme les autres.
+        var input = response.Usage?.InputTokenCount ?? 0;
+        var output = response.Usage?.OutputTokenCount ?? 0;
+        await audit.AppendAsync(missionId, $"usage:{role.Key}:{input}:{output}", cancellationToken);
+        return (response, new AgentUsage(input, output, pricing.CostMicros(client.Model, input, output)));
     }
 
     // On ajoute la décision humaine à chaque demande encore sans réponse.

@@ -35,6 +35,9 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.Property<string>("Conversation")
                         .HasColumnType("text");
 
+                    b.Property<long>("CostMicros")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -53,11 +56,17 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<long>("InputTokens")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("text")
                         .HasDefaultValue("Question");
+
+                    b.Property<long>("OutputTokens")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("PendingApproval")
                         .HasColumnType("text");

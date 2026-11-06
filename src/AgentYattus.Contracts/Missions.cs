@@ -29,6 +29,7 @@ public sealed record CreateMissionRequest(string Goal, MissionKind Kind = Missio
 /// <param name="PendingApproval">Les actions qui attendent une décision, quand le statut est AwaitingApproval.</param>
 /// <param name="ProjectId">Null pour une mission antérieure aux projets (visible des seuls administrateurs de l'instance).</param>
 /// <param name="CreatedBy">Le nom d'utilisateur de l'auteur.</param>
+/// <param name="Cost">Coût estimé en dollars, au prix du catalogue (ADR 0010).</param>
 public sealed record MissionDto(
     Guid Id,
     string Goal,
@@ -39,7 +40,10 @@ public sealed record MissionDto(
     MissionKind Kind = MissionKind.Question,
     Guid? ProjectId = null,
     string? ProjectName = null,
-    string? CreatedBy = null);
+    string? CreatedBy = null,
+    long InputTokens = 0,
+    long OutputTokens = 0,
+    decimal Cost = 0);
 
 /// <param name="Id">Identifie cette demande : une décision ne vaut que pour la demande que l'on a vue.</param>
 public sealed record ApprovalDto(Guid Id, IReadOnlyList<ToolCallDto> ToolCalls);
