@@ -1,0 +1,115 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/preflight.css' layer(base);
+@import 'tailwindcss/utilities.css';
+
+@import '@spartan-ng/brain/hlm-tailwind-preset.css';
+
+/*
+  Palette Agent Yattus, la même que le bureau (docs/design/admin-web.html).
+  Une seule teinte d'accent (vert-de-gris = exécuté) ; laiton = décision humaine ; cinabre = échec.
+  Les noms des variables sont ceux de spartan (comme shadcn) : les composants Helm les utilisent tels quels.
+*/
+:root {
+  color-scheme: light;
+  --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, Menlo, Consolas, monospace;
+  --radius: 0.625rem;
+
+  --background: #f6f7f5;
+  --foreground: #16181b;
+  --card: #ffffff;
+  --card-foreground: #16181b;
+  --popover: #ffffff;
+  --popover-foreground: #16181b;
+  --primary: #33796d;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f2f0;
+  --secondary-foreground: #16181b;
+  --muted: #f1f2f0;
+  --muted-foreground: #5b6064;
+  --accent: #eceeeb;
+  --accent-foreground: #16181b;
+  --destructive: #b9452c;
+  --border: #dcdfdb;
+  --input: #cbd0cb;
+  --ring: #33796d;
+  --warning: #94701f;
+  --warning-soft: rgb(148 112 31 / 0.12);
+  --primary-soft: rgb(51 121 109 / 0.11);
+  --destructive-soft: rgb(185 69 44 / 0.1);
+
+  --chart-1: var(--primary);
+  --chart-2: var(--warning);
+  --chart-3: var(--destructive);
+  --chart-4: #6e7377;
+  --chart-5: #a7a196;
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #16181b;
+  --sidebar-primary: #33796d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f1f2f0;
+  --sidebar-accent-foreground: #16181b;
+  --sidebar-border: #dcdfdb;
+  --sidebar-ring: #33796d;
+}
+
+:root.dark {
+  color-scheme: dark;
+
+  --background: #0e0f11;
+  --foreground: #ece6d8;
+  --card: #131417;
+  --card-foreground: #ece6d8;
+  --popover: #16181b;
+  --popover-foreground: #ece6d8;
+  --primary: #5e9e92;
+  --primary-foreground: #0b1412;
+  --secondary: #181a1e;
+  --secondary-foreground: #ece6d8;
+  --muted: #181a1e;
+  --muted-foreground: #a7a196;
+  --accent: #1d2024;
+  --accent-foreground: #ece6d8;
+  --destructive: #d9654b;
+  --border: #24272b;
+  --input: #2e3237;
+  --ring: #5e9e92;
+  --warning: #d8b86e;
+  --warning-soft: rgb(216 184 110 / 0.13);
+  --primary-soft: rgb(94 158 146 / 0.14);
+  --destructive-soft: rgb(217 101 75 / 0.13);
+
+  --sidebar: #131417;
+  --sidebar-foreground: #ece6d8;
+  --sidebar-primary: #5e9e92;
+  --sidebar-primary-foreground: #0b1412;
+  --sidebar-accent: #1d2024;
+  --sidebar-accent-foreground: #ece6d8;
+  --sidebar-border: #24272b;
+  --sidebar-ring: #5e9e92;
+}
+
+/* Couleurs propres à Agent Yattus, exposées à Tailwind : bg-warning, text-warning, bg-primary-soft… */
+@theme inline {
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-primary-soft: var(--primary-soft);
+  --color-destructive-soft: var(--destructive-soft);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    scrollbar-width: thin;
+    scrollbar-color: var(--input) transparent;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 13px;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+}

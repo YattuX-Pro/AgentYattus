@@ -23,3 +23,19 @@ jobs:
       - run: dotnet test --project spikes/AgentLoop.Tests --no-build
       # Notation et coûts seulement : l'évaluation sur de vrais modèles est ignorée sans AGENTYATTUS_EVAL_MODELS.
       - run: dotnet test --project evals/AgentYattus.Evals --no-build
+
+  admin:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/AgentYattus.Admin
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: src/AgentYattus.Admin/package-lock.json
+      - run: npm ci
+      - run: npx ng build
+      - run: npx ng test --watch=false
