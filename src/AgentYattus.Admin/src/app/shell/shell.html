@@ -80,6 +80,10 @@
       />
       <kbd hlmKbd>⌘K</kbd>
     </label>
+    <span class="text-muted-foreground hidden items-center gap-1.5 text-xs sm:flex" [title]="live.connected() ? 'Missions en direct' : 'Direct déconnecté'">
+      <span class="size-2 rounded-full" [class.bg-primary]="live.connected()" [class.bg-input]="!live.connected()"></span>
+      {{ live.connected() ? 'En direct' : 'Hors ligne' }}
+    </span>
     <hlm-toggle-group type="single" variant="outline" size="sm" [value]="theme.choice()" (valueChange)="setTheme($event)" aria-label="Thème">
       <button hlmToggleGroupItem value="light" aria-label="Clair"><ng-icon name="lucideSun" /></button>
       <button hlmToggleGroupItem value="system" aria-label="Comme le système"><ng-icon name="lucideMonitor" /></button>

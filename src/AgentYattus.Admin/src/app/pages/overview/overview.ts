@@ -1,4 +1,7 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime } from 'rxjs';
+import { LiveService } from '../../core/live';
 import { RouterLink } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import { lucideRefreshCw } from '@ng-icons/lucide';
@@ -66,6 +69,9 @@ export class Overview {
 
   constructor() {
     void this.load();
+    const live = inject(LiveService);
+    live.start();
+    live.events.pipe(debounceTime(500), takeUntilDestroyed(inject(DestroyRef))).subscribe(() => void this.load());
   }
 
   protected async load() {

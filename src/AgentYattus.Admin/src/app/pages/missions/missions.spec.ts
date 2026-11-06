@@ -1,5 +1,7 @@
 import { TestBed } from '@angular/core/testing';
+import { Subject } from 'rxjs';
 import { AdminApi, Mission } from '../../core/api';
+import { LiveService } from '../../core/live';
 import { Missions } from './missions';
 
 const mission: Mission = {
@@ -9,7 +11,12 @@ const mission: Mission = {
 
 describe('page Missions', () => {
   it('s’affiche sans paramètre ?q= (le routeur passe alors undefined)', async () => {
-    TestBed.configureTestingModule({ providers: [{ provide: AdminApi, useValue: { missions: () => Promise.resolve([mission]) } }] });
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: AdminApi, useValue: { missions: () => Promise.resolve([mission]) } },
+        { provide: LiveService, useValue: { start: () => {}, events: new Subject() } },
+      ],
+    });
     const fixture = TestBed.createComponent(Missions);
     fixture.componentRef.setInput('q', undefined);
     await fixture.whenStable();

@@ -15,6 +15,7 @@ import { HlmToggleGroupImports } from '@spartan-ng/helm/toggle-group';
 import { HlmTooltipImports } from '@spartan-ng/helm/tooltip';
 import { filter, map } from 'rxjs';
 import { AuthService } from '../core/auth';
+import { LiveService } from '../core/live';
 import { ThemeChoice, ThemeService } from '../core/theme';
 import { NAV, locate } from './nav';
 
@@ -36,9 +37,14 @@ import { NAV, locate } from './nav';
 export class Shell {
   protected readonly auth = inject(AuthService);
   protected readonly theme = inject(ThemeService);
+  protected readonly live = inject(LiveService);
   private readonly router = inject(Router);
 
   protected readonly nav = NAV;
+
+  constructor() {
+    this.live.start();
+  }
   protected readonly menuOpen = signal(false);
   protected readonly open = signal<Record<string, boolean>>(Shell.readGroups());
   private readonly url = toSignal(

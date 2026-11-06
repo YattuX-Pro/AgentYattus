@@ -12,11 +12,13 @@ import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { AdminApi, AuditEntry, Mission, errorMessage } from '../../core/api';
 import { STATUS, argumentsOf, describe } from '../../core/events';
+import { LiveService } from '../../core/live';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { debounceTime } from 'rxjs';
 import { tokens, usd, when } from '../../core/format';
 import { PageHeader } from '../../shell/page-header';
 import { FILTERS, MissionFilter, countBy, filterMissions } from './filter';
 
-const REFRESH_MS = 10_000;
 
 @Component({
   selector: 'app-missions',
@@ -67,9 +69,14 @@ export class Missions {
   constructor() {
     effect(() => this.query.set(this.q()));
     void this.load();
-    // ponytail: rafraîchissement toutes les 10 s ; passer au hub SignalR (/hubs/missions) si le direct devient nécessaire.
-    const timer = setInterval(() => void this.load(true), REFRESH_MS);
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    // Le direct : chaque événement d'une mission recharge la liste (regroupés sur 300 ms) et le détail ouvert.
+    const live = inject(LiveService);
+    live.start();
+    live.events.pipe(debounceTime(300), takeUntilDestroyed(inject(DestroyRef))).subscribe(() => {
+      void this.load(true);
+      const open = this.selected();
+      if (open) void this.refreshDetail(open.id);
+    });
   }
 
   protected async load(quiet = false) {
@@ -123,6 +130,20 @@ export class Missions {
       toast.error(errorMessage(e));
     } finally {
       this.deciding.set(false);
+    }
+  }
+
+  /** Recharge le détail ouvert sans réinitialiser la lecture du contenu à approuver. */
+  private async refreshDetail(id: string) {
+    try {
+      const [fresh, events] = await Promise.all([this.api.mission(id), this.api.events(id)]);
+      if (this.selected()?.id !== id) return;
+      if (fresh.pendingApproval?.id !== this.selected()?.pendingApproval?.id) this.readAll.set(false);
+      this.selected.set(fresh);
+      this.events.set(events);
+      setTimeout(() => this.checkRead(), 0);
+    } catch {
+      // Le prochain événement réessaiera.
     }
   }
 

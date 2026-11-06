@@ -3,6 +3,7 @@ import { toolRows } from './agents';
 
 const agent = (name: string, tools: [string, boolean][]): Agent => ({
   name, role: '', model: '', maxIterations: 10, key: name.toLowerCase(), modelOverride: null,
+  instructions: '', defaultInstructions: '', guardrails: '', version: 0, maxIterationsOverride: null,
   tools: tools.map(([n, a]) => ({ name: n, description: n, requiresApproval: a })),
 });
 
