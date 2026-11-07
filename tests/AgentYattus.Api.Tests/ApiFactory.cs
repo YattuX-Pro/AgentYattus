@@ -128,10 +128,16 @@ public sealed class FakeAgentRunner : IAgentRunner
     /// <summary>Le dossier de travail reçu pour chaque but.</summary>
     public ConcurrentDictionary<string, string?> Workspaces { get; } = new();
 
-    public Task<AgentOutcome> RunAsync(Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace, CancellationToken cancellationToken)
+    /// <summary>Les présentations reçues par mission : ce que les collègues ajoutent aux consignes.</summary>
+    public ConcurrentDictionary<Guid, IReadOnlyDictionary<string, string>?> Styles { get; } = new();
+
+    public Task<AgentOutcome> RunAsync(
+        Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
+        IReadOnlyDictionary<string, string>? styles, CancellationToken cancellationToken)
     {
         Goals.Enqueue(goal);
         Workspaces[goal] = workspace;
+        Styles[missionId] = styles;
         // Une mission longue : elle tourne jusqu'à son annulation (arrêt, durée maximum, fin de l'hôte).
         if (goal.StartsWith(LongGoal, StringComparison.Ordinal))
             return WaitForCancellationAsync(cancellationToken);

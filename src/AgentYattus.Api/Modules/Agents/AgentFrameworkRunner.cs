@@ -37,7 +37,8 @@ internal sealed class AgentFrameworkRunner(
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
 
     public async Task<AgentOutcome> RunAsync(
-        Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace, CancellationToken cancellationToken)
+        Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
+        IReadOnlyDictionary<string, string>? styles, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         // Les réglages de l'instance (admin › Réglages) l'emportent sur la configuration de départ (ADR 0010).
@@ -68,7 +69,7 @@ internal sealed class AgentFrameworkRunner(
             // Revue, étape 1 : l'Analyste explore et rend ses constats. Il n'a aucun outil d'écriture : il ne s'arrête jamais.
             await audit.AppendAsync(missionId, $"agent:{AgentRoles.Analyst.Key}", cancellationToken);
             var (analysis, analysisUsage) = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, instanceMax,
-                [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], cancellationToken);
+                [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], styles, cancellationToken);
             usage += analysisUsage;
             var findings = analysis.Text;
 
@@ -78,7 +79,7 @@ internal sealed class AgentFrameworkRunner(
         }
 
         var role = AgentRoles.All.Single(r => r.Key == stage.Role);
-        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, cancellationToken);
+        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, styles, cancellationToken);
         usage += roleUsage;
 
         var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
@@ -105,12 +106,12 @@ internal sealed class AgentFrameworkRunner(
 
     private async Task<(AgentResponse Response, AgentUsage Usage)> RunRoleAsync(
         Guid missionId, AgentRole role, IReadOnlyList<AIFunction> allTools, int instanceMax,
-        List<ChatMessage> history, CancellationToken cancellationToken)
+        List<ChatMessage> history, IReadOnlyDictionary<string, string>? styles, CancellationToken cancellationToken)
     {
         // La consigne et la limite en vigueur pour ce rôle ; les garde-fous sont toujours ajoutés par le code.
         var definition = await definitions.CurrentAsync(role.Key, cancellationToken);
         var maxIterations = definition?.MaxIterations ?? instanceMax;
-        var instructions = AgentRoles.Compose(role, definition?.Instructions);
+        var instructions = AgentRoles.Compose(role, definition?.Instructions, styles?.GetValueOrDefault(role.Key));
 
         // Chaque rôle a son modèle : le sien s'il en a un, sinon celui par défaut.
         var client = await llm.GetAsync(role.Key, cancellationToken) ?? throw new InvalidOperationException(

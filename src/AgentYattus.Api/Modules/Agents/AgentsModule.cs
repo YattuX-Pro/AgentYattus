@@ -11,7 +11,10 @@ public interface IAgentRunner
 {
     /// <param name="resume">La conversation mise en pause et la décision humaine, ou null pour un premier passage.</param>
     /// <param name="workspace">Le dossier de travail du projet ; null pour le dossier configuré (Agents:Workspace).</param>
-    Task<AgentOutcome> RunAsync(Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace, CancellationToken cancellationToken);
+    /// <param name="styles">Par rôle, la présentation du collègue (prénom, traits) à ajouter à la consigne (ADR 0012).</param>
+    Task<AgentOutcome> RunAsync(
+        Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
+        IReadOnlyDictionary<string, string>? styles, CancellationToken cancellationToken);
 }
 
 /// <summary>

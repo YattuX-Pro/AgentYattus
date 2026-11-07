@@ -5,6 +5,7 @@ using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Projects;
 using AgentYattus.Api.Modules.Settings;
+using AgentYattus.Api.Modules.Team;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.SignalR;
 
@@ -100,6 +101,7 @@ internal sealed class MissionRunner(
     AuditLog audit,
     IAgentRunner agent,
     IProjectDirectory projects,
+    ITeamDirectory team,
     IInstanceSettings instance,
     ILlmClientProvider llm,
     ILlmPricing pricing,
@@ -177,7 +179,9 @@ internal sealed class MissionRunner(
         limit.CancelAfter(maxDuration);
         try
         {
-            var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, workspace, limit.Token);
+            // Le prénom et les traits de chaque collègue du projet entrent dans sa consigne (ADR 0012).
+            var styles = mission.ProjectId is { } project ? await team.StylesAsync(project, limit.Token) : null;
+            var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, workspace, styles, limit.Token);
             if (outcome.Usage is { } usage)
             {
                 mission.InputTokens += usage.InputTokens;

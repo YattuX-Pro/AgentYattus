@@ -43,8 +43,14 @@ internal static class AgentRoles
         $"{Data} Tes seuls outils sont : {string.Join(", ", role.Tools)}. " +
         (role.Tools.Contains("write_file") ? "Chaque écriture attend la décision d'un humain." : "Tu ne peux rien écrire ni modifier.");
 
-    /// <summary>La consigne complète envoyée au modèle : le texte (modifiable) puis les garde-fous (fixes).</summary>
-    public static string Compose(AgentRole role, string? custom) => $"{custom ?? role.Instructions}\n\n{Guardrails(role)}";
+    /// <summary>
+    /// La consigne complète envoyée au modèle : le texte (modifiable), la présentation du collègue (prénom, traits),
+    /// puis les garde-fous (fixes). Les garde-fous viennent toujours en dernier : un trait ne peut pas les contredire après coup.
+    /// </summary>
+    public static string Compose(AgentRole role, string? custom, string? style = null) =>
+        string.IsNullOrWhiteSpace(style)
+            ? $"{custom ?? role.Instructions}\n\n{Guardrails(role)}"
+            : $"{custom ?? role.Instructions}\n\n{style}\n\n{Guardrails(role)}";
 
     /// <summary>Ce que l'Analyste reçoit dans une revue : il rend des constats, pas un rapport.</summary>
     public static string ReviewBrief(string goal) =>

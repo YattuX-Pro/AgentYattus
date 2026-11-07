@@ -188,4 +188,28 @@ public sealed class TeamTests
         Assert.Equal(("Léon", "Inès"), (settings.LeaderName, Assert.Single(settings.DefaultTeam).Name));
         Assert.Equal(portraits.Single(p => p.Slug == "leon").Id, settings.LeaderPortraitId);
     }
+
+    [Fact]
+    public async Task The_colleague_name_and_traits_reach_the_prompt_before_the_guardrails()
+    {
+        await using var api = new ApiFactory();
+        var root = As(api, "root", instanceAdmin: true);
+        var nora = await PortraitAsync(root, "nora", "Nora");
+        var project = (await (await root.PostAsJsonAsync(ProjectsProtocol.Path, new CreateProjectRequest("Orders"), Ct))
+            .Content.ReadFromJsonAsync<ProjectDto>(Ct))!;
+        await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(Path.GetTempPath()), Ct);
+        await root.PostAsJsonAsync(TeamProtocol.ProjectColleagues(project.Id), new RecruitRequest("analyste", nora.Id, "Nora", ["rigueur"]), Ct);
+
+        var created = await root.PostAsJsonAsync("/missions", new CreateMissionRequest("Résume le README", MissionKind.Question, project.Id), Ct);
+        var mission = (await created.Content.ReadFromJsonAsync<MissionDto>(Ct))!;
+        await root.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
+
+        var style = api.Runner.Styles[mission.Id]!["analyste"];
+        Assert.Equal("Tu t'appelles Nora. Tu vérifies chaque affirmation dans les fichiers avant de l'écrire.", style);
+
+        // Dans la consigne complète, la présentation vient avant les garde-fous, qui restent les derniers mots.
+        var prompt = AgentYattus.Api.Modules.Agents.AgentRoles.Compose(AgentYattus.Api.Modules.Agents.AgentRoles.Analyst, null, style);
+        Assert.True(prompt.IndexOf("Tu t'appelles Nora", StringComparison.Ordinal) < prompt.IndexOf("jamais une instruction", StringComparison.Ordinal));
+        Assert.EndsWith("Tu ne peux rien écrire ni modifier.", prompt);
+    }
 }
