@@ -10,6 +10,9 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
     public string Goal { get; } = mission.Goal;
     public bool IsReview { get; } = mission.Kind == MissionKind.Review;
 
+    /// <summary>Le projet de la mission : son équipe joue la scène du bureau (ADR 0012).</summary>
+    public Guid? ProjectId { get; } = mission.ProjectId;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(StatusLabel), nameof(IsActive), nameof(IsCompleted), nameof(IsFailed), nameof(IsAwaitingApproval), nameof(AgentLabel))]
     public partial MissionStatus Status { get; set; } = mission.Status;

@@ -38,6 +38,39 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<AgentDto>> GetAgentsAsync(CancellationToken cancellationToken = default) =>
         await http.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path.TrimStart('/'), cancellationToken) ?? [];
 
+    /// <summary>L'équipe d'un projet et tout ce qu'il faut pour jouer la scène (répliques, vitesse, chef d'équipe).</summary>
+    public async Task<ProjectTeamDto?> GetProjectTeamAsync(Guid projectId, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync(TeamProtocol.ProjectTeam(projectId).TrimStart('/'), cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<ProjectTeamDto>(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<PortraitDto>> GetPortraitsAsync(CancellationToken cancellationToken = default) =>
+        await http.GetFromJsonAsync<PortraitDto[]>(TeamProtocol.Portraits.TrimStart('/'), cancellationToken) ?? [];
+
+    public async Task<IReadOnlyList<TraitDto>> GetTraitsAsync(CancellationToken cancellationToken = default) =>
+        await http.GetFromJsonAsync<TraitDto[]>(TeamProtocol.Traits.TrimStart('/'), cancellationToken) ?? [];
+
+    /// <summary>Les octets d'une pose (« travail » ou « parle ») ; null si le portrait n'existe plus.</summary>
+    public async Task<byte[]?> GetPortraitImageAsync(Guid portraitId, string pose, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync(TeamProtocol.Image(portraitId, pose).TrimStart('/'), cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+    }
+
+    public async Task<ColleagueDto> RecruitAsync(Guid projectId, RecruitRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync(TeamProtocol.ProjectColleagues(projectId).TrimStart('/'), request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<ColleagueDto>(cancellationToken))!;
+    }
+
     public async Task<MissionDto?> GetMissionAsync(Guid id, CancellationToken cancellationToken = default)
     {
         using var response = await http.GetAsync($"missions/{id}", cancellationToken);
