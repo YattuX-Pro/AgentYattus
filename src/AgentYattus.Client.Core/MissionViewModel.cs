@@ -55,6 +55,9 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
 
     public TimelineEntry? LastEntry => Journal.Count > 0 ? Journal[^1] : null;
 
+    /// <summary>Le journal brut, tel que l'API le donne : l'open space en tire ses répliques.</summary>
+    public IReadOnlyList<AuditEntryDto> Events { get; private set; } = [];
+
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
         try
@@ -78,6 +81,7 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
             }
 
             var events = await api.GetEventsAsync(Mission.Id, cancellationToken);
+            Events = events;
             Journal.Clear();
             foreach (var e in events)
                 Journal.Add(TimelineEntry.From(e));
