@@ -33,7 +33,8 @@ Un document peut être hostile, comme n'importe quel fichier du workspace :
 
 **Après revue de sécurité** (un correctif à part) :
 
-- **Taille totale** : avant d'ouvrir un `.docx` ou un `.xlsx`, on additionne les tailles décompressées annoncées dans l'archive, 100 Mo au plus. La limite par partie reste derrière, pour une archive qui mentirait.
+- **Taille totale** : avant d'ouvrir un `.docx` ou un `.xlsx`, on le **décompresse pour de bon**, sans rien garder, en comptant les octets réellement produits : 100 Mo et 2 000 entrées au plus. Les tailles annoncées dans l'archive peuvent mentir, ce compte-là non. Une deuxième revue l'a demandé : la première version se fiait aux tailles annoncées.
+- **Par partie** : 5 millions de caractères au plus, une fois chargée par OpenXml.
 - **Nombre de feuilles** : 50 au plus.
 - **Temps** : 15 secondes par document, vérifiées entre deux pages ou deux rangées, avec le jeton d'arrêt de la mission. Au-delà, on rend ce qui a été lu, avec une note.
 - **Limite connue** (`ponytail`) : une seule page PDF énorme peut encore consommer mémoire et processeur avant la vérification suivante. Une lecture dans un processus séparé, avec un plafond de mémoire, viendra avec le bac à sable (phase C).

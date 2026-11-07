@@ -34,7 +34,7 @@ internal static class Documents
         budget.CancelAfter(Budget);
         var text = new Bounded(maxChars, budget.Token);
         if (Path.GetExtension(path).ToLowerInvariant() is ".docx" or ".xlsx")
-            CheckUnzippedSize(path);
+            CheckUnzippedSize(path, budget.Token);
         switch (Path.GetExtension(path).ToLowerInvariant())
         {
             case ".pdf":
@@ -51,18 +51,32 @@ internal static class Documents
     }
 
     /// <summary>
-    /// Avant d'ouvrir l'archive : la somme des tailles décompressées annoncées. Une archive qui ment sur ses tailles
-    /// bute ensuite sur MaxCharactersInPart, partie par partie.
+    /// Avant d'ouvrir l'archive : on la décompresse pour de bon, sans rien garder, en comptant les octets réellement
+    /// produits. Les tailles annoncées dans l'archive peuvent mentir ; ce compte-là, non. Au-delà, on arrête tout de suite.
     /// </summary>
-    private static void CheckUnzippedSize(string path)
+    private static void CheckUnzippedSize(string path, CancellationToken budget)
     {
         using var zip = System.IO.Compression.ZipFile.OpenRead(path);
-        if (zip.Entries.Sum(e => e.Length) > MaxUnzippedBytes)
-            throw new InvalidDataException("Archive trop volumineuse une fois décompressée.");
+        if (zip.Entries.Count > 2000)
+            throw new InvalidDataException("Archive avec trop d'entrées.");
+        var total = 0L;
+        var buffer = new byte[81920];
+        foreach (var entry in zip.Entries)
+        {
+            using var stream = entry.Open();
+            for (int read; (read = stream.Read(buffer, 0, buffer.Length)) > 0;)
+            {
+                total += read;
+                if (total > MaxUnzippedBytes)
+                    throw new InvalidDataException("Archive trop volumineuse une fois décompressée.");
+                budget.ThrowIfCancellationRequested();
+            }
+        }
     }
 
     // Une archive Office dont une partie dépasse cette taille une fois décompressée est refusée (bombe de décompression).
-    private static readonly OpenSettings Office = new() { MaxCharactersInPart = 20_000_000 };
+    // 5 millions de caractères par partie : avec le compte total ci-dessus, la mémoire reste bornée avant la première vérification.
+    private static readonly OpenSettings Office = new() { MaxCharactersInPart = 5_000_000 };
 
     private static void Pdf(string path, Bounded text)
     {
