@@ -1,6 +1,13 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- Styles partagés par tous les écrans. -->
+  <!--
+    Styles partagés par tous les écrans : le système de design du logiciel.
+    Piège Avalonia 12 : un style « Type /template/ Partie » sans classe ni pseudo-classe ne s'applique pas aux parties
+    des contrôles Fluent ; « :not(.plain) » lui donne un déclencheur, et alors il passe.
+    Règle (comme l'admin web) : chaque clic et chaque changement d'écran s'animent. Les couleurs de Fluent
+    (gris au survol, bleu au clic) ne doivent jamais apparaître : chaque classe de bouton définit tous ses états,
+    y compris :pressed, que Fluent colorerait sinon.
+  -->
 
   <!-- Les accents des majuscules (É, À) dépassent la hauteur de ligne de la police : sans ceci, ils sont coupés. -->
   <Style Selector="TextBlock">
@@ -27,6 +34,51 @@
     <Setter Property="Stretch" Value="Uniform" />
   </Style>
 
+  <!-- ============ Mouvement ============ -->
+
+  <!-- Un écran qui arrive monte légèrement en apparaissant (le fondu entre écrans est celui de la fenêtre). -->
+  <Style Selector=":is(UserControl).screen">
+    <Style.Animations>
+      <Animation Duration="0:0:0.38" Easing="CubicEaseOut">
+        <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /><Setter Property="TranslateTransform.Y" Value="12" /></KeyFrame>
+        <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
+  <!-- Une carte ou une ligne de liste entre en glissant vers le haut. -->
+  <Style Selector=":is(Control).enter">
+    <Style.Animations>
+      <Animation Duration="0:0:0.42" Easing="CubicEaseOut">
+        <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /><Setter Property="TranslateTransform.Y" Value="10" /></KeyFrame>
+        <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
+  <!-- Tout bouton s'enfonce un peu sous le doigt, et ses couleurs changent en fondu. -->
+  <Style Selector="Button, ToggleButton">
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="RenderTransform" Value="scale(1)" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.16" Easing="CubicEaseOut" />
+        <DoubleTransition Property="Opacity" Duration="0:0:0.2" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="Button:pressed, ToggleButton:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.96)" />
+  </Style>
+  <Style Selector="Button:not(.plain) /template/ ContentPresenter#PART_ContentPresenter, ToggleButton:not(.plain) /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="Background" Duration="0:0:0.18" />
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.18" />
+      </Transitions>
+    </Setter>
+  </Style>
+
   <!-- Halo qui pulse autour d'un agent ou d'une mission active. -->
   <Style Selector="Ellipse.pulse">
     <Setter Property="RenderTransform" Value="scale(1)" />
@@ -51,11 +103,23 @@
     </Style.Animations>
   </Style>
 
+  <!-- Laiton : quelqu'un frappe à votre porte. -->
+  <Style Selector="Ellipse.knock">
+    <Style.Animations>
+      <Animation Duration="0:0:1.6" IterationCount="Infinite">
+        <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.35" /></KeyFrame>
+        <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
+  <!-- ============ Boutons ============ -->
+
   <!-- Bouton sans habillage : la carte ou l'icône qu'il contient fait tout le dessin. -->
   <Style Selector="Button.bare">
     <Setter Property="Padding" Value="0" />
     <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-    <Setter Property="Cursor" Value="Hand" />
   </Style>
   <Style Selector="Button.bare /template/ ContentPresenter#PART_ContentPresenter,
                    Button.bare:pointerover /template/ ContentPresenter#PART_ContentPresenter,
@@ -63,26 +127,160 @@
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
   </Style>
+  <!-- Une carte cliquable se soulève au survol. -->
+  <Style Selector="Button.lift:pointerover">
+    <Setter Property="RenderTransform" Value="translateY(-3px)" />
+  </Style>
+  <Style Selector="Button.lift:pressed">
+    <Setter Property="RenderTransform" Value="scale(0.98)" />
+  </Style>
+
+  <!-- Principal : vert-de-gris. -->
+  <Style Selector="Button.primary">
+    <Setter Property="Height" Value="42" />
+    <Setter Property="Padding" Value="18,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource VertDeGris}" />
+    <Setter Property="Foreground" Value="#0B1412" />
+    <Setter Property="CornerRadius" Value="10" />
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#6FB3A6" />
+    <Setter Property="Foreground" Value="#0B1412" />
+  </Style>
+  <Style Selector="Button.primary:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#548D83" />
+    <Setter Property="Foreground" Value="#0B1412" />
+  </Style>
+
+  <!-- Or : la décision humaine (relire, approuver). -->
+  <Style Selector="Button.gold">
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.gold /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Laiton}" />
+    <Setter Property="Foreground" Value="#17150F" />
+    <Setter Property="CornerRadius" Value="8" />
+  </Style>
+  <Style Selector="Button.gold:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#E4C681" />
+    <Setter Property="Foreground" Value="#17150F" />
+  </Style>
+  <Style Selector="Button.gold:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#C2A35C" />
+    <Setter Property="Foreground" Value="#17150F" />
+  </Style>
+
+  <!-- Contour : l'action secondaire (annuler, refuser, se connecter avec…). -->
+  <Style Selector="Button.outline">
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.outline /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#131417" />
+    <Setter Property="BorderBrush" Value="#2E3237" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+  <Style Selector="Button.outline:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#1A1C20" />
+    <Setter Property="BorderBrush" Value="#3A3F45" />
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+  <Style Selector="Button.outline:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#202328" />
+    <Setter Property="BorderBrush" Value="#454B52" />
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+
+  <!-- Pastille : suggestions, poste, traits. Allumée (.on ou cochée) : vert-de-gris. -->
+  <Style Selector=":is(Button).chip">
+    <Setter Property="Height" Value="32" />
+    <Setter Property="Padding" Value="14,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector=":is(Button).chip /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="#2A2D31" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="17" />
+    <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+  </Style>
+  <Style Selector=":is(Button).chip:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   :is(Button).chip:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#16181B" />
+    <Setter Property="BorderBrush" Value="#3A3F45" />
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+  <Style Selector=":is(Button).chip.on /template/ ContentPresenter#PART_ContentPresenter,
+                   ToggleButton.chip:checked /template/ ContentPresenter#PART_ContentPresenter,
+                   ToggleButton.chip:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   ToggleButton.chip:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#1F5E9E92" />
+    <Setter Property="BorderBrush" Value="{StaticResource VertDeGris}" />
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+
+  <!-- Bascule laiton (REPORT.md) : éteinte en contour, allumée en or. -->
+  <Style Selector="ToggleButton.report /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="#2A2D31" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Foreground" Value="{StaticResource Cendre}" />
+  </Style>
+  <Style Selector="ToggleButton.report:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   ToggleButton.report:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#16181B" />
+    <Setter Property="BorderBrush" Value="#3A3F45" />
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+  <Style Selector="ToggleButton.report:checked /template/ ContentPresenter#PART_ContentPresenter,
+                   ToggleButton.report:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   ToggleButton.report:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#1AD8B86E" />
+    <Setter Property="BorderBrush" Value="#73D8B86E" />
+    <Setter Property="Foreground" Value="{StaticResource Laiton}" />
+  </Style>
+
+  <!-- Envoyer : le rond vert-de-gris du compositeur. -->
+  <Style Selector="Button.send /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource VertDeGris}" />
+    <Setter Property="CornerRadius" Value="21" />
+  </Style>
+  <Style Selector="Button.send:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#6FB3A6" />
+  </Style>
+  <Style Selector="Button.send:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#548D83" />
+  </Style>
 
   <!-- Onglet de la navigation en pilule. -->
   <Style Selector="Button.tab">
-    <Setter Property="Height" Value="34" />
+    <Setter Property="Height" Value="32" />
     <Setter Property="Padding" Value="14,0" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Foreground" Value="{StaticResource Pierre}" />
-    <Setter Property="Cursor" Value="Hand" />
   </Style>
   <Style Selector="Button.tab /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="CornerRadius" Value="9" />
     <Setter Property="Foreground" Value="{StaticResource Pierre}" />
   </Style>
-  <Style Selector="Button.tab:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+  <Style Selector="Button.tab:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   Button.tab:pressed /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="#1C1F23" />
     <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
   </Style>
-  <Style Selector="Button.tab.active /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Filet}" />
+  <Style Selector="Button.tab.active /template/ ContentPresenter#PART_ContentPresenter,
+                   Button.tab.active:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#24272C" />
     <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
   </Style>
 
@@ -94,6 +292,198 @@
     <Setter Property="CornerRadius" Value="10" />
   </Style>
   <Style Selector="Button.square:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="{StaticResource Graphite}" />
+    <Setter Property="Background" Value="#1C1F23" />
+    <Setter Property="BorderBrush" Value="#3A3F45" />
+  </Style>
+  <Style Selector="Button.square:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#24272C" />
+    <Setter Property="BorderBrush" Value="#454B52" />
+  </Style>
+
+  <!-- Désactivé : le même gris pour tous. -->
+  <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter,
+                   Button.gold:disabled /template/ ContentPresenter#PART_ContentPresenter,
+                   Button.send:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource Filet}" />
+    <Setter Property="Foreground" Value="{StaticResource Cendre}" />
+  </Style>
+  <Style Selector="Button.outline:disabled /template/ ContentPresenter#PART_ContentPresenter,
+                   :is(Button).chip:disabled /template/ ContentPresenter#PART_ContentPresenter,
+                   ToggleButton.report:disabled /template/ ContentPresenter#PART_ContentPresenter,
+                   Button.square:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="#5C5952" />
+  </Style>
+
+  <!-- ============ Champs ============ -->
+
+  <Style Selector="TextBox">
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    <Setter Property="CaretBrush" Value="{StaticResource VertDeGris}" />
+    <Setter Property="SelectionBrush" Value="#555E9E92" />
+    <Setter Property="SelectionForegroundBrush" Value="{StaticResource Parchemin}" />
+    <Setter Property="PlaceholderForeground" Value="#6F6B63" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Padding" Value="12,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="TextBox:not(.composer) /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="#16181B" />
+    <Setter Property="BorderBrush" Value="#2E3237" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.18" />
+        <BrushTransition Property="Background" Duration="0:0:0.18" />
+        <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.2" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="#16181B" />
+    <Setter Property="BorderBrush" Value="#3A3F45" />
+  </Style>
+  <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+    <Setter Property="Background" Value="#16181B" />
+    <Setter Property="BorderBrush" Value="{StaticResource VertDeGris}" />
+    <Setter Property="BoxShadow" Value="0 0 0 3 #295E9E92" />
+  </Style>
+  <Style Selector="TextBox:pointerover, TextBox:focus">
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+
+  <!-- ============ Listes déroulantes ============ -->
+
+  <Style Selector="ComboBox">
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="Padding" Value="12,0,8,0" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="ComboBox:not(.plain) /template/ Border#Background">
+    <Setter Property="Background" Value="#111215" />
+    <Setter Property="BorderBrush" Value="#2A2D31" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Transitions">
+      <Transitions>
+        <BrushTransition Property="BorderBrush" Duration="0:0:0.18" />
+        <BrushTransition Property="Background" Duration="0:0:0.18" />
+      </Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="ComboBox:pointerover /template/ Border#Background, ComboBox:pressed /template/ Border#Background">
+    <Setter Property="Background" Value="#16181B" />
+    <Setter Property="BorderBrush" Value="#3A3F45" />
+  </Style>
+  <Style Selector="ComboBox:dropdownopen /template/ Border#Background, ComboBox:focus-visible /template/ Border#Background">
+    <Setter Property="Background" Value="#16181B" />
+    <Setter Property="BorderBrush" Value="{StaticResource VertDeGris}" />
+  </Style>
+  <Style Selector="ComboBox:not(.plain) /template/ Border#HighlightBackground">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="ComboBox:pointerover /template/ ContentControl#ContentPresenter, ComboBox:pressed /template/ ContentControl#ContentPresenter">
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+  <Style Selector="ComboBox:not(.plain) /template/ TextBlock#PlaceholderTextBlock">
+    <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+  </Style>
+  <!-- La flèche tourne quand la liste s'ouvre. -->
+  <Style Selector="ComboBox:not(.plain) /template/ PathIcon#DropDownGlyph">
+    <Setter Property="Foreground" Value="{StaticResource Cendre}" />
+    <Setter Property="RenderTransform" Value="rotate(0deg)" />
+    <Setter Property="Transitions">
+      <Transitions><TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.22" Easing="CubicEaseOut" /></Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="ComboBox:dropdownopen /template/ PathIcon#DropDownGlyph">
+    <Setter Property="RenderTransform" Value="rotate(180deg)" />
+  </Style>
+  <Style Selector="ComboBox:pointerover /template/ PathIcon#DropDownGlyph, ComboBox:pressed /template/ PathIcon#DropDownGlyph">
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+  <!-- Le menu : une carte sombre arrondie. -->
+  <Style Selector="ComboBox:not(.plain) /template/ Border#PopupBorder">
+    <Setter Property="Background" Value="#16181B" />
+    <Setter Property="BorderBrush" Value="#2A2D31" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="4" />
+  </Style>
+  <Style Selector="ComboBoxItem">
+    <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+    <Setter Property="FontSize" Value="12.5" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="Margin" Value="0,1" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="ComboBoxItem:not(.plain) /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Transitions">
+      <Transitions><BrushTransition Property="Background" Duration="0:0:0.15" /></Transitions>
+    </Setter>
+  </Style>
+  <Style Selector="ComboBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   ComboBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#1D2024" />
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+  <Style Selector="ComboBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter,
+                   ComboBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   ComboBoxItem:selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#1F5E9E92" />
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+  </Style>
+
+  <!-- ============ Listes, défilement, infobulles, menus ============ -->
+
+  <!-- Les listes gardent le dessin de leurs cartes : pas de fond Fluent au survol ni à la sélection. -->
+  <Style Selector="ListBox">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ListBoxItem">
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="ListBoxItem:not(.plain) /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBoxItem:pressed /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBoxItem:selected:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                   ListBoxItem:selected:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ScrollBar">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+  <Style Selector="ScrollBar Thumb">
+    <Setter Property="Background" Value="#3A3F45" />
+  </Style>
+  <Style Selector="ScrollBar Thumb:pointerover">
+    <Setter Property="Background" Value="#4A5057" />
+  </Style>
+
+  <Style Selector="ToolTip">
+    <Setter Property="Background" Value="#1D2024" />
+    <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    <Setter Property="BorderBrush" Value="#2E3237" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="10,6" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+
+  <!-- Le menu qui s'ouvre sous un bouton (choix de l'agent) : une carte sombre. -->
+  <Style Selector="FlyoutPresenter">
+    <Setter Property="Background" Value="#16181B" />
+    <Setter Property="BorderBrush" Value="#2A2D31" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Padding" Value="6" />
+    <Setter Property="MinWidth" Value="0" />
   </Style>
 </Styles>

@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:AgentYattus.Client.Core"
              xmlns:conv="using:AgentYattus.Desktop.Converters"
-             x:Class="AgentYattus.Desktop.Views.RecruitView"
+             x:Class="AgentYattus.Desktop.Views.RecruitView" Classes="screen"
              x:DataType="core:RecruitViewModel"
              Foreground="{StaticResource Parchemin}">
 
@@ -42,51 +42,6 @@
       </Setter>
     </Style>
     <Style Selector="Border.ring.selected"><Setter Property="BorderBrush" Value="{StaticResource VertDeGris}" /></Style>
-    <!-- Poste et traits : des pastilles qui changent de couleur en douceur. -->
-    <Style Selector=":is(Button).chip">
-      <Setter Property="Height" Value="32" />
-      <Setter Property="Padding" Value="14,0" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-    <Style Selector=":is(Button).chip /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="#2A2D31" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="16" />
-      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
-      <Setter Property="Transitions">
-        <Transitions>
-          <BrushTransition Property="Background" Duration="0:0:0.2" />
-          <BrushTransition Property="BorderBrush" Duration="0:0:0.2" />
-        </Transitions>
-      </Setter>
-    </Style>
-    <Style Selector=":is(Button).chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="BorderBrush" Value="#3A3F45" />
-      <Setter Property="Background" Value="#16181B" />
-      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
-    </Style>
-    <Style Selector=":is(Button).chip.on /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.chip:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.chip:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#1F5E9E92" />
-      <Setter Property="BorderBrush" Value="{StaticResource VertDeGris}" />
-      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
-    </Style>
-    <Style Selector="Button.primary">
-      <Setter Property="Height" Value="42" />
-      <Setter Property="Padding" Value="18,0" />
-      <Setter Property="Cursor" Value="Hand" />
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-    </Style>
-    <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource VertDeGris}" />
-      <Setter Property="Foreground" Value="#0B1412" />
-      <Setter Property="CornerRadius" Value="10" />
-    </Style>
-    <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource Filet}" />
-      <Setter Property="Foreground" Value="{StaticResource Cendre}" />
-    </Style>
     <!-- Le badge se balance doucement au bout de son cordon. -->
     <Style Selector="Border.badge">
       <Setter Property="RenderTransformOrigin" Value="50%,-20%" />
@@ -191,7 +146,7 @@
         <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="20" RowSpacing="8">
           <TextBlock Text="Prénom" FontSize="12.5" Foreground="{StaticResource Pierre}" />
           <TextBlock Grid.Column="1" Text="Poste" FontSize="12.5" Foreground="{StaticResource Pierre}" />
-          <TextBox Grid.Row="1" Text="{Binding Name}" Watermark="ex. Nora" MaxLength="24" Height="40" VerticalContentAlignment="Center" />
+          <TextBox Grid.Row="1" Text="{Binding Name}" PlaceholderText="ex. Nora" MaxLength="24" Height="40" VerticalContentAlignment="Center" />
           <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Roles}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><WrapPanel ItemSpacing="8" /></ItemsPanelTemplate>

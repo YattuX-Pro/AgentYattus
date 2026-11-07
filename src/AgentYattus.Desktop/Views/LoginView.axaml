@@ -1,7 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:AgentYattus.Client.Core"
-             x:Class="AgentYattus.Desktop.Views.LoginView"
+             x:Class="AgentYattus.Desktop.Views.LoginView" Classes="screen"
              x:DataType="core:LoginViewModel"
              Foreground="{StaticResource Parchemin}">
 
@@ -16,33 +16,6 @@
       <Setter Property="HorizontalAlignment" Value="Stretch" />
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="Cursor" Value="Hand" />
-    </Style>
-    <Style Selector="Button.primary /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource VertDeGris}" />
-      <Setter Property="Foreground" Value="#0B1412" />
-      <Setter Property="CornerRadius" Value="9" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-    <Style Selector="Button.primary:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#6FB3A6" />
-      <Setter Property="Foreground" Value="#0B1412" />
-    </Style>
-    <Style Selector="Button.provider /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#131417" />
-      <Setter Property="BorderBrush" Value="#2E3237" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="9" />
-      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
-    </Style>
-    <Style Selector="Button.provider:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#1A1C20" />
-      <Setter Property="BorderBrush" Value="#3A3F45" />
-      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
-    </Style>
-    <Style Selector="Button.primary:disabled /template/ ContentPresenter#PART_ContentPresenter, Button.provider:disabled /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource Filet}" />
-      <Setter Property="Foreground" Value="{StaticResource Cendre}" />
     </Style>
 
     <!-- Animations du visuel : le flux des outils, et ce qui attend une décision -->
@@ -234,7 +207,7 @@
             <Border Grid.Column="2" Height="1" Background="{StaticResource Filet}" VerticalAlignment="Center" />
           </Grid>
 
-          <Button Classes="provider" Command="{Binding LoginCommand}" CommandParameter="google">
+          <Button Classes="outline provider" Command="{Binding LoginCommand}" CommandParameter="google">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <Viewbox Width="17" Height="17" VerticalAlignment="Center">
                 <Canvas Width="24" Height="24">
@@ -248,7 +221,7 @@
             </StackPanel>
           </Button>
 
-          <Button Classes="provider" Command="{Binding LoginCommand}" CommandParameter="github">
+          <Button Classes="outline provider" Command="{Binding LoginCommand}" CommandParameter="github">
             <StackPanel Orientation="Horizontal" Spacing="10">
               <Viewbox Width="17" Height="17" VerticalAlignment="Center">
                 <Canvas Width="24" Height="24">

@@ -2,7 +2,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:AgentYattus.Client.Core"
              xmlns:conv="using:AgentYattus.Desktop.Converters"
-             x:Class="AgentYattus.Desktop.Views.OfficeView"
+             x:Class="AgentYattus.Desktop.Views.OfficeView" Classes="screen"
              x:DataType="core:OfficeViewModel"
              Foreground="{StaticResource Parchemin}">
 
@@ -78,27 +78,6 @@
           <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
         </Animation>
       </Style.Animations>
-    </Style>
-    <Style Selector="Button.gold, Button.outline">
-      <Setter Property="VerticalContentAlignment" Value="Center" />
-      <Setter Property="HorizontalContentAlignment" Value="Center" />
-      <Setter Property="Cursor" Value="Hand" />
-    </Style>
-    <Style Selector="Button.gold /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource Laiton}" />
-      <Setter Property="Foreground" Value="#17150F" />
-      <Setter Property="CornerRadius" Value="8" />
-    </Style>
-    <Style Selector="Button.gold:disabled /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource Filet}" />
-      <Setter Property="Foreground" Value="{StaticResource Cendre}" />
-    </Style>
-    <Style Selector="Button.outline /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="#3A3F45" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="8" />
-      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
     </Style>
     <!-- /region -->
     <!-- region:feed -->
