@@ -136,4 +136,29 @@ public sealed class SkillsTests
         var result = model.Requests[1].SelectMany(m => m.Contents).OfType<FunctionResultContent>().Single().Result?.ToString();
         Assert.Equal("Compétence inconnue. Tes compétences : rapport-client.", result);
     }
+
+    [Fact]
+    public async Task In_a_shared_project_a_personal_skill_only_serves_its_author()
+    {
+        var model = new ScriptedChatClient(Text("Fait."));
+        await using var api = new ScriptedModelApiFactory(model);
+        var root = As(api, "root", instanceAdmin: true);
+        var alice = As(api, "alice");
+        var bob = As(api, "bob");
+        await bob.GetAsync(IdentityProtocol.Me, Ct);
+        var hers = await CreateAsync(alice, Report);
+        var nora = await TeamTests.PortraitAsync(root, "nora", "Nora");
+        var project = (await (await alice.PostAsJsonAsync(ProjectsProtocol.Path, new CreateProjectRequest("Commun"), Ct))
+            .Content.ReadFromJsonAsync<ProjectDto>(Ct))!;
+        await alice.PutAsJsonAsync(ProjectsProtocol.Members(project.Id, "bob"), new SetProjectMemberRequest(ProjectRole.Editor), Ct);
+        await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(api.Workspace), Ct);
+        await alice.PostAsJsonAsync(TeamProtocol.ProjectColleagues(project.Id), new RecruitRequest("analyste", nora.Id, "Nora", [], [hers.Key]), Ct);
+
+        // Bob lance une mission avec Nora : la compétence d'Alice n'entre pas dans sa conversation.
+        var mission = (await (await bob.PostAsJsonAsync("/missions", new CreateMissionRequest("Récite tes compétences", MissionKind.Question, project.Id), Ct))
+            .Content.ReadFromJsonAsync<MissionDto>(Ct))!;
+        await bob.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
+        Assert.DoesNotContain("rapport-client", model.Options[0]!.Instructions);
+        Assert.DoesNotContain("use_skill", model.Options[0]!.Tools?.Select(t => t.Name) ?? []);
+    }
 }

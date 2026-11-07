@@ -62,18 +62,22 @@ return skill.Body;
 
 `allowed` ne contient que les compétences de ce collègue. Le nom vient du modèle, qui peut en inventer un : la vérification se fait dans le code, jamais dans la consigne.
 
+**Dans un projet partagé.** Si Alice donne sa compétence à Nora, et que Bob lance une mission avec Nora, Bob pourrait demander à l'agent de réciter la procédure. Le runner ne charge donc que les compétences de l'instance et celles de **la personne qui a lancé la mission** (`launchedBy`). Une revue de sécurité automatique a relevé ce cas après le premier commit ; le test `In_a_shared_project_a_personal_skill_only_serves_its_author` le garde.
+
 **Le trajet.** `MissionWorker` demande au module Team les **sièges** du projet (`SeatsAsync`). Chaque siège porte la présentation du collègue et les clés de ses compétences (`AgentSeat`). Le runner reçoit ces sièges, sans jamais lire la base d'un autre module.
 
 ## 6. Vérifie toi-même
 
-- `dotnet test --filter SkillsTests` lance trois tests :
+- `dotnet test --filter SkillsTests` lance quatre tests :
   - chacun ses compétences ;
   - l'index sans la procédure, puis la procédure chargée sur demande ;
-  - une compétence que le collègue n'a pas reste fermée.
+  - une compétence que le collègue n'a pas reste fermée ;
+  - dans un projet partagé, celle d'Alice ne sert pas à Bob.
 - **Cas d'échec** : Bob recrute avec la compétence d'Alice, il reçoit une 400. L'agent demande « secret », il reçoit « Compétence inconnue ».
 
 ## 7. Les limites
 
+- **Une procédure cachée n'est pas un secret absolu.** L'agent la lit ; un utilisateur insistant peut lui demander de la réciter. Comme pour une consigne cachée (leçon 103), on n'y met pas de vrai secret (clé, mot de passe).
 - **Le modèle doit penser à appeler `use_skill`.** Un petit modèle peut l'oublier. Des évaluations le mesureraient.
 - **Pas de scripts.** Une compétence est du texte. Exécuter du code demanderait un bac à sable.
 - **Pour l'instant, rien à l'écran.** Les compétences ne se gèrent que par l'API. L'écran « Nouveau collègue » vient dans le prochain commit.

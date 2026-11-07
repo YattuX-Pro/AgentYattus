@@ -43,7 +43,7 @@ internal sealed class AgentFrameworkRunner(
 
     public async Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
-        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, CancellationToken cancellationToken)
+        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         // Les réglages de l'instance (admin › Réglages) l'emportent sur la configuration de départ (ADR 0010).
@@ -75,7 +75,7 @@ internal sealed class AgentFrameworkRunner(
             // Revue, étape 1 : l'Analyste explore et rend ses constats. Il n'a aucun outil d'écriture : il ne s'arrête jamais.
             await audit.AppendAsync(missionId, $"agent:{AgentRoles.Analyst.Key}", cancellationToken);
             var (analysis, analysisUsage) = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, instanceMax,
-                [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], seats, cancellationToken);
+                [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], seats, launchedBy, cancellationToken);
             usage += analysisUsage;
             var findings = analysis.Text;
 
@@ -87,7 +87,7 @@ internal sealed class AgentFrameworkRunner(
         // Même retiré entre-temps, l'agent d'une mission en pause la termine : la décision humaine reste possible.
         var role = await catalog.FindAsync(stage.Role, cancellationToken)
                    ?? throw new InvalidOperationException($"L'agent « {stage.Role} » n'existe plus.");
-        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, seats, cancellationToken);
+        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, seats, launchedBy, cancellationToken);
         usage += roleUsage;
 
         var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
@@ -114,16 +114,18 @@ internal sealed class AgentFrameworkRunner(
 
     private async Task<(AgentResponse Response, AgentUsage Usage)> RunRoleAsync(
         Guid missionId, AgentRole role, IReadOnlyList<AIFunction> allTools, int instanceMax,
-        List<ChatMessage> history, IReadOnlyDictionary<string, AgentSeat>? seats, CancellationToken cancellationToken)
+        List<ChatMessage> history, IReadOnlyDictionary<string, AgentSeat>? seats, string? launchedBy, CancellationToken cancellationToken)
     {
         // La consigne et la limite en vigueur pour ce rôle ; les garde-fous sont toujours ajoutés par le code.
         var definition = await definitions.CurrentAsync(role.Key, cancellationToken);
         var maxIterations = definition?.MaxIterations ?? instanceMax;
         var seat = seats?.GetValueOrDefault(role.Key);
         // Les compétences du collègue (leçon 104) ; une compétence retirée depuis n'est plus chargée.
+        // Dans un projet partagé, celle d'Alice ne sert qu'aux missions d'Alice : Bob ne la lit pas en la faisant réciter à l'agent.
         var keys = seat?.Skills ?? [];
         var skills = keys.Count == 0 ? [] : await db.Skills.AsNoTracking()
-            .Where(s => keys.Contains(s.Key) && s.Active).OrderBy(s => s.Key).ToListAsync(cancellationToken);
+            .Where(s => keys.Contains(s.Key) && s.Active && (s.OwnerId == null || s.OwnerId == launchedBy))
+            .OrderBy(s => s.Key).ToListAsync(cancellationToken);
         var instructions = AgentRoles.Compose(role, definition?.Instructions, seat?.Style, [.. skills.Select(s => (s.Key, s.Description))]);
 
         // Chaque rôle a son modèle : le sien s'il en a un, sinon celui par défaut.
