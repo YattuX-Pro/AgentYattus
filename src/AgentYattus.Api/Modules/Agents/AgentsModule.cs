@@ -192,7 +192,8 @@ public static class AgentsModule
                 if ((await catalog.RolesAsync(cancellationToken)).FirstOrDefault(r => r.Key == basedOn) is not { } baseRole)
                     return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["basedOn"] = ["Poste inconnu."] });
                 instructions = (await definitions.CurrentAsync(basedOn, cancellationToken))?.Instructions ?? baseRole.Instructions;
-                hidden = !await catalog.CanEditAsync(basedOn, cancellationToken);
+                // Le caché se transmet : une copie d'une copie cachée reste cachée.
+                hidden = !await catalog.CanReadInstructionsAsync(basedOn, cancellationToken);
             }
             var errors = Validate(name, summary, tools);
             if (instructions.Length is < 20 or > 8000)

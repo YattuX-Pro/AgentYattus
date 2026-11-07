@@ -73,6 +73,12 @@ public sealed class CustomAgentsTests
         Assert.True(hers.Mine);
         Assert.Empty(hers.Instructions);
 
+        // Recopier sa propre copie cachée ne la rend pas lisible.
+        var laundered = (await (await alice.PostAsJsonAsync(AgentsProtocol.Path,
+            new CreateAgentRequest("Copie de Nora", "Copie de copie.", "", ["read_file"], BasedOn: nora.Key), Ct)).Content.ReadFromJsonAsync<AgentDto>(Ct))!;
+        Assert.Empty(laundered.Instructions);
+        Assert.Empty((await alice.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!.Single(a => a.Key == laundered.Key).Instructions);
+
         // Sa propre consigne, elle la relit.
         var own = (await (await alice.PostAsJsonAsync(AgentsProtocol.Path,
             new CreateAgentRequest("Agent de Lina", "Relit les migrations.", "Tu relis les migrations et tu signales les risques.", ["read_file"]), Ct))

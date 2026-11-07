@@ -113,6 +113,11 @@ internal sealed class AgentCatalog(AgentsDb db, ICurrentUser me) : IAgentCatalog
     public async Task<bool> CanEditAsync(string key, CancellationToken ct) =>
         me.IsInstanceAdmin || (MeId is { } id && await OwnerOfAsync(key, ct) == id);
 
+    /// <summary>Lire la consigne d'un agent : l'administrateur, ou son propriétaire si elle n'a pas été héritée d'un poste caché.</summary>
+    public async Task<bool> CanReadInstructionsAsync(string key, CancellationToken ct) =>
+        me.IsInstanceAdmin || (MeId is { } id && await db.CustomRoles.AsNoTracking()
+            .AnyAsync(r => r.Key == key && r.OwnerId == id && !r.InstructionsHidden, ct));
+
     /// <summary>Les agents de l'utilisateur, et pour chacun : peut-il lire sa consigne (faux si elle vient d'un poste caché) ?</summary>
     public async Task<Dictionary<string, bool>> MineAsync(CancellationToken ct)
     {
