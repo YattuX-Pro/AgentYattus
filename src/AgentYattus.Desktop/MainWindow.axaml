@@ -18,6 +18,7 @@
     <DataTemplate DataType="core:RecruitViewModel"><views:RecruitView /></DataTemplate>
     <DataTemplate DataType="core:AgentsViewModel"><views:AgentsView /></DataTemplate>
     <DataTemplate DataType="core:ReportsViewModel"><views:ReportsView /></DataTemplate>
+    <DataTemplate DataType="core:SettingsViewModel"><views:SettingsView /></DataTemplate>
   </Window.DataTemplates>
 
   <Grid RowDefinitions="Auto,*">
@@ -68,6 +69,9 @@
               <StackPanel Width="200" Spacing="2">
                 <Button Classes="bare menu" Command="{Binding OpenAdminCommand}" IsVisible="{Binding IsLlmAdmin}">
                   <TextBlock Text="Ouvrir l’espace admin" FontSize="13" />
+                </Button>
+                <Button Classes="bare menu" Command="{Binding ShowSettingsCommand}" IsVisible="{Binding CanManageModels}">
+                  <TextBlock Text="Modèles et clés" FontSize="13" />
                 </Button>
                 <Button Classes="bare menu" Command="{Binding LogoutCommand}" IsVisible="{Binding CanLogout}">
                   <TextBlock Text="Se déconnecter" FontSize="13" />

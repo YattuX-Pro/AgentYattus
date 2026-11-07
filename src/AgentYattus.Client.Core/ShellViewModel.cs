@@ -37,6 +37,17 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Faux en mode local (ADR 0014) : personne ne se connecte, donc personne ne se déconnecte.</summary>
     public bool CanLogout => Login is not null;
 
+    /// <summary>Mode local : les modèles et les clés se règlent ici, faute d'espace admin web (ADR 0014).</summary>
+    public bool CanManageModels => Login is null;
+
+    [RelayCommand]
+    private async Task ShowSettingsAsync()
+    {
+        var screen = new SettingsViewModel(_api);
+        Current = screen;
+        await screen.LoadAsync();
+    }
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowNav))]
     public partial bool IsAuthenticated { get; set; }
