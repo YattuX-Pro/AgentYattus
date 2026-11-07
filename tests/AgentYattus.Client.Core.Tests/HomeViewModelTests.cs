@@ -151,7 +151,7 @@ public sealed class HomeViewModelTests
 
         await vm.LoadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(["http://api/missions?limit=50", "http://api/projects", "http://api/agents"], sent);
+        Assert.Equal(["http://api/missions?limit=50", "http://api/projects", "http://api/projects/workspace-roots", "http://api/agents"], sent);
         Assert.Equal(missions.Select(m => m.Id), vm.Missions.Select(m => m.Id));
         Assert.True(vm.Missions[0].IsAwaitingApproval);
         Assert.Equal("À valider", vm.Missions[0].StatusLabel);
@@ -178,6 +178,45 @@ public sealed class HomeViewModelTests
         Assert.True(vm.WriteReport);
         Assert.Contains("\"kind\":\"Review\"", body);
         Assert.True(vm.Missions[0].IsReview);
+    }
+
+    [Fact]
+    public async Task The_owner_picks_the_project_folder_with_the_system_picker()
+    {
+        var project = new ProjectDto(Guid.NewGuid(), "Perso", null, null, new UserRefDto("me", "me", null), ProjectVisibility.Private, true, null,
+            ProjectRole.Owner, true, [], DateTimeOffset.UtcNow);
+        var folder = Directory.CreateTempSubdirectory("mon-depot").FullName;
+        string? put = null;
+        var handler = new StubHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Put)
+            {
+                put = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+            object content = path switch
+            {
+                "/projects" => new[] { project },
+                "/projects/workspace-roots" => new WorkspaceRootsDto(true, []),
+                "/agents" => Array.Empty<AgentDto>(),
+                _ => Array.Empty<MissionDto>(),
+            };
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(content, content.GetType()) };
+        });
+        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }))
+        {
+            PickFolder = _ => Task.FromResult<string?>(folder),
+        };
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(vm.CanChooseFolder);
+        Assert.Equal("Choisir un dossier", vm.FolderLabel);
+        await vm.ChooseFolderCommand.ExecuteAsync(null);
+
+        Assert.Contains(System.Text.Json.JsonSerializer.Serialize(folder), put);
+        Assert.Equal(Path.GetFileName(folder), vm.FolderLabel);
+        Assert.Equal(folder, vm.SelectedProject!.Workspace);
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler

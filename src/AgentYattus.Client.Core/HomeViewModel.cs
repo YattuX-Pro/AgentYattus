@@ -84,7 +84,51 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
 
     partial void OnSelectedAgentChanged(AgentDto? value) => SyncChosen();
     partial void OnWriteReportChanged(bool value) => SyncChosen();
-    partial void OnSelectedProjectChanged(ProjectDto? value) => _ = LoadCrewAsync();
+    partial void OnSelectedProjectChanged(ProjectDto? value)
+    {
+        OnPropertyChanged(nameof(FolderLabel));
+        OnPropertyChanged(nameof(FolderTip));
+        OnPropertyChanged(nameof(CanChooseFolder));
+        _ = LoadCrewAsync();
+    }
+
+    // Où l'on peut choisir le dossier de ses projets (ADR 0014) ; inconnu tant que l'API n'a pas répondu.
+    private WorkspaceRootsDto _roots = new(false, []);
+
+    /// <summary>Ouvre le sélecteur de dossiers du système ; fourni par la vue (le ViewModel ne connaît pas l'interface).</summary>
+    public Func<string?, Task<string?>>? PickFolder { get; set; }
+
+    /// <summary>Le dossier du projet, par son nom : « mon-depot » ; sinon une invitation à en choisir un.</summary>
+    public string FolderLabel => SelectedProject?.Workspace is { Length: > 0 } folder
+        ? Path.GetFileName(Path.TrimEndingDirectorySeparator(folder)) : "Choisir un dossier";
+
+    public string FolderTip => SelectedProject?.Workspace is { Length: > 0 } folder
+        ? $"Les agents travaillent dans {folder}" : "Le dossier où les agents liront et écriront, avec votre accord";
+
+    /// <summary>Le gestionnaire du projet, s'il a un endroit où choisir (partout, ou sous un dossier autorisé).</summary>
+    public bool CanChooseFolder => SelectedProject?.CanManage == true && (_roots.Anywhere || _roots.Roots.Count > 0);
+
+    [RelayCommand]
+    private async Task ChooseFolderAsync()
+    {
+        if (SelectedProject is not { } project || PickFolder is null)
+            return;
+        var path = await PickFolder(project.Workspace ?? _roots.Roots.FirstOrDefault());
+        if (path is null)
+            return;
+        try
+        {
+            await api.SetWorkspaceAsync(project.Id, path);
+            var updated = project with { Workspace = Path.GetFullPath(path) };
+            Projects[Projects.IndexOf(project)] = updated;
+            SelectedProject = updated;
+            Error = null;
+        }
+        catch (HttpRequestException ex)
+        {
+            Error = ex.Message;
+        }
+    }
 
     /// <summary>Cliquer sur un visage : c'est lui qui fera la mission (une revue garde son circuit).</summary>
     [RelayCommand]
@@ -224,6 +268,16 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         {
             Projects.Clear();
             SelectedProject = null;
+        }
+
+        try
+        {
+            _roots = await api.GetWorkspaceRootsAsync(cancellationToken);
+            OnPropertyChanged(nameof(CanChooseFolder));
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            // Sans la réponse, le bouton reste caché ; le reste de l'accueil fonctionne.
         }
 
         try

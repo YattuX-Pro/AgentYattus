@@ -47,6 +47,16 @@ public sealed class ApiClient(HttpClient http)
         return true;
     }
 
+    /// <summary>Où l'on peut choisir le dossier de ses projets (ADR 0014).</summary>
+    public async Task<WorkspaceRootsDto> GetWorkspaceRootsAsync(CancellationToken cancellationToken = default) =>
+        await http.GetFromJsonAsync<WorkspaceRootsDto>(ProjectsProtocol.WorkspaceRoots.TrimStart('/'), cancellationToken) ?? new(false, []);
+
+    public async Task SetWorkspaceAsync(Guid project, string? path, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PutAsJsonAsync(ProjectsProtocol.Workspace(project).TrimStart('/'), new SetWorkspaceRequest(path), cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ProjectDto>> GetProjectsAsync(CancellationToken cancellationToken = default) =>
         await http.GetFromJsonAsync<ProjectDto[]>(ProjectsProtocol.Path.TrimStart('/'), cancellationToken) ?? [];
 

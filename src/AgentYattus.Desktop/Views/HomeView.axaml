@@ -188,7 +188,7 @@
           <StackPanel Spacing="8">
             <TextBox Classes="composer" Text="{Binding Goal}" PlaceholderText="Décrivez l’objectif…"
                      AcceptsReturn="True" TextWrapping="Wrap" FontSize="17" LineHeight="24.65" Height="78" />
-            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="10">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="10">
               <!-- Bascule : une simple question, ou une revue à deux agents qui écrit REPORT.md (avec ton accord). -->
               <ToggleButton Classes="report" IsChecked="{Binding WriteReport}" Height="32" Padding="12,0" VerticalAlignment="Center"
                             ToolTip.Tip="Revue à deux : l’Analyste rend ses constats, le Rédacteur écrit REPORT.md, que tu approuves">
@@ -207,8 +207,17 @@
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
               </ComboBox>
+              <!-- Le dossier du projet (ADR 0014) : son propriétaire le choisit avec le sélecteur du système. -->
+              <Button Grid.Column="2" Classes="who" Height="32" Padding="10,0" VerticalAlignment="Center" Command="{Binding ChooseFolderCommand}"
+                      IsVisible="{Binding CanChooseFolder}" ToolTip.Tip="{Binding FolderTip}">
+                <StackPanel Orientation="Horizontal" Spacing="7">
+                  <Path Data="M3.5 7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" Stroke="{StaticResource Pierre}"
+                        StrokeThickness="1.8" StrokeJoin="Round" Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" />
+                  <TextBlock Text="{Binding FolderLabel}" FontSize="12.5" MaxWidth="150" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
               <!-- Qui fait la mission (ADR 0013) : un visage. Une revue suit toujours le circuit Analyste puis Rédacteur. -->
-              <Button Grid.Column="2" Classes="who" Height="32" Padding="4,0,10,0" IsEnabled="{Binding !WriteReport}" VerticalAlignment="Center"
+              <Button Grid.Column="3" Classes="who" Height="32" Padding="4,0,10,0" IsEnabled="{Binding !WriteReport}" VerticalAlignment="Center"
                       ToolTip.Tip="L’agent qui fait la mission">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <ItemsControl ItemsSource="{Binding Chosen}" VerticalAlignment="Center">
@@ -246,9 +255,9 @@
                   </Flyout>
                 </Button.Flyout>
               </Button>
-              <TextBlock Grid.Column="3" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
+              <TextBlock Grid.Column="4" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
                          TextWrapping="Wrap" VerticalAlignment="Center" Margin="4,0" />
-              <Button Grid.Column="4" Classes="send" Command="{Binding LaunchMissionCommand}"
+              <Button Grid.Column="5" Classes="send" Command="{Binding LaunchMissionCommand}"
                       Width="42" Height="42" Padding="0" HotKey="Ctrl+Enter"
                       ToolTip.Tip="Lancer la mission (Ctrl+Entrée)"
                       HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
