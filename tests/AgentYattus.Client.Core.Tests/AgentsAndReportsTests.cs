@@ -28,9 +28,9 @@ public sealed class AgentsAndReportsTests
     }
 
     [Fact]
-    public async Task Reports_keep_completed_missions_and_count_what_was_executed()
+    public async Task Reports_keep_finished_missions_and_count_what_was_executed()
     {
-        var done = new MissionDto(Guid.NewGuid(), "Rapport", MissionStatus.Completed, DateTimeOffset.UtcNow, "Fini.");
+        var done = new MissionDto(Guid.NewGuid(), "Rapport", MissionStatus.Completed, DateTimeOffset.UtcNow, "Fini.", Cost: 0.005m);
         MissionDto[] missions =
         [
             done,
@@ -48,12 +48,26 @@ public sealed class AgentsAndReportsTests
         for (var i = 0; i < 50 && vm.Stats is null; i++)
             await Task.Delay(10, TestContext.Current.CancellationToken);
 
-        Assert.Equal(done.Id, Assert.Single(vm.Reports).Id);
-        Assert.Equal(new ReportStats(Reads: 2, Approved: 1, Refused: 1), vm.Stats);
+        // Terminées et échouées (maquette Rapports) ; celle en cours n'a pas encore de rapport.
+        Assert.Equal(["Rapport", "Échouée"], vm.Reports.Select(r => r.Goal));
+        Assert.Equal(new ReportStats(Reads: 2, Approved: 1, Refused: 1, Cost: "0,005 $"), vm.Stats);
         // Le rapport raconté : votre question, puis la réponse de l'agent.
         Assert.Collection(vm.Thread,
             you => Assert.Equal(("Vous", "Rapport", true), (you.Name, you.Text, you.IsYou)),
             agent => Assert.Equal(("Analyste", "Fini.", false, (string?)null), (agent.Name, agent.Text, agent.IsYou, agent.File)));
+    }
+
+    [Fact]
+    public async Task A_failed_mission_is_told_in_a_red_bubble()
+    {
+        MissionDto[] missions = [new(Guid.NewGuid(), "Échouée", MissionStatus.Failed, DateTimeOffset.UtcNow)];
+        var vm = new ReportsViewModel(Api(path => path.EndsWith("/events") ? Array.Empty<AuditEntryDto>() : missions));
+
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        var agent = vm.Thread[1];
+        Assert.True(agent.Failed);
+        Assert.Equal("n’a pas abouti", agent.What);
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler

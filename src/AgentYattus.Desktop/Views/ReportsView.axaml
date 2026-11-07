@@ -26,142 +26,165 @@
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="Transitions">
         <Transitions>
-          <BrushTransition Property="Background" Duration="0:0:0.18" />
-          <BrushTransition Property="BorderBrush" Duration="0:0:0.18" />
+          <BrushTransition Property="Background" Duration="0:0:0.15" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
         </Transitions>
       </Setter>
     </Style>
     <Style Selector="ListBoxItem:pointerover Border.row">
-      <Setter Property="Background" Value="#111215" />
+      <Setter Property="Background" Value="{StaticResource Graphite}" />
     </Style>
     <Style Selector="ListBoxItem:selected Border.row">
       <Setter Property="Background" Value="{StaticResource Graphite}" />
       <Setter Property="BorderBrush" Value="#2A2D31" />
     </Style>
-    <!-- Les bulles : la vôtre à droite et sombre, celle de l'agent à gauche et claire. -->
+    <!-- Les bulles : la vôtre sombre, celle de l'agent claire, cinabre si la mission a échoué. -->
     <Style Selector="Border.bubble">
-      <Setter Property="Padding" Value="14,11" />
+      <Setter Property="Padding" Value="15,12" />
       <Setter Property="CornerRadius" Value="4,14,14,14" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="Background" Value="{StaticResource Parchemin}" />
     </Style>
-    <Style Selector="Border.bubble TextBlock, Border.bubble SelectableTextBlock">
+    <Style Selector="Border.bubble SelectableTextBlock">
       <Setter Property="Foreground" Value="#16181B" />
     </Style>
     <Style Selector="Border.bubble.you">
       <Setter Property="CornerRadius" Value="14,4,14,14" />
       <Setter Property="Background" Value="#24272C" />
     </Style>
-    <Style Selector="Border.bubble.you TextBlock, Border.bubble.you SelectableTextBlock">
+    <Style Selector="Border.bubble.failed">
+      <Setter Property="Background" Value="#14D9654B" />
+      <Setter Property="BorderBrush" Value="#66D9654B" />
+    </Style>
+    <Style Selector="Border.bubble.you SelectableTextBlock, Border.bubble.failed SelectableTextBlock">
       <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
     </Style>
+    <!-- Un chiffre du journal d'audit, séparé par un filet à gauche. -->
     <Style Selector="Border.stat">
-      <Setter Property="Padding" Value="0,0,0,0" />
+      <Setter Property="Padding" Value="18,0,0,0" />
+      <Setter Property="BorderBrush" Value="#1F2226" />
+      <Setter Property="BorderThickness" Value="1,0,0,0" />
     </Style>
   </UserControl.Styles>
 
-  <Grid ColumnDefinitions="340,*" Margin="28,16,28,20" ColumnSpacing="0">
+  <Grid ColumnDefinitions="400,*">
 
-    <!-- Qui a rendu quoi, du plus récent au plus ancien -->
-    <DockPanel Margin="0,0,20,0">
-      <TextBlock DockPanel.Dock="Top" Classes="eyebrow" Text="RAPPORTS" Margin="12,6,0,12" />
-      <TextBlock DockPanel.Dock="Top" Text="Aucune mission terminée pour l’instant." FontSize="13" Foreground="{StaticResource Cendre}"
-                 Margin="12,0" IsVisible="{Binding !Reports.Count}" />
-      <TextBlock DockPanel.Dock="Top" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5" Margin="12,0,0,8"
-                 IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-      <ListBox Classes="reports" ItemsSource="{Binding Reports}" SelectedItem="{Binding Selected}">
-        <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="core:MissionItem">
-            <Border Classes="row enter">
-              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
-                <ItemsControl ItemsSource="{Binding Faces}" VerticalAlignment="Center">
-                  <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-12" /></ItemsPanelTemplate>
-                  </ItemsControl.ItemsPanel>
-                  <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="core:Face">
-                      <views:Avatar Image="{Binding Work}" Label="{Binding Name}" Size="40" />
-                    </DataTemplate>
-                  </ItemsControl.ItemTemplate>
-                </ItemsControl>
-                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
-                  <TextBlock Text="{Binding Goal}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
-                  <TextBlock FontSize="12" Foreground="{StaticResource Cendre}" TextTrimming="CharacterEllipsis">
-                    <Run Text="{Binding Who}" /><Run Text=" · " /><Run Text="{Binding CreatedAt, StringFormat='{}{0:dd/MM HH:mm}'}" />
-                  </TextBlock>
-                </StackPanel>
-              </Grid>
-            </Border>
-          </DataTemplate>
-        </ListBox.ItemTemplate>
-      </ListBox>
-    </DockPanel>
-
-    <!-- Le rapport choisi -->
-    <Border Grid.Column="1" BorderBrush="#16181B" BorderThickness="1,0,0,0" Padding="32,0,8,0"
-            IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+    <!-- La liste : qui a rendu quoi -->
+    <Border BorderBrush="#16181B" BorderThickness="0,0,1,0" Padding="16,22">
       <DockPanel>
-        <!-- Le titre, et ce qui a été exécuté d'après le journal d'audit -->
-        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,4,0,18">
-          <StackPanel Spacing="4" VerticalAlignment="Center">
-            <TextBlock Text="{Binding Selected.Goal}" FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.4" TextTrimming="CharacterEllipsis" />
-            <TextBlock Text="{Binding Selected.CreatedAt, StringFormat='{}Terminée · {0:dddd d MMMM, HH:mm}'}" FontSize="13" Foreground="{StaticResource Cendre}" />
-          </StackPanel>
-          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="18" VerticalAlignment="Center"
-                      IsVisible="{Binding Stats, Converter={x:Static ObjectConverters.IsNotNull}}" ToolTip.Tip="D’après le journal d’audit : ce qui a réellement été exécuté">
-            <StackPanel Spacing="1">
-              <TextBlock Classes="mono" Text="{Binding Stats.Reads}" FontSize="17" HorizontalAlignment="Right" />
-              <TextBlock Text="lectures" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
-            </StackPanel>
-            <Rectangle Width="1" Fill="#1F2226" />
-            <StackPanel Spacing="1">
-              <TextBlock Classes="mono" Text="{Binding Stats.Approved}" FontSize="17" Foreground="{StaticResource Laiton}" HorizontalAlignment="Right" />
-              <TextBlock Text="écritures approuvées" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
-            </StackPanel>
-            <Rectangle Width="1" Fill="#1F2226" />
-            <StackPanel Spacing="1">
-              <TextBlock Classes="mono" Text="{Binding Stats.Refused}" FontSize="17" Foreground="{StaticResource Cinabre}" HorizontalAlignment="Right" />
-              <TextBlock Text="refus" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
-            </StackPanel>
-          </StackPanel>
-        </Grid>
-        <Rectangle DockPanel.Dock="Top" Height="1" Fill="#16181B" Margin="0,0,0,22" />
-
-        <!-- La conversation -->
-        <ScrollViewer>
-          <ItemsControl ItemsSource="{Binding Thread}" MaxWidth="860" HorizontalAlignment="Left">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate><StackPanel Spacing="18" /></ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="core:ReportMessage">
-                <Grid Classes="enter" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
-                  <views:Avatar Grid.Column="0" Image="{Binding Avatar}" Label="{Binding Name}" Size="46" Ring="#5E9E92" VerticalAlignment="Top"
-                                IsVisible="{Binding !IsYou}" />
-                  <views:Avatar Grid.Column="2" Image="{Binding Avatar}" Label="{Binding Name}" Size="46" Ring="#2A2D31" VerticalAlignment="Top"
-                                IsVisible="{Binding IsYou}" />
-                  <StackPanel Grid.Column="1" Spacing="6" MaxWidth="640"
-                              HorizontalAlignment="{Binding IsYou, Converter={x:Static views:Side.Of}}">
-                    <TextBlock FontSize="12" Foreground="{StaticResource Cendre}" HorizontalAlignment="{Binding IsYou, Converter={x:Static views:Side.Of}}">
-                      <Run Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource Parchemin}" /><Run Text=" · " /><Run Text="{Binding What}" />
+        <TextBlock DockPanel.Dock="Top" Classes="eyebrow" Text="RAPPORTS" Margin="8,0,8,14" />
+        <TextBlock DockPanel.Dock="Top" Text="Aucune mission terminée pour l’instant." FontSize="13" Foreground="{StaticResource Cendre}"
+                   Margin="8,0" IsVisible="{Binding !Reports.Count}" />
+        <TextBlock DockPanel.Dock="Top" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5" Margin="8,0,0,8"
+                   IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        <ListBox Classes="reports" ItemsSource="{Binding Reports}" SelectedItem="{Binding Selected}">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="core:MissionItem">
+              <Border Classes="row enter">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                  <ItemsControl ItemsSource="{Binding Faces}" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-12" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="core:Face">
+                        <views:Avatar Image="{Binding Work}" Label="{Binding Name}" Size="40" Background="{StaticResource Obsidienne}" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Goal}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                    <TextBlock FontSize="12" Foreground="{StaticResource Cendre}" TextTrimming="CharacterEllipsis">
+                      <Run Text="{Binding Who}" /><Run Text=" · " /><Run Text="{Binding When, Mode=OneWay}" />
                     </TextBlock>
-                    <Border Classes="bubble" Classes.you="{Binding IsYou}" HorizontalAlignment="{Binding IsYou, Converter={x:Static views:Side.Of}}">
-                      <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13.5" LineHeight="21" />
-                    </Border>
-                    <Border Height="30" Padding="12,0" CornerRadius="8" Background="#14D8B86E" BorderBrush="#66D8B86E" BorderThickness="1"
-                            HorizontalAlignment="Left" IsVisible="{Binding File, Converter={x:Static ObjectConverters.IsNotNull}}">
-                      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
-                        <Path Data="M7 3.5h7l5 5v12H7zM14 3.5v5h5" Stroke="{StaticResource Laiton}" StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
-                              Width="13" Height="13" Stretch="Uniform" />
-                        <TextBlock Classes="mono" Text="{Binding File, StringFormat='{}{0} · écrit avec votre accord'}" FontSize="11.5" Foreground="{StaticResource Laiton}" />
-                      </StackPanel>
-                    </Border>
                   </StackPanel>
+                  <Ellipse Grid.Column="2" Width="8" Height="8" VerticalAlignment="Center"
+                           Fill="{Binding Status, Converter={x:Static views:Tone.Report}}" />
                 </Grid>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </ScrollViewer>
+              </Border>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
       </DockPanel>
     </Border>
+
+    <!-- Le rapport, raconté comme une conversation -->
+    <DockPanel Grid.Column="1" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <Border DockPanel.Dock="Top" Padding="40,22,40,18" BorderBrush="#16181B" BorderThickness="0,0,0,1">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+          <StackPanel Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Selected.Goal}" FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.44" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding Subtitle}" FontSize="13" Foreground="{StaticResource Cendre}" />
+          </StackPanel>
+          <!-- Ce qui a réellement été exécuté, d'après le journal d'audit -->
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="16" VerticalAlignment="Center"
+                      IsVisible="{Binding Stats, Converter={x:Static ObjectConverters.IsNotNull}}"
+                      ToolTip.Tip="D’après le journal d’audit : ce qui a réellement été exécuté">
+            <Border Classes="stat">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="mono" Text="{Binding Stats.Reads}" FontSize="16" HorizontalAlignment="Right" />
+                <TextBlock Text="lectures" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
+              </StackPanel>
+            </Border>
+            <Border Classes="stat">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="mono" Text="{Binding Stats.Approved}" FontSize="16" HorizontalAlignment="Right"
+                           Foreground="{Binding Stats.Approved, Converter={x:Static views:Tone.Count}}" />
+                <TextBlock Text="{Binding Stats.ApprovedLabel}" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
+              </StackPanel>
+            </Border>
+            <Border Classes="stat">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="mono" Text="{Binding Stats.Refused}" FontSize="16" HorizontalAlignment="Right" />
+                <TextBlock Text="refus" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
+              </StackPanel>
+            </Border>
+            <Border Classes="stat">
+              <StackPanel Spacing="2">
+                <TextBlock Classes="mono" Text="{Binding Stats.Cost}" FontSize="16" HorizontalAlignment="Right" />
+                <TextBlock Text="coût" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <ScrollViewer>
+        <ItemsControl ItemsSource="{Binding Thread}" Margin="40,26">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Spacing="18" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="core:ReportMessage">
+              <Grid Classes="enter" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <views:Avatar Grid.Column="0" Image="{Binding Avatar}" Label="{Binding Name}" Size="44" RingWidth="1.5" Background="{StaticResource Obsidienne}"
+                              Ring="{Binding Failed, Converter={x:Static views:Tone.Agent}}" VerticalAlignment="Top" IsVisible="{Binding !IsYou}" />
+                <views:Avatar Grid.Column="2" Image="{Binding Avatar}" Label="{Binding Name}" Size="44" RingWidth="1.5" Background="{StaticResource Obsidienne}"
+                              Ring="#2A2D31" VerticalAlignment="Top" IsVisible="{Binding IsYou}" />
+                <StackPanel Grid.Column="1" Spacing="6" MaxWidth="640"
+                            HorizontalAlignment="{Binding IsYou, Converter={x:Static views:Side.Of}}">
+                  <TextBlock FontSize="12" Foreground="{StaticResource Cendre}" HorizontalAlignment="{Binding IsYou, Converter={x:Static views:Side.Of}}">
+                    <Run Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource Parchemin}" /><Run Text=" · " /><Run Text="{Binding What}" />
+                  </TextBlock>
+                  <Border Classes="bubble" Classes.you="{Binding IsYou}" Classes.failed="{Binding Failed}"
+                          HorizontalAlignment="{Binding IsYou, Converter={x:Static views:Side.Of}}">
+                    <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13.5" LineHeight="20.9" />
+                  </Border>
+                  <Border Height="30" Padding="12,0" CornerRadius="8" Background="#14D8B86E" BorderBrush="#66D8B86E" BorderThickness="1"
+                          HorizontalAlignment="Left" IsVisible="{Binding File, Converter={x:Static ObjectConverters.IsNotNull}}">
+                    <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                      <Path Data="M7 3.5h7l5 5v12H7zM14 3.5v5h5" Stroke="{StaticResource Laiton}" StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
+                            Width="13" Height="13" Stretch="Uniform" />
+                      <TextBlock Classes="mono" Text="{Binding File, StringFormat='{}{0} · écrit avec votre accord'}" FontSize="11.5" Foreground="{StaticResource Laiton}" />
+                    </StackPanel>
+                  </Border>
+                </StackPanel>
+              </Grid>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </ScrollViewer>
+    </DockPanel>
   </Grid>
 </UserControl>

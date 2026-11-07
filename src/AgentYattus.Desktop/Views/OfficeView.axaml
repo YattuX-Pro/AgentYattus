@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:AgentYattus.Client.Core"
+             xmlns:views="using:AgentYattus.Desktop.Views"
              xmlns:conv="using:AgentYattus.Desktop.Converters"
              x:Class="AgentYattus.Desktop.Views.OfficeView" Classes="screen"
              x:DataType="core:OfficeViewModel"
@@ -146,29 +147,65 @@
     <!-- /region -->
   </UserControl.Resources>
 
-  <Grid ColumnDefinitions="*,352" ColumnSpacing="16" Margin="20,8,20,16">
+  <DockPanel>
+  <!-- La barre de l'open space (maquette, artboard Main) : la marque (retour à l'accueil), la mission, l'équipe et « Recruter ». -->
+  <Border DockPanel.Dock="Top" Height="64" Padding="24,0">
+    <Grid ColumnDefinitions="260,*,260" ColumnSpacing="16">
+      <Button Classes="bare" HorizontalAlignment="Left" VerticalAlignment="Center" ToolTip.Tip="Retour à l’accueil"
+              Command="{Binding $parent[Window].((core:ShellViewModel)DataContext).GoHomeCommand}">
+        <StackPanel Orientation="Horizontal" Spacing="10">
+          <Border Width="30" Height="30" CornerRadius="8" BorderBrush="#2A2D31" BorderThickness="1" Background="#131417">
+            <Viewbox Width="17" Height="17">
+              <Canvas Width="24" Height="24">
+                <Path Data="M5 3.5 12 11l7-7.5M12 11v9.5" Stroke="{StaticResource VertDeGris}" StrokeThickness="2" StrokeLineCap="Round" />
+                <Ellipse Canvas.Left="9.8" Canvas.Top="8.8" Width="4.4" Height="4.4" Fill="{StaticResource VertDeGris}" />
+              </Canvas>
+            </Viewbox>
+          </Border>
+          <TextBlock Text="Agent Yattus" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
+        </StackPanel>
+      </Button>
 
-    <!-- En-tête de la mission, au-dessus de la scène -->
-    <Grid RowDefinitions="Auto,*" RowSpacing="10">
-      <Grid ColumnDefinitions="*,Auto">
+      <!-- La mission : son objectif, son projet, son état -->
+      <Border Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center" Height="38" Padding="16,0,8,0" CornerRadius="12"
+              BorderBrush="{StaticResource Filet}" BorderThickness="1" Background="#131417">
         <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
-          <TextBlock Text="{Binding Mission.Mission.Goal}" FontSize="15" FontWeight="SemiBold" MaxWidth="560" TextTrimming="CharacterEllipsis"
-                     VerticalAlignment="Center" />
-          <Border Padding="9,3" CornerRadius="11" Background="#245E9E92" VerticalAlignment="Center">
-            <TextBlock Classes="label" Text="{Binding Mission.Mission.StatusLabel}" Foreground="{StaticResource VertDeGris}" />
+          <TextBlock Text="{Binding Mission.Mission.Goal}" FontSize="13" FontWeight="SemiBold" MaxWidth="420" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+          <TextBlock Classes="mono" Text="{Binding ProjectName}" FontSize="11.5" Foreground="{StaticResource Pierre}" VerticalAlignment="Center"
+                     IsVisible="{Binding ProjectName, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <Border Height="24" Padding="9,0" CornerRadius="12" Background="{Binding Mission.Mission.Status, Converter={x:Static views:Chip.Bg}}">
+            <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <Ellipse Classes="live" Width="6" Height="6" Fill="{Binding Mission.Mission.Status, Converter={x:Static views:Chip.Fg}}" />
+              <TextBlock Classes="mono" Text="{Binding Mission.Mission.Status, Converter={x:Static views:Chip.Label}}" FontSize="10" LetterSpacing="1"
+                         Foreground="{Binding Mission.Mission.Status, Converter={x:Static views:Chip.Fg}}" VerticalAlignment="Center" />
+            </StackPanel>
           </Border>
         </StackPanel>
-        <Button Grid.Column="1" Classes="square" Command="{Binding RecruitCommand}" Padding="12,0" Height="34" IsVisible="{Binding CanRecruit}">
+      </Border>
+
+      <!-- L'équipe en visages, et « Recruter » -->
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" Spacing="-8" VerticalAlignment="Center">
+          <views:Avatar Image="{Binding Leader.WorkImage}" Label="{Binding Leader.Name}" Size="28" Background="{StaticResource Obsidienne}" />
+          <views:Avatar Image="{Binding Analyst.WorkImage}" Label="{Binding Analyst.Name}" Size="28" Background="{StaticResource Obsidienne}" />
+          <views:Avatar Image="{Binding Writer.WorkImage}" Label="{Binding Writer.Name}" Size="28" Background="{StaticResource Obsidienne}" />
+        </StackPanel>
+        <Button Classes="square" Command="{Binding RecruitCommand}" Padding="14,0" Height="36" IsVisible="{Binding CanRecruit}">
           <StackPanel Orientation="Horizontal" Spacing="7">
             <Path Data="M12,5 L12,19 M5,12 L19,12" Stroke="{StaticResource Parchemin}" StrokeThickness="2" StrokeLineCap="Round"
-                  Width="12" Height="12" Stretch="Uniform" VerticalAlignment="Center" />
+                  Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
             <TextBlock Text="Recruter" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-      </Grid>
+      </StackPanel>
+    </Grid>
+  </Border>
 
+  <Grid ColumnDefinitions="*,352" ColumnSpacing="24" Margin="24,8,24,24">
+
+    <Grid>
       <!-- region:decor -->
-      <Border Grid.Row="1" CornerRadius="16" BorderBrush="#1F2226" BorderThickness="1" ClipToBounds="True">
+      <Border CornerRadius="16" BorderBrush="#1F2226" BorderThickness="1" ClipToBounds="True">
         <Border.Background>
           <VisualBrush TileMode="Tile" SourceRect="0,0,48,48" DestinationRect="0,0,48,48">
             <VisualBrush.Visual>
@@ -429,4 +466,5 @@
     </Border>
     <!-- /region -->
   </Grid>
+  </DockPanel>
 </UserControl>

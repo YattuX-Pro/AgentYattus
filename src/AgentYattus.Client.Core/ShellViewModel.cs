@@ -18,6 +18,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Current = login is null ? home : login;
         IsAuthenticated = login is null;
         home.MissionOpened += mission => _ = OpenMissionAsync(mission);
+        home.RecruitRequested += project => _ = CustomizeAsync(project, null, "Accueil", () => Current = Home);
         if (login is not null)
             login.LoggedIn += session =>
             {
@@ -34,6 +35,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public LoginViewModel? Login { get; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowNav))]
     public partial bool IsAuthenticated { get; set; }
 
     [ObservableProperty]
@@ -70,7 +72,7 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsOfficeSection), nameof(IsAgentsSection), nameof(IsReportsSection))]
+    [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsOfficeSection), nameof(IsAgentsSection), nameof(IsReportsSection), nameof(ShowNav))]
     public partial ObservableObject Current { get; set; }
 
     public bool IsMissionsSection => Current is HomeViewModel;
@@ -81,7 +83,10 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>Une mission s'ouvre dans l'open space de son projet (ADR 0012).</summary>
     public async Task OpenMissionAsync(MissionItem mission)
     {
-        var screen = new OfficeViewModel(_api, mission, UserName ?? "vous");
+        var screen = new OfficeViewModel(_api, mission, UserName ?? "vous")
+        {
+            ProjectName = mission.ProjectId is { } id ? ProjectName(id) : null,
+        };
         screen.RecruitRequested += project => _ = RecruitAsync(screen, project);
         Current = screen;
         await screen.LoadAsync();
@@ -90,7 +95,7 @@ public sealed partial class ShellViewModel : ObservableObject
     /// <summary>L'écran Nouveau collègue ; une fois fait (ou annulé), on revient à l'open space, qui recharge son équipe.</summary>
     private async Task RecruitAsync(OfficeViewModel office, Guid project)
     {
-        var recruit = new RecruitViewModel(_api, project);
+        var recruit = new RecruitViewModel(_api, project, projectName: ProjectName(project));
         recruit.Done += () =>
         {
             Current = office;
@@ -101,6 +106,11 @@ public sealed partial class ShellViewModel : ObservableObject
         Current = recruit;
         await recruit.LoadAsync();
     }
+
+    private string? ProjectName(Guid project) => Home.Projects.FirstOrDefault(p => p.Id == project) is { IsPersonalDefault: false } p ? p.Name : null;
+
+    /// <summary>« Nouveau collègue » et l'open space ont leur propre barre (maquette) : la navigation se cache.</summary>
+    public bool ShowNav => IsAuthenticated && Current is not (RecruitViewModel or OfficeViewModel);
 
     [RelayCommand]
     private void GoHome() => Current = Home;
@@ -114,7 +124,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private async Task ShowAgentsAsync()
     {
-        var screen = new AgentsViewModel(_api, Home.SelectedProject?.Id);
+        var screen = new AgentsViewModel(_api, Home.SelectedProject?.Id, Home.SelectedProject?.Name, Home.Missions);
         // « Confier une mission à Inès » : retour à l'accueil, Inès choisie.
         screen.AssignRequested += agent =>
         {
@@ -122,8 +132,23 @@ public sealed partial class ShellViewModel : ObservableObject
             Home.SelectedAgent = Home.Agents.FirstOrDefault(a => a.Key == agent.Key) ?? Home.SelectedAgent;
             Current = Home;
         };
+        screen.CustomizeRequested += (project, card) => _ = CustomizeAsync(project, card, "Agents", () => _ = ShowAgentsAsync());
         Current = screen;
         await screen.LoadAsync();
+    }
+
+    /// <summary>« Nouveau collègue », sur un poste donné (le crayon d'une fiche) ou au choix ; ensuite, visages relus et retour.</summary>
+    private async Task CustomizeAsync(Guid project, AgentCard? card, string backTo, Action back)
+    {
+        var recruit = new RecruitViewModel(_api, project, card?.Agent.Key, card?.Colleague, ProjectName(project)) { BackTo = backTo };
+        recruit.Done += () =>
+        {
+            _api.Faces.Forget(project);
+            _ = Home.LoadCrewAsync();
+            back();
+        };
+        Current = recruit;
+        await recruit.LoadAsync();
     }
 
     [RelayCommand]

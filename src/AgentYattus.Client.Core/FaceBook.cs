@@ -36,6 +36,9 @@ public sealed class FaceBook(ApiClient api)
     public async Task<Face?> ManagerAsync(Guid? project) =>
         await TeamAsync(project) is { ManagerPortraitId: { } id } ? await FaceAsync("Vous", id) : null;
 
+    /// <summary>L'équipe du projet (null : projet personnel), lue une fois.</summary>
+    public Task<ProjectTeamDto?> TeamOfAsync(Guid? project) => TeamAsync(project);
+
     /// <summary>Après un recrutement : l'équipe du projet sera relue.</summary>
     public void Forget(Guid project) => _teams.Remove(project);
 

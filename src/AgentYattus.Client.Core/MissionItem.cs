@@ -12,6 +12,21 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
     public bool IsReview { get; } = mission.Kind == MissionKind.Review;
     public DateTimeOffset CreatedAt { get; } = mission.CreatedAt;
 
+    /// <summary>Coût estimé, en dollars (ADR 0010).</summary>
+    public decimal Cost { get; } = mission.Cost;
+
+    /// <summary>« Aujourd’hui, 10:42 », « Hier, 17:05 », sinon « 3 novembre, 09:12 ».</summary>
+    public string When
+    {
+        get
+        {
+            var local = CreatedAt.ToLocalTime();
+            var days = (DateTime.Today - local.Date).Days;
+            var day = days switch { 0 => "Aujourd’hui", 1 => "Hier", _ => local.ToString("d MMMM", System.Globalization.CultureInfo.GetCultureInfo("fr-FR")) };
+            return $"{day}, {local:HH:mm}";
+        }
+    }
+
     /// <summary>La réponse de l'agent, une fois la mission terminée.</summary>
     public string? Result { get; } = mission.Result;
 

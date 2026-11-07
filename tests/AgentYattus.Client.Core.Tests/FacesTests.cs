@@ -32,6 +32,8 @@ public sealed class FacesTests
                 "/agents" => agents ?? [],
                 "/missions" => Array.Empty<MissionDto>(),
                 "/projects" => Array.Empty<ProjectDto>(),
+                "/team/portraits" => new PortraitDto[] { new(Malik, "malik", "Malik", true, true, "", ""), new(Ines, "ines", "Inès", true, true, "", "") },
+                "/team/traits" => new TraitDto[] { new("calme", "Calme", "") },
                 _ => null,
             };
             return body is null
@@ -136,5 +138,32 @@ public sealed class FacesTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(respond(request));
+    }
+
+    [Fact]
+    public async Task Changing_a_face_reopens_the_recruit_screen_on_that_post_with_the_colleague_prefilled()
+    {
+        AgentDto[] agents = [new("Analyste", "Explore.", "m", 10, [], "analyste"), new("Rédacteur", "Écrit.", "m", 10, [], "redacteur")];
+        var (api, _) = Api(agents);
+        var screen = new AgentsViewModel(api, Project);
+        (Guid Project, AgentCard? Card)? asked = null;
+        screen.CustomizeRequested += (project, card) => asked = (project, card);
+
+        await screen.LoadAsync(TestContext.Current.CancellationToken);
+        screen.CustomizeCommand.Execute(screen.Agents[1]);
+
+        Assert.True(screen.CanCustomize);
+        Assert.IsType<RecruitTile>(screen.Tiles[^1]);
+        Assert.Equal(Project, asked!.Value.Project);
+        Assert.Equal("Malik", asked.Value.Card!.Colleague!.Name);
+
+        var recruit = new RecruitViewModel(api, Project, "redacteur", asked.Value.Card.Colleague);
+        await recruit.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("redacteur", recruit.Role!.Key);
+        Assert.Equal(Malik, recruit.Selected!.Portrait.Id);
+        Assert.Equal("Malik", recruit.Name);
+        Assert.Equal("Nouveau visage pour Malik", recruit.Title);
+        Assert.Equal("Enregistrer ce visage", recruit.Action);
     }
 }

@@ -103,6 +103,9 @@ public sealed partial class OfficeViewModel : ObservableObject
     /// <summary>La mission et sa décision (approuver après avoir tout relu, refuser).</summary>
     public MissionViewModel Mission { get; }
 
+    /// <summary>Le projet de la mission, dans la barre : « Orders.Api » ; null pour le projet personnel.</summary>
+    public string? ProjectName { get; init; }
+
     public DeskViewModel Leader { get; }
     public DeskViewModel Analyst { get; }
     public DeskViewModel Writer { get; }

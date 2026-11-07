@@ -1,50 +1,154 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:AgentYattus.Client.Core"
+             xmlns:views="using:AgentYattus.Desktop.Views"
              xmlns:conv="using:AgentYattus.Desktop.Converters"
              x:Class="AgentYattus.Desktop.Views.RecruitView" Classes="screen"
              x:DataType="core:RecruitViewModel"
              Foreground="{StaticResource Parchemin}">
 
-  <!-- Nouveau collègue (ADR 0012) : un visage de la galerie, un prénom, un poste et des traits. Le badge suit en direct. -->
+  <!--
+    Nouveau collègue (maquette « Bureau des agents », artboard Recrutement) : à gauche le badge, à jour à chaque choix ;
+    à droite la galerie, le prénom et le poste, la personnalité ; ses outils et son modèle sont ceux du poste (admin).
+  -->
   <UserControl.Styles>
     <Style Selector="TextBlock.label">
       <Setter Property="FontFamily" Value="{StaticResource Mono}" />
       <Setter Property="FontSize" Value="10" />
-      <Setter Property="LetterSpacing" Value="1.4" />
-      <Setter Property="Foreground" Value="#8A857B" />
+      <Setter Property="LetterSpacing" Value="1.2" />
+      <Setter Property="Foreground" Value="{StaticResource Cendre}" />
+    </Style>
+    <Style Selector="TextBlock.field">
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+    </Style>
+    <Style Selector="TextBlock.h2">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
     <Style Selector="Border.card">
       <Setter Property="Background" Value="#111215" />
       <Setter Property="BorderBrush" Value="#1F2226" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="14" />
-      <Setter Property="Padding" Value="18,16" />
+      <Setter Property="Padding" Value="20,18" />
+    </Style>
+    <!-- Un champ de la maquette : 42 px, rayon 9. -->
+    <Style Selector="TextBox.field /template/ Border#PART_BorderElement">
+      <Setter Property="CornerRadius" Value="9" />
+    </Style>
+    <Style Selector="TextBox.field">
+      <Setter Property="Height" Value="42" />
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <!-- Un visage de la galerie : il se soulève au survol, s'entoure de vert-de-gris quand il est choisi. -->
-    <Style Selector="Button.face">
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="Cursor" Value="Hand" />
+    <Style Selector="Button.tile">
       <Setter Property="RenderTransform" Value="translateY(0px)" />
       <Setter Property="Transitions">
-        <Transitions><TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.2" Easing="CubicEaseOut" /></Transitions>
+        <Transitions><TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.15" /></Transitions>
       </Setter>
     </Style>
-    <Style Selector="Button.face:pointerover"><Setter Property="RenderTransform" Value="translateY(-3px)" /></Style>
-    <Style Selector="Button.face /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="CornerRadius" Value="14" />
+    <Style Selector="Button.tile:pointerover"><Setter Property="RenderTransform" Value="translateY(-2px)" /></Style>
+    <!-- L'anneau déborde de la tuile, comme le box-shadow de la maquette. -->
+    <Style Selector="Button.tile, Button.tile /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="ClipToBounds" Value="False" />
     </Style>
     <Style Selector="Border.ring">
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="Transitions">
-        <Transitions><BrushTransition Property="BorderBrush" Duration="0:0:0.2" /></Transitions>
+        <Transitions><BrushTransition Property="BorderBrush" Duration="0:0:0.15" /></Transitions>
       </Setter>
     </Style>
     <Style Selector="Border.ring.selected"><Setter Property="BorderBrush" Value="{StaticResource VertDeGris}" /></Style>
+    <!-- Le poste : un sélecteur segmenté. -->
+    <Style Selector="Button.seg">
+      <Setter Property="Height" Value="32" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="Button.seg /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.seg:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1D2024" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <Style Selector="Button.seg.on /template/ ContentPresenter#PART_ContentPresenter,
+                     Button.seg.on:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#24272C" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <!-- Un trait : une pilule 30 px. -->
+    <Style Selector="ToggleButton.trait">
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Padding" Value="12,0" />
+      <Setter Property="FontSize" Value="12.5" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.trait /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#2A2D31" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="15" />
+      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+    </Style>
+    <Style Selector="ToggleButton.trait:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#16181B" />
+      <Setter Property="BorderBrush" Value="#3A3F45" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <Style Selector="ToggleButton.trait:checked /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.trait:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1F5E9E92" />
+      <Setter Property="BorderBrush" Value="{StaticResource VertDeGris}" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <!-- Un interrupteur d'outil (lecture seule : le poste décide). -->
+    <Style Selector="Border.track">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="24" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="3" />
+      <Setter Property="Background" Value="#2E3237" />
+      <Setter Property="Transitions">
+        <Transitions><BrushTransition Property="Background" Duration="0:0:0.2" /></Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.track.on"><Setter Property="Background" Value="{StaticResource VertDeGris}" /></Style>
+    <Style Selector="Border.track.on.warn"><Setter Property="Background" Value="{StaticResource Laiton}" /></Style>
+    <Style Selector="Border.track Ellipse">
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Border.track.on Ellipse">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+    <!-- Le lien « Annuler » et le retour, sans fond. -->
+    <Style Selector="Button.link">
+      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+    </Style>
+    <Style Selector="Button.link /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+    </Style>
+    <Style Selector="Button.link:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     Button.link:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
     <!-- Le badge se balance doucement au bout de son cordon. -->
     <Style Selector="Border.badge">
-      <Setter Property="RenderTransformOrigin" Value="50%,-20%" />
+      <Setter Property="RenderTransformOrigin" Value="50%,-10%" />
       <Style.Animations>
         <Animation Duration="0:0:6" IterationCount="INFINITE" Easing="SineEaseInOut">
           <KeyFrame Cue="0%"><Setter Property="RotateTransform.Angle" Value="-1.2" /></KeyFrame>
@@ -55,135 +159,254 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid ColumnDefinitions="440,*" ColumnSpacing="20" Margin="20,8,20,16">
-    <!-- Le badge, à jour à chaque choix -->
-    <Border Classes="card" Padding="0" ClipToBounds="True">
-      <StackPanel HorizontalAlignment="Center" Spacing="0">
-        <Rectangle Width="22" Height="56" Fill="#2F5A52" RadiusX="4" RadiusY="4" HorizontalAlignment="Center" />
-        <Border Classes="badge" Width="320" Margin="0,-6,0,0" CornerRadius="18" Background="#16181B" BorderBrush="#2A2D31" BorderThickness="1"
-                BoxShadow="0 40 80 -30 #CC000000" ClipToBounds="True">
-          <StackPanel>
-            <Border Height="46" Padding="18,0" Background="#1B1E22" BorderBrush="#24272B" BorderThickness="0,0,0,1">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Agent Yattus" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border Grid.Column="1" Width="40" Height="8" CornerRadius="4" Background="#0B0C0E" VerticalAlignment="Center" />
-              </Grid>
-            </Border>
-            <StackPanel Margin="24,22,24,22" Spacing="12" HorizontalAlignment="Center">
-              <Border Width="196" Height="196" CornerRadius="16" Background="#1D2024" ClipToBounds="True" BorderBrush="#2A2D31" BorderThickness="1">
-                <Canvas Width="196" Height="196">
-                  <Image Canvas.Left="-52" Canvas.Top="-14" Width="300" Height="300"
-                         Source="{Binding Selected.Image, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" />
-                </Canvas>
-              </Border>
-              <TextBlock Text="{Binding DisplayName}" FontSize="25" FontWeight="SemiBold" LetterSpacing="-0.5" HorizontalAlignment="Center" />
-              <TextBlock Classes="label" Text="{Binding Role.Name}" Foreground="{StaticResource VertDeGris}" HorizontalAlignment="Center" />
-              <Border Height="1" Background="#24272B" Margin="0,4" />
-              <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="4">
-                <TextBlock Classes="label" Text="MODÈLE" />
-                <TextBlock Grid.Column="1" Classes="label" Text="OUTILS" />
-                <TextBlock Grid.Row="1" Classes="mono" Text="{Binding Role.Model}" FontSize="11" TextTrimming="CharacterEllipsis" />
-                <TextBlock Grid.Row="1" Grid.Column="1" Classes="mono" Text="{Binding Role.Tools}" FontSize="11" TextWrapping="Wrap" />
-              </Grid>
-            </StackPanel>
+  <DockPanel>
+    <!-- Sa barre : retour, titre, équipe -->
+    <Border DockPanel.Dock="Top" Height="64" Padding="24,0" BorderBrush="#1A1C20" BorderThickness="0,0,0,1">
+      <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+        <Button Classes="link" Height="34" Padding="8,0,12,0" Command="{Binding CancelCommand}" VerticalContentAlignment="Center">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Path Data="M19 12H5M11 6l-6 6 6 6" Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                  Width="16" Height="16" Stretch="Uniform" VerticalAlignment="Center" />
+            <TextBlock Text="{Binding BackTo}" FontSize="13" VerticalAlignment="Center" />
           </StackPanel>
-        </Border>
-        <!-- Sa première bulle dans l'open space -->
-        <Grid ColumnDefinitions="40,*" ColumnSpacing="12" Width="360" Margin="0,28,0,0">
-          <Border Width="40" Height="40" CornerRadius="20" ClipToBounds="True" Background="#1D2024" VerticalAlignment="Top">
-            <Canvas Width="40" Height="40">
-              <Image Canvas.Left="-20" Canvas.Top="-5" Width="80" Height="80"
-                     Source="{Binding Selected.Image, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" />
-            </Canvas>
-          </Border>
-          <Border Grid.Column="1" Padding="14,12" CornerRadius="4,14,14,14" Background="#ECE6D8">
-            <TextBlock Text="{Binding Intro}" Foreground="#16181B" FontSize="13" LineHeight="19" TextWrapping="Wrap" />
-          </Border>
-        </Grid>
-        <TextBlock Classes="mono" Text="Aperçu : sa première bulle dans l'open space" FontSize="10.5" Foreground="#8A857B" Margin="52,10,0,0" />
+        </Button>
+        <Rectangle Width="1" Height="20" Fill="{StaticResource Filet}" />
+        <TextBlock Text="{Binding Title}" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <TextBlock Classes="mono" Text="{Binding Team}" FontSize="10.5" LetterSpacing="1.47" Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
       </StackPanel>
     </Border>
 
-    <!-- Le formulaire -->
-    <Grid Grid.Column="1" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="14">
-      <StackPanel Spacing="4">
-        <TextBlock Classes="label" Text="ÉQUIPE DU PROJET" />
-        <TextBlock Text="Nouveau collègue" FontSize="24" FontWeight="SemiBold" LetterSpacing="-0.5" />
-      </StackPanel>
+    <ScrollViewer>
+      <Grid ColumnDefinitions="500,*" ColumnSpacing="24" Margin="24,20,24,0" MinHeight="876">
 
-      <Border Grid.Row="1" Classes="card">
-        <Grid RowDefinitions="Auto,*" RowSpacing="12">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="Choisir son visage" FontSize="14" FontWeight="SemiBold" />
-            <TextBlock Grid.Column="1" Text="{Binding Portraits.Count, StringFormat='{}{0} visages'}" FontSize="12" Foreground="#8A857B" />
-          </Grid>
-          <ScrollViewer Grid.Row="1">
-            <ItemsControl ItemsSource="{Binding Portraits}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate><WrapPanel ItemSpacing="10" LineSpacing="10" /></ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="core:PortraitChoice">
-                  <Button Classes="face" Command="{Binding $parent[UserControl].((core:RecruitViewModel)DataContext).PickCommand}"
-                          CommandParameter="{Binding}" ToolTip.Tip="{Binding Portrait.SuggestedName}">
-                    <Border Classes="ring" Classes.selected="{Binding IsSelected}" BorderThickness="2" CornerRadius="16" Padding="2">
-                      <Border Width="84" Height="84" CornerRadius="12" Background="#1D2024" ClipToBounds="True">
-                        <Canvas Width="84" Height="84">
-                          <Image Canvas.Left="-42" Canvas.Top="-6" Width="168" Height="168"
-                                 Source="{Binding Image, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" />
-                        </Canvas>
-                      </Border>
+        <!-- Le badge, mis à jour en direct -->
+        <Border Classes="card" Padding="0" CornerRadius="16" ClipToBounds="True">
+          <Panel>
+            <!-- Fond pointillé -->
+            <Panel.Background>
+              <VisualBrush TileMode="Tile" SourceRect="0,0,22,22" DestinationRect="0,0,22,22">
+                <VisualBrush.Visual>
+                  <Canvas Width="22" Height="22" Background="#111215">
+                    <Ellipse Width="2" Height="2" Fill="#0FECE6D8" />
+                  </Canvas>
+                </VisualBrush.Visual>
+              </VisualBrush>
+            </Panel.Background>
+            <StackPanel HorizontalAlignment="Center">
+              <Border Width="22" Height="56" Background="#2F5A52" CornerRadius="0,0,4,4" />
+              <Border Classes="badge" Width="330" Margin="0,-6,0,0" CornerRadius="18" BorderBrush="#2A2D31" BorderThickness="1"
+                      Background="{StaticResource Graphite}" BoxShadow="0 40 80 -30 #CC000000" ClipToBounds="True">
+                <StackPanel>
+                  <Border Height="46" Padding="18,0" Background="#1B1E22" BorderBrush="{StaticResource Filet}" BorderThickness="0,0,0,1">
+                    <Grid ColumnDefinitions="*,Auto">
+                      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Viewbox Width="15" Height="15">
+                          <Canvas Width="24" Height="24">
+                            <Path Data="M5 3.5 12 11l7-7.5M12 11v9.5" Stroke="{StaticResource VertDeGris}" StrokeThickness="2.2" StrokeLineCap="Round" />
+                            <Ellipse Canvas.Left="9.8" Canvas.Top="8.8" Width="4.4" Height="4.4" Fill="{StaticResource VertDeGris}" />
+                          </Canvas>
+                        </Viewbox>
+                        <TextBlock Text="Agent Yattus" FontSize="12.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <Border Grid.Column="1" Width="40" Height="8" CornerRadius="4" Background="{StaticResource Obsidienne}" VerticalAlignment="Center" />
+                    </Grid>
+                  </Border>
+                  <StackPanel Margin="24,22,24,20" Spacing="12">
+                    <Border Width="196" Height="196" CornerRadius="16" ClipToBounds="True" Background="#1D2024" BorderBrush="#2A2D31" BorderThickness="1">
+                      <Canvas>
+                        <Image Width="300" Height="300" Canvas.Left="-53" Canvas.Top="-15"
+                               Source="{Binding Selected.Image, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" />
+                      </Canvas>
                     </Border>
-                  </Button>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
-          </ScrollViewer>
-        </Grid>
-      </Border>
+                    <StackPanel Spacing="5" HorizontalAlignment="Center" Margin="0,4,0,0">
+                      <TextBlock Text="{Binding DisplayName}" FontSize="25" FontWeight="SemiBold" LetterSpacing="-0.5" HorizontalAlignment="Center" />
+                      <TextBlock Classes="mono" Text="{Binding Poste}" FontSize="11" LetterSpacing="1.76" Foreground="{StaticResource VertDeGris}" HorizontalAlignment="Center" />
+                    </StackPanel>
+                    <Rectangle Height="1" Fill="{StaticResource Filet}" Margin="0,2" />
+                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto" ColumnSpacing="16" RowSpacing="12">
+                      <StackPanel Spacing="3">
+                        <TextBlock Classes="label" Text="MODÈLE" />
+                        <TextBlock Classes="mono" Text="{Binding ModelShort}" FontSize="11.5" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="3">
+                        <TextBlock Classes="label" Text="MATRICULE" />
+                        <TextBlock Classes="mono" Text="{Binding Matricule}" FontSize="11.5" />
+                      </StackPanel>
+                      <StackPanel Grid.Row="1" Spacing="3">
+                        <TextBlock Classes="label" Text="ACCÈS" />
+                        <TextBlock Text="{Binding Access}" FontSize="12.5" />
+                      </StackPanel>
+                      <StackPanel Grid.Row="1" Grid.Column="1" Spacing="3">
+                        <TextBlock Classes="label" Text="STYLE" />
+                        <TextBlock Text="{Binding StyleShort}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                      </StackPanel>
+                    </Grid>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
 
-      <Border Grid.Row="2" Classes="card">
-        <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="20" RowSpacing="8">
-          <TextBlock Text="Prénom" FontSize="12.5" Foreground="{StaticResource Pierre}" />
-          <TextBlock Grid.Column="1" Text="Poste" FontSize="12.5" Foreground="{StaticResource Pierre}" />
-          <TextBox Grid.Row="1" Text="{Binding Name}" PlaceholderText="ex. Nora" MaxLength="24" Height="40" VerticalContentAlignment="Center" />
-          <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Roles}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate><WrapPanel ItemSpacing="8" /></ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="core:RoleChoice">
-                <Button Classes="chip" Classes.on="{Binding IsSelected}" Content="{Binding Name}"
-                        Command="{Binding $parent[UserControl].((core:RecruitViewModel)DataContext).PickRoleCommand}" CommandParameter="{Binding}" />
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-          <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Margin="0,8,0,0" Text="Personnalité" FontSize="12.5" Foreground="{StaticResource Pierre}" />
-          <ItemsControl Grid.Row="3" Grid.ColumnSpan="2" ItemsSource="{Binding Traits}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate><WrapPanel ItemSpacing="8" LineSpacing="8" /></ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="core:TraitChoice">
-                <ToggleButton Classes="chip" Classes.on="{Binding IsSelected}" IsChecked="{Binding IsSelected}" Content="{Binding Trait.Label}"
-                              ToolTip.Tip="{Binding Trait.Style}" Height="32" Padding="14,0" VerticalContentAlignment="Center" />
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </Grid>
-      </Border>
+              <!-- Sa première bulle -->
+              <Grid Width="420" Margin="0,30,0,0" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <views:Avatar Image="{Binding Selected.Talk}" Label="{Binding DisplayName}" Size="40" VerticalAlignment="Top" />
+                <Border Grid.Column="1" Padding="14,12" CornerRadius="4,14,14,14" Background="{StaticResource Parchemin}">
+                  <TextBlock Text="{Binding Intro}" Foreground="#16181B" FontSize="13" LineHeight="18.85" TextWrapping="Wrap" />
+                </Border>
+              </Grid>
+              <TextBlock Classes="mono" Width="420" Padding="52,0,0,0" Margin="0,10,0,0" Text="Aperçu : sa première bulle dans l’open space"
+                         FontSize="10.5" Foreground="{StaticResource Cendre}" />
+            </StackPanel>
+          </Panel>
+        </Border>
 
-      <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
-        <StackPanel VerticalAlignment="Center" Spacing="2">
-          <TextBlock Text="Ses outils et son modèle sont ceux du poste, réglés dans l'espace admin." FontSize="12" Foreground="#8A857B" />
-          <TextBlock Text="{Binding Error}" FontSize="12.5" Foreground="{StaticResource Cinabre}" TextWrapping="Wrap"
-                     IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-        </StackPanel>
-        <Button Grid.Column="1" Classes="chip" Height="42" Command="{Binding CancelCommand}" Content="Annuler" />
-        <Button Grid.Column="2" Classes="primary" Command="{Binding RecruitCommand}">
-          <TextBlock Text="{Binding DisplayName, StringFormat='Recruter {0}'}" FontSize="13.5" FontWeight="SemiBold" />
-        </Button>
+        <!-- Le formulaire -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="16">
+
+          <!-- La galerie -->
+          <!-- La liste garde 4 px autour des tuiles (l'anneau déborde) : marges réduites d'autant. -->
+          <Border Classes="card" Padding="20,18,20,14">
+            <StackPanel Spacing="10">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="h2" Text="Choisir son visage" />
+                <TextBlock Grid.Column="1" Text="{Binding Portraits.Count, StringFormat='{}{0} collègues disponibles'}" FontSize="12"
+                           Foreground="{StaticResource Cendre}" VerticalAlignment="Bottom" />
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Portraits}" Padding="4" Margin="-4,0">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><UniformGrid Columns="9" ColumnSpacing="10" RowSpacing="10" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="core:PortraitChoice">
+                    <Button Classes="bare tile" HorizontalAlignment="Stretch" ToolTip.Tip="{Binding Portrait.SuggestedName}"
+                            AutomationProperties.Name="{Binding Portrait.SuggestedName}"
+                            Command="{Binding $parent[ItemsControl].((core:RecruitViewModel)DataContext).PickCommand}" CommandParameter="{Binding}">
+                      <Panel x:Name="Tile" Height="{Binding #Tile.Bounds.Width}">
+                        <Border CornerRadius="12" ClipToBounds="True" Background="#1D2024">
+                          <Canvas>
+                            <Image Width="{Binding #Tile.Bounds.Width, Converter={x:Static views:Zoom.Double}}"
+                                   Height="{Binding #Tile.Bounds.Width, Converter={x:Static views:Zoom.Double}}"
+                                   Canvas.Left="{Binding #Tile.Bounds.Width, Converter={x:Static views:Zoom.Left}}"
+                                   Canvas.Top="{Binding #Tile.Bounds.Width, Converter={x:Static views:Zoom.Top}}"
+                                   Source="{Binding Image, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" />
+                          </Canvas>
+                        </Border>
+                        <Border CornerRadius="12" BorderBrush="#0FFFFFFF" BorderThickness="1" />
+                        <Border Classes="ring" Classes.selected="{Binding IsSelected}" Margin="-4" CornerRadius="16" BorderThickness="2" />
+                      </Panel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </StackPanel>
+          </Border>
+
+          <!-- Identité -->
+          <Border Grid.Row="1" Classes="card">
+            <Grid ColumnDefinitions="*,*" ColumnSpacing="20">
+              <StackPanel Spacing="8">
+                <TextBlock Classes="field" Text="Prénom" />
+                <TextBox Classes="field" Text="{Binding Name}" PlaceholderText="ex. Nora" MaxLength="24" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Spacing="8">
+                <TextBlock Classes="field" Text="Poste" />
+                <Border Padding="4" CornerRadius="10" BorderBrush="{StaticResource Filet}" BorderThickness="1" Background="{StaticResource Graphite}">
+                  <ItemsControl ItemsSource="{Binding Roles}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><UniformGrid Rows="1" ColumnSpacing="6" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="core:RoleChoice">
+                        <Button Classes="seg" Classes.on="{Binding IsSelected}" ToolTip.Tip="{Binding Tools}"
+                                Command="{Binding $parent[ItemsControl].((core:RecruitViewModel)DataContext).PickRoleCommand}" CommandParameter="{Binding}">
+                          <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                        </Button>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </Border>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="16">
+            <!-- Personnalité et consigne -->
+            <Border Classes="card">
+              <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Classes="h2" Text="Personnalité" Margin="0,0,0,14" />
+                <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Traits}" Margin="0,0,0,14">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><WrapPanel ItemSpacing="8" LineSpacing="8" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="core:TraitChoice">
+                      <ToggleButton Classes="trait" IsChecked="{Binding IsSelected}" Content="{Binding Trait.Label}" ToolTip.Tip="{Binding Trait.Style}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock DockPanel.Dock="Top" Text="Consigne" FontSize="12.5" Foreground="{StaticResource Pierre}" Margin="0,0,0,14" />
+                <TextBlock DockPanel.Dock="Bottom" Text="Les règles de sécurité sont toujours ajoutées par Agent Yattus." FontSize="11.5"
+                           Foreground="{StaticResource Cendre}" Margin="0,14,0,0" TextWrapping="Wrap" />
+                <Border CornerRadius="9" BorderBrush="#2E3237" BorderThickness="1" Background="{StaticResource Graphite}" Padding="12,10" MinHeight="80"
+                        ToolTip.Tip="La consigne du poste, réglée dans l’espace admin">
+                  <ScrollViewer>
+                    <TextBlock Text="{Binding Role.Agent.Instructions}" FontSize="13" LineHeight="19.5" Foreground="#D9D3C5" TextWrapping="Wrap" />
+                  </ScrollViewer>
+                </Border>
+              </DockPanel>
+            </Border>
+
+            <!-- Outils et modèle : ceux du poste -->
+            <Border Grid.Column="1" Classes="card">
+              <StackPanel Spacing="12">
+                <TextBlock Classes="h2" Text="Ce qu’il ou elle a le droit de faire" />
+                <ItemsControl ItemsSource="{Binding Tools}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Spacing="12" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="core:ToolRow">
+                      <Border Padding="12,10" CornerRadius="10" BorderBrush="#1F2226" BorderThickness="1" Background="#141518"
+                              ToolTip.Tip="Les outils sont ceux du poste, réglés dans l’espace admin">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                          <StackPanel Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Classes="mono" Text="{Binding Note}" FontSize="10.5" TextTrimming="CharacterEllipsis"
+                                       Foreground="{Binding Warn, Converter={x:Static views:Tone.Warn}}" />
+                          </StackPanel>
+                          <Border Grid.Column="1" Classes="track" Classes.on="{Binding IsOn}" Classes.warn="{Binding Warn}" VerticalAlignment="Center">
+                            <Ellipse Width="18" Height="18" Fill="{StaticResource Parchemin}" />
+                          </Border>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="Modèle" FontSize="12.5" Foreground="{StaticResource Pierre}" Margin="0,4,0,0" />
+                <Border Height="42" Padding="12,0" CornerRadius="9" BorderBrush="#2E3237" BorderThickness="1" Background="{StaticResource Graphite}"
+                        ToolTip.Tip="Le modèle du poste, réglé dans l’espace admin">
+                  <TextBlock Text="{Binding Role.Model}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                </Border>
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <!-- Le pied : erreur, annuler, recruter -->
+          <Border Grid.Row="3" Height="64" BorderBrush="#1A1C20" BorderThickness="0,1,0,0">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+              <TextBlock Text="{Binding Error}" FontSize="12.5" Foreground="{StaticResource Cinabre}" TextWrapping="Wrap" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Classes="link" Height="42" Padding="16,0" Command="{Binding CancelCommand}" VerticalContentAlignment="Center">
+                <TextBlock Text="Annuler" FontSize="13.5" FontWeight="Medium" />
+              </Button>
+              <Button Grid.Column="2" Classes="primary" Height="42" Padding="18,0" Command="{Binding RecruitCommand}">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <TextBlock Text="{Binding Action}" FontSize="13.5" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  <Path Data="M5 12h14M13 6l6 6-6 6" Stroke="#0B1412" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                        Width="15" Height="15" Stretch="Uniform" VerticalAlignment="Center" />
+                </StackPanel>
+              </Button>
+            </Grid>
+          </Border>
+        </Grid>
       </Grid>
-    </Grid>
-  </Grid>
+    </ScrollViewer>
+  </DockPanel>
 </UserControl>

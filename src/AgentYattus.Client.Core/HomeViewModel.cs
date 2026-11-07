@@ -23,6 +23,10 @@ public sealed partial class CrewMember(string key, string role, AgentDto? agent)
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
+
+    /// <summary>La pastille sous son visage : en mission, attend votre accord, libre.</summary>
+    [ObservableProperty]
+    public partial AgentState State { get; set; }
 }
 
 public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
@@ -118,6 +122,7 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         foreach (var agent in Agents.ToList())
             crew.Add(new CrewMember(agent.Key, (agent.Name ?? agent.Key).ToUpperInvariant(), agent) { Face = await faces.AgentAsync(project, agent.Key) });
         var me = await faces.ManagerAsync(project);
+        var team = await faces.TeamOfAsync(project);
         // Un autre chargement a commencé entre-temps : le sien gagne.
         if (version != _crewVersion)
             return;
@@ -125,9 +130,37 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         foreach (var member in crew)
             Crew.Add(member);
         Me = me;
+        CanRecruit = team?.CanRecruit == true;
+        RefreshStates();
         SyncChosen();
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(ChosenLabel));
+    }
+
+    /// <summary>Le cercle « Recruter » au bout de l'équipe, pour le propriétaire et les éditeurs du projet.</summary>
+    [ObservableProperty]
+    public partial bool CanRecruit { get; set; }
+
+    /// <summary>« Recruter » : la coquille ouvre « Nouveau collègue » pour ce projet.</summary>
+    public event Action<Guid>? RecruitRequested;
+
+    [RelayCommand]
+    private void Recruit()
+    {
+        if ((SelectedProject?.Id ?? api.Faces.DefaultProject) is { } project)
+            RecruitRequested?.Invoke(project);
+    }
+
+    /// <summary>Qui est en mission, qui attend votre accord : d'après les missions récentes.</summary>
+    private void RefreshStates()
+    {
+        foreach (var member in Crew)
+        {
+            var mine = Missions.Where(m => !member.IsLeader && m.Roles.Contains(member.Key)).ToList();
+            member.State = mine.Any(m => m.IsAwaitingApproval) ? AgentState.Waiting
+                : mine.Any(m => m.IsActive) ? AgentState.Busy
+                : AgentState.Free;
+        }
     }
 
     public IReadOnlyList<string> Suggestions { get; } = ["Revue de performance", "Audit de sécurité", "Documenter une API"];
@@ -145,6 +178,7 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
             var agent = kind == MissionKind.Question && SelectedAgent is { Key: not "analyste" } chosen ? chosen.Key : null;
             var item = new MissionItem(await api.CreateMissionAsync(Goal, cancellationToken, kind, SelectedProject?.Id, agent));
             Missions.Insert(0, item);
+            RefreshStates();
             Goal = "";
             await item.LoadFacesAsync(api.Faces);
         }
@@ -235,5 +269,6 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         var mission = Missions.FirstOrDefault(m => m.Id == e.MissionId);
         if (mission is not null)
             mission.Status = e.Status;
+        RefreshStates();
     }
 }

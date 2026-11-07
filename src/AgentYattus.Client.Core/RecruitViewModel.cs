@@ -14,6 +14,10 @@ public sealed partial class PortraitChoice(PortraitDto portrait) : ObservableObj
     [ObservableProperty]
     public partial byte[]? Image { get; set; }
 
+    /// <summary>La pose « parle », pour l'aperçu de sa première bulle ; chargée quand on le choisit.</summary>
+    [ObservableProperty]
+    public partial byte[]? Talk { get; set; }
+
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 }
@@ -30,6 +34,7 @@ public sealed partial class TraitChoice(TraitDto trait) : ObservableObject
 /// <summary>Un poste : un rôle d'agent existant (ADR 0012) ; ses outils et son modèle viennent de l'admin.</summary>
 public sealed partial class RoleChoice(AgentDto agent) : ObservableObject
 {
+    public AgentDto Agent { get; } = agent;
     public string Key { get; } = agent.Key;
     public string Name { get; } = agent.Name;
 
@@ -42,31 +47,94 @@ public sealed partial class RoleChoice(AgentDto agent) : ObservableObject
     public partial bool IsSelected { get; set; }
 }
 
+/// <summary>Un outil, tel que le montre « Ce qu'il ou elle a le droit de faire » : allumé si le poste l'a.</summary>
+public sealed partial class ToolRow(ToolInfoDto tool) : ObservableObject
+{
+    public ToolInfoDto Tool { get; } = tool;
+
+    public string Label { get; } = tool.Name switch
+    {
+        "list_files" => "Parcourir les dossiers",
+        "read_file" => "Lire un fichier",
+        "write_file" => "Écrire un fichier",
+        _ => tool.Description,
+    };
+
+    public string Note { get; } = tool.Name + (tool.RequiresApproval ? " · votre accord à chaque fois" : " · lecture");
+    public bool Warn { get; } = tool.RequiresApproval;
+
+    [ObservableProperty]
+    public partial bool IsOn { get; set; }
+}
+
 /// <summary>
 /// L'écran « Nouveau collègue » : choisir un visage dans la galerie, un prénom, un poste et des traits.
 /// Les outils et le modèle sont ceux du rôle, réglés dans l'admin : on les montre, on ne les choisit pas ici.
+/// Depuis l'écran Agents, il sert aussi à changer de visage : le poste est fixé, le collègue actuel pré-rempli.
 /// </summary>
-public sealed partial class RecruitViewModel(ApiClient api, Guid projectId) : ObservableObject
+/// <param name="role">Le poste à pourvoir ; null : au choix.</param>
+/// <param name="current">Le collègue qui l'occupe : son visage, son prénom et ses traits sont repris.</param>
+/// <param name="projectName">Sous le titre : « ÉQUIPE ORDERS.API ».</param>
+public sealed partial class RecruitViewModel(
+    ApiClient api, Guid projectId, string? role = null, ColleagueDto? current = null, string? projectName = null) : ObservableObject
 {
     public Guid ProjectId { get; } = projectId;
+
+    /// <summary>« ÉQUIPE ORDERS.API », ou « ÉQUIPE PERSONNELLE ».</summary>
+    public string Team => projectName is null ? "ÉQUIPE PERSONNELLE" : $"ÉQUIPE {projectName.ToUpperInvariant()}";
+
+    /// <summary>Le lien de retour, en haut à gauche : l'écran d'où l'on vient.</summary>
+    public string BackTo { get; init; } = "Open space";
+
+    /// <summary>Tous les outils des postes ; ceux du poste choisi sont allumés (réglés dans l'admin).</summary>
+    public ObservableCollection<ToolRow> Tools { get; } = [];
+
+    /// <summary>« Nouveau collègue », ou « Nouveau visage pour Inès » quand on remplace quelqu'un.</summary>
+    public string Title => current is null ? "Nouveau collègue" : $"Nouveau visage pour {current.Name}";
+
+    /// <summary>Le bouton : recruter, ou garder le poste avec ce nouveau visage.</summary>
+    public string Action => current is null ? $"Recruter {DisplayName}" : "Enregistrer ce visage";
 
     public ObservableCollection<PortraitChoice> Portraits { get; } = [];
     public ObservableCollection<TraitChoice> Traits { get; } = [];
     public ObservableCollection<RoleChoice> Roles { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Intro), nameof(DisplayName))]
+    [NotifyPropertyChangedFor(nameof(Intro), nameof(DisplayName), nameof(Action))]
     [NotifyCanExecuteChangedFor(nameof(RecruitCommand))]
     public partial string Name { get; set; } = "";
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Matricule))]
     [NotifyCanExecuteChangedFor(nameof(RecruitCommand))]
     public partial PortraitChoice? Selected { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Intro))]
+    [NotifyPropertyChangedFor(nameof(Intro), nameof(Poste), nameof(Access), nameof(ModelShort))]
     [NotifyCanExecuteChangedFor(nameof(RecruitCommand))]
     public partial RoleChoice? Role { get; set; }
+
+    /// <summary>Le poste sur le badge : « ANALYSTE ».</summary>
+    public string Poste => (Role?.Name ?? "Nouveau collègue").ToUpperInvariant();
+
+    /// <summary>Sur le badge : lecture seule, ou écriture avec votre accord.</summary>
+    public string Access => Role?.Agent.Tools.Any(t => t.RequiresApproval) == true ? "Lecture, écriture validée" : "Lecture seule";
+
+    /// <summary>Le modèle sans son fournisseur : « claude-sonnet-5-5 ».</summary>
+    public string ModelShort => Role?.Model.Split('/').Last() ?? "—";
+
+    /// <summary>Le numéro du visage dans la galerie : « AY-0005 ».</summary>
+    public string Matricule => Selected is null ? "AY-0000" : $"AY-{Portraits.IndexOf(Selected) + 1:0000}";
+
+    /// <summary>Ses deux premiers traits, sur le badge.</summary>
+    public string StyleShort
+    {
+        get
+        {
+            var traits = Traits.Where(t => t.IsSelected).Select(t => t.Trait.Label).Take(2).ToList();
+            return traits.Count > 0 ? string.Join(", ", traits) : "—";
+        }
+    }
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(RecruitCommand))]
@@ -109,18 +177,27 @@ public sealed partial class RecruitViewModel(ApiClient api, Guid projectId) : Ob
             Traits.Clear();
             foreach (var t in traits)
             {
-                var choice = new TraitChoice(t);
-                choice.PropertyChanged += (_, _) => OnPropertyChanged(nameof(Intro));
+                var choice = new TraitChoice(t) { IsSelected = current?.Traits.Contains(t.Key) == true };
+                choice.PropertyChanged += (_, _) =>
+                {
+                    OnPropertyChanged(nameof(Intro));
+                    OnPropertyChanged(nameof(StyleShort));
+                };
                 Traits.Add(choice);
             }
 
             Roles.Clear();
             foreach (var a in agents)
                 Roles.Add(new RoleChoice(a));
-            if (Roles.FirstOrDefault() is { } first)
+            Tools.Clear();
+            foreach (var tool in agents.SelectMany(a => a.Tools).DistinctBy(t => t.Name))
+                Tools.Add(new ToolRow(tool));
+            if ((Roles.FirstOrDefault(r => r.Key == role) ?? Roles.FirstOrDefault()) is { } first)
                 PickRole(first);
-            if (Portraits.FirstOrDefault() is { } face)
+            if ((Portraits.FirstOrDefault(p => p.Portrait.Id == current?.PortraitId) ?? Portraits.FirstOrDefault()) is { } face)
                 Pick(face);
+            if (current is not null)
+                Name = current.Name;
             Error = null;
 
             // Les visages arrivent ensuite, un par un : la galerie s'affiche tout de suite.
@@ -144,6 +221,19 @@ public sealed partial class RecruitViewModel(ApiClient api, Guid projectId) : Ob
         Selected = choice;
         if (string.IsNullOrWhiteSpace(Name) || Name == suggested)
             Name = choice.Portrait.SuggestedName;
+        if (choice.Talk is null && choice.Portrait.HasTalk)
+            _ = LoadTalkAsync(choice);
+    }
+
+    private async Task LoadTalkAsync(PortraitChoice choice)
+    {
+        try
+        {
+            choice.Talk = await api.GetPortraitImageAsync(choice.Portrait.Id, "parle");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+        }
     }
 
     [RelayCommand]
@@ -152,6 +242,8 @@ public sealed partial class RecruitViewModel(ApiClient api, Guid projectId) : Ob
         foreach (var r in Roles)
             r.IsSelected = r == choice;
         Role = choice;
+        foreach (var t in Tools)
+            t.IsOn = choice.Agent.Tools.Any(x => x.Name == t.Tool.Name);
     }
 
     [RelayCommand(CanExecute = nameof(CanRecruit))]

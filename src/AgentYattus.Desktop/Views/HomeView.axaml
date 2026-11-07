@@ -40,11 +40,12 @@
     </Style>
 
     <!-- Un visage de l'équipe : il se soulève au survol ; le chef d'équipe est un peu en retrait. -->
+    <!-- 108 px avec 4 px d'écart : mêmes centres que la maquette (84 + 28), sans couper les rôles. -->
     <Style Selector="Button.member">
-      <Setter Property="Width" Value="92" />
+      <Setter Property="Width" Value="108" />
     </Style>
     <Style Selector="Button.member.leader">
-      <Setter Property="Opacity" Value="0.8" />
+      <Setter Property="Opacity" Value="0.75" />
       <Setter Property="Cursor" Value="Arrow" />
     </Style>
     <Style Selector="Button.member TextBlock.role">
@@ -87,87 +88,119 @@
       <Setter Property="BorderBrush" Value="#2A2D31" />
     </Style>
 
-    <!-- Carte de mission : couleur selon le statut. -->
+    <!-- Carte de mission : couleur selon le statut (maquette : active, awaiting, done, failed). -->
     <Style Selector="Border.mission">
       <Setter Property="Background" Value="{StaticResource Graphite}" />
       <Setter Property="BorderBrush" Value="{StaticResource Filet}" />
       <Setter Property="Transitions">
-        <Transitions><BrushTransition Property="BorderBrush" Duration="0:0:0.2" /></Transitions>
+        <Transitions><BrushTransition Property="BorderBrush" Duration="0:0:0.18" /></Transitions>
       </Setter>
     </Style>
-    <Style Selector="Button:pointerover Border.mission">
-      <Setter Property="BorderBrush" Value="#3A3F45" />
+    <Style Selector="Border.mission.completed">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#1F2226" />
     </Style>
     <Style Selector="Border.mission.failed">
       <Setter Property="Background" Value="#12D9654B" />
       <Setter Property="BorderBrush" Value="#66D9654B" />
-    </Style>
-    <Style Selector="Border.mission.completed">
-      <Setter Property="Background" Value="Transparent" />
     </Style>
     <!-- Laiton : une décision humaine est attendue. -->
     <Style Selector="Border.mission.awaiting">
       <Setter Property="Background" Value="#0FD8B86E" />
       <Setter Property="BorderBrush" Value="#73D8B86E" />
     </Style>
-    <Style Selector="TextBlock.line">
-      <Setter Property="Foreground" Value="{StaticResource Cendre}" />
+    <Style Selector="Button:pointerover Border.mission">
+      <Setter Property="BorderBrush" Value="#34383E" />
     </Style>
-    <Style Selector="Border.mission.active TextBlock.line"><Setter Property="Foreground" Value="{StaticResource VertDeGris}" /></Style>
-    <Style Selector="Border.mission.awaiting TextBlock.line"><Setter Property="Foreground" Value="{StaticResource Laiton}" /></Style>
-    <Style Selector="Border.mission.failed TextBlock.line"><Setter Property="Foreground" Value="{StaticResource Cinabre}" /></Style>
+
+    <!-- Suggestions : filet #24272B, 34 px. -->
+    <Style Selector="Button.chip.suggestion /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="BorderBrush" Value="#24272B" />
+    </Style>
+    <!-- Le bouton d'envoi garde sa couleur ; vide, il pâlit. -->
+    <Style Selector="Button.send:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource VertDeGris}" />
+    </Style>
+    <Style Selector="Button.send:disabled">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+    <!-- Le projet : une pilule en contour, texte pierre. -->
+    <Style Selector="ComboBox.project">
+      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+      <Setter Property="FontSize" Value="12.5" />
+    </Style>
+    <Style Selector="ComboBox.project /template/ Border#Background">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
   </UserControl.Styles>
 
   <ScrollViewer>
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="24,36,24,28" MaxWidth="1000">
+    <StackPanel>
+      <StackPanel Width="820" HorizontalAlignment="Center" Margin="0,40,0,0">
 
-      <!-- L'équipe : un clic sur un visage choisit qui fait la mission. -->
-      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="20" HorizontalAlignment="Center" Margin="0,0,0,30">
-        <ItemsControl ItemsSource="{Binding Crew}">
-          <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
-          </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="core:CrewMember">
-              <Button Classes="bare lift member enter" Classes.leader="{Binding IsLeader}" Classes.selected="{Binding IsSelected}"
-                      Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).PickCommand}" CommandParameter="{Binding}"
-                      ToolTip.Tip="{Binding Role}">
-                <StackPanel Spacing="8" HorizontalAlignment="Center">
-                  <views:Avatar Image="{Binding Image}" Label="{Binding Name}" Size="72" HorizontalAlignment="Center"
-                                Ring="{Binding IsSelected, Converter={x:Static views:RingConverter.Selected}}" />
-                  <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                  <TextBlock Classes="mono role" Text="{Binding Role}" FontSize="9.5" LetterSpacing="1" HorizontalAlignment="Center"
-                             Margin="0,-5,0,0" TextTrimming="CharacterEllipsis" MaxWidth="92" />
-                </StackPanel>
-              </Button>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
+        <!-- L'équipe, en vrais visages : un clic choisit qui fait la mission. (4 px de plus en haut et en bas : l'anneau déborde.) -->
+        <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,-4,0,0">
+          <ItemsControl ItemsSource="{Binding Crew}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="core:CrewMember">
+                <Button Classes="bare lift member enter" Classes.leader="{Binding IsLeader}" Classes.selected="{Binding IsSelected}"
+                        Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).PickCommand}" CommandParameter="{Binding}"
+                        ToolTip.Tip="{Binding Role}">
+                  <StackPanel Spacing="8" HorizontalAlignment="Center" Margin="0,4,0,0">
+                    <Panel Width="64" Height="64" HorizontalAlignment="Center">
+                      <views:Avatar Image="{Binding Image}" Label="{Binding Name}" Size="64" Background="{StaticResource Obsidienne}"
+                                    Ring="{Binding IsSelected, Converter={x:Static views:RingConverter.Selected}}" />
+                      <Border Width="17" Height="17" CornerRadius="8.5" BorderThickness="2.5" BorderBrush="{StaticResource Obsidienne}"
+                              Background="{Binding State, Converter={x:Static views:StateBrush.Dot}}"
+                              HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-1.5,-1.5" />
+                    </Panel>
+                    <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold" HorizontalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" MaxWidth="104" />
+                    <TextBlock Classes="mono role" Text="{Binding Role}" FontSize="10" LetterSpacing="1" HorizontalAlignment="Center"
+                               Margin="0,-6,0,0" TextTrimming="CharacterEllipsis" MaxWidth="108" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <!-- Recruter : un cercle en pointillés au bout de l'équipe -->
+          <Button Classes="bare lift member" Command="{Binding RecruitCommand}" IsVisible="{Binding CanRecruit}"
+                  ToolTip.Tip="Recruter un collègue">
+            <StackPanel Spacing="8" HorizontalAlignment="Center" Margin="0,4,0,0">
+              <Panel Width="64" Height="64" HorizontalAlignment="Center">
+                <Ellipse Width="62" Height="62" Stroke="#3A3F45" StrokeThickness="1.5" StrokeDashArray="3,2.5" />
+                <Path Data="M12 5v14M5 12h14" Stroke="{StaticResource Cendre}" StrokeThickness="2" StrokeLineCap="Round"
+                      Width="20" Height="20" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Panel>
+              <TextBlock Text="Recruter" FontSize="13.5" FontWeight="Medium" Foreground="{StaticResource Cendre}" HorizontalAlignment="Center" />
+            </StackPanel>
+          </Button>
+        </StackPanel>
 
-      <TextBlock Grid.Row="1" Text="{Binding Title}" FontSize="38" FontWeight="Medium"
-                 LetterSpacing="-1.1" HorizontalAlignment="Center" Margin="0,0,0,24" />
+        <TextBlock Text="{Binding Title}" FontSize="40" FontWeight="Medium" LetterSpacing="-1.2" HorizontalAlignment="Center" Margin="0,34,0,22" />
 
-      <!-- Compositeur -->
-      <StackPanel Grid.Row="2" Spacing="14">
-        <Border Classes="composerCard" MaxWidth="760" Padding="18,18,18,14" CornerRadius="22"
+        <!-- Le compositeur -->
+        <Border Classes="composerCard" Width="760" Padding="18,18,18,14" CornerRadius="22"
                 Background="{StaticResource Graphite}" BorderThickness="1" BoxShadow="0 30 90 0 #80000000">
-          <StackPanel Spacing="10">
+          <StackPanel Spacing="8">
             <TextBox Classes="composer" Text="{Binding Goal}" PlaceholderText="Décrivez l’objectif…"
-                     AcceptsReturn="True" TextWrapping="Wrap" FontSize="17" MinHeight="78" />
+                     AcceptsReturn="True" TextWrapping="Wrap" FontSize="17" LineHeight="24.65" Height="78" />
             <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="10">
               <!-- Bascule : une simple question, ou une revue à deux agents qui écrit REPORT.md (avec ton accord). -->
-              <ToggleButton Classes="report" IsChecked="{Binding WriteReport}" Height="32" Padding="12,0"
+              <ToggleButton Classes="report" IsChecked="{Binding WriteReport}" Height="32" Padding="12,0" VerticalAlignment="Center"
                             ToolTip.Tip="Revue à deux : l’Analyste rend ses constats, le Rédacteur écrit REPORT.md, que tu approuves">
                 <StackPanel Orientation="Horizontal" Spacing="7">
                   <Path Data="M7 3.5h7l5 5v12H7zM14 3.5v5h5M10 13h6M10 16.5h6" Stroke="{Binding $parent[ToggleButton].Foreground}"
-                        StrokeThickness="1.6" StrokeLineCap="Round" StrokeJoin="Round" Width="13" Height="13" Stretch="Uniform" />
+                        StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round" Width="13" Height="13" Stretch="Uniform" />
                   <TextBlock Classes="mono" Text="REPORT.md" FontSize="11.5" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
               <!-- Le projet de la mission (ADR 0009) ; sans choix, le projet personnel. -->
-              <ComboBox Grid.Column="1" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}" Height="32"
-                        MinWidth="150" MaxWidth="240" PlaceholderText="Projet personnel" ToolTip.Tip="Le projet de la mission">
+              <ComboBox Grid.Column="1" Classes="project" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}" Height="32"
+                        MaxWidth="240" VerticalAlignment="Center" PlaceholderText="Projet personnel" ToolTip.Tip="Le projet de la mission">
                 <ComboBox.ItemTemplate>
                   <DataTemplate x:DataType="contracts:ProjectDto">
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
@@ -175,26 +208,26 @@
                 </ComboBox.ItemTemplate>
               </ComboBox>
               <!-- Qui fait la mission (ADR 0013) : un visage. Une revue suit toujours le circuit Analyste puis Rédacteur. -->
-              <Button Grid.Column="2" Classes="who" Height="32" Padding="4,0,10,0" IsEnabled="{Binding !WriteReport}"
+              <Button Grid.Column="2" Classes="who" Height="32" Padding="4,0,10,0" IsEnabled="{Binding !WriteReport}" VerticalAlignment="Center"
                       ToolTip.Tip="L’agent qui fait la mission">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <ItemsControl ItemsSource="{Binding Chosen}" VerticalAlignment="Center">
                     <ItemsControl.ItemsPanel>
-                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-8" /></ItemsPanelTemplate>
+                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-10" /></ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                       <DataTemplate x:DataType="core:CrewMember">
-                        <views:Avatar Image="{Binding Image}" Label="{Binding Name}" Size="24" />
+                        <views:Avatar Image="{Binding Image}" Label="{Binding Name}" Size="24" Background="#111215" />
                       </DataTemplate>
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                   <TextBlock Text="{Binding ChosenLabel}" FontSize="12.5" VerticalAlignment="Center" />
                   <Path Data="M6 9l6 6 6-6" Stroke="{StaticResource Cendre}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
-                        Width="10" Height="10" Stretch="Uniform" VerticalAlignment="Center" IsVisible="{Binding !WriteReport}" />
+                        Width="12" Height="12" Stretch="Uniform" VerticalAlignment="Center" IsVisible="{Binding !WriteReport}" />
                 </StackPanel>
                 <Button.Flyout>
                   <Flyout Placement="TopEdgeAlignedLeft">
-                    <ItemsControl ItemsSource="{Binding Crew}" Width="290">
+                    <ItemsControl ItemsSource="{Binding Crew}" Width="288">
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="core:CrewMember">
                           <Button Classes="option" Classes.selected="{Binding IsSelected}" IsVisible="{Binding !IsLeader}"
@@ -214,7 +247,7 @@
                 </Button.Flyout>
               </Button>
               <TextBlock Grid.Column="3" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
-                         TextWrapping="Wrap" VerticalAlignment="Center" />
+                         TextWrapping="Wrap" VerticalAlignment="Center" Margin="4,0" />
               <Button Grid.Column="4" Classes="send" Command="{Binding LaunchMissionCommand}"
                       Width="42" Height="42" Padding="0" HotKey="Ctrl+Enter"
                       ToolTip.Tip="Lancer la mission (Ctrl+Entrée)"
@@ -227,13 +260,13 @@
         </Border>
 
         <!-- Suggestions -->
-        <ItemsControl ItemsSource="{Binding Suggestions}" HorizontalAlignment="Center">
+        <ItemsControl ItemsSource="{Binding Suggestions}" HorizontalAlignment="Center" Margin="0,14,0,0">
           <ItemsControl.ItemsPanel>
             <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="x:String">
-              <Button Classes="chip" Content="{Binding}" Height="34" FontSize="13"
+              <Button Classes="chip suggestion" Content="{Binding}" Height="34" FontSize="13"
                       Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).UseSuggestionCommand}"
                       CommandParameter="{Binding}" />
             </DataTemplate>
@@ -242,41 +275,43 @@
       </StackPanel>
 
       <!-- Récentes : chaque mission montre qui y travaille. -->
-      <StackPanel Grid.Row="4" Spacing="12" Margin="0,44,0,0" IsVisible="{Binding Missions.Count}">
+      <StackPanel Width="1000" HorizontalAlignment="Center" Spacing="12" Margin="0,44,0,28" IsVisible="{Binding Missions.Count}">
         <TextBlock Classes="eyebrow" Text="RÉCENTES" />
         <ItemsControl ItemsSource="{Binding Missions}">
           <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
+            <ItemsPanelTemplate><UniformGrid Columns="3" ColumnSpacing="12" RowSpacing="12" VerticalAlignment="Top" /></ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="core:MissionItem">
-              <Button Classes="bare lift enter" Margin="0,0,12,12" ToolTip.Tip="Ouvrir la mission"
+              <Button Classes="bare lift enter" HorizontalAlignment="Stretch" ToolTip.Tip="Ouvrir la mission"
                       Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).OpenMissionCommand}"
                       CommandParameter="{Binding}">
                 <Border Classes="mission" Classes.completed="{Binding IsCompleted}" Classes.failed="{Binding IsFailed}"
                         Classes.awaiting="{Binding IsAwaitingApproval}" Classes.active="{Binding IsActive}"
-                        Padding="14,12" CornerRadius="16" BorderThickness="1">
-                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                        Padding="16,14" CornerRadius="16" BorderThickness="1">
+                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="14">
                     <Panel VerticalAlignment="Center">
                       <!-- Halo : vert-de-gris quand il travaille, laiton quand il frappe à votre porte. -->
-                      <Ellipse Classes="pulse" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" Width="40" Height="40"
+                      <Ellipse Classes="pulse" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" Width="45" Height="45" Margin="-3.5"
                                HorizontalAlignment="Right" IsVisible="{Binding IsActive}" />
-                      <Ellipse Classes="knock" Stroke="{StaticResource Laiton}" StrokeThickness="2" Width="44" Height="44"
-                               HorizontalAlignment="Right" Margin="-2" IsVisible="{Binding IsAwaitingApproval}" />
+                      <Ellipse Classes="knock" Stroke="{StaticResource Laiton}" StrokeThickness="2" Width="49" Height="49" Margin="-5.5"
+                               HorizontalAlignment="Right" IsVisible="{Binding IsAwaitingApproval}" />
                       <ItemsControl ItemsSource="{Binding Faces}">
                         <ItemsControl.ItemsPanel>
-                          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-12" /></ItemsPanelTemplate>
+                          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-10" /></ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="core:Face">
-                            <views:Avatar Image="{Binding Work}" Label="{Binding Name}" Size="40" BorderBrush="{StaticResource Obsidienne}" />
+                            <views:Avatar Image="{Binding Work}" Label="{Binding Name}" Size="38" RingWidth="1.5" Background="{StaticResource Obsidienne}"
+                                          Ring="{Binding $parent[ItemsControl].((core:MissionItem)DataContext).Status, Converter={x:Static views:Tone.Of}}" />
                           </DataTemplate>
                         </ItemsControl.ItemTemplate>
                       </ItemsControl>
                     </Panel>
                     <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
                       <TextBlock Text="{Binding Goal}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
-                      <TextBlock Classes="line" Text="{Binding Line}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Text="{Binding Line}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                 Foreground="{Binding Status, Converter={x:Static views:Tone.Of}}" />
                     </StackPanel>
                   </Grid>
                 </Border>
@@ -285,6 +320,6 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
       </StackPanel>
-    </Grid>
+    </StackPanel>
   </ScrollViewer>
 </UserControl>

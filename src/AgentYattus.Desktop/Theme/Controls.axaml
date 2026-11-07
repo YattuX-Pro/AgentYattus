@@ -103,6 +103,17 @@
     </Style.Animations>
   </Style>
 
+  <!-- Le point « en direct » d'une pastille d'état : il clignote doucement. -->
+  <Style Selector="Ellipse.live">
+    <Style.Animations>
+      <Animation Duration="0:0:1.4" IterationCount="Infinite" Easing="SineEaseInOut">
+        <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.3" /></KeyFrame>
+        <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+      </Animation>
+    </Style.Animations>
+  </Style>
+
   <!-- Laiton : quelqu'un frappe à votre porte. -->
   <Style Selector="Ellipse.knock">
     <Style.Animations>
@@ -126,6 +137,17 @@
                    Button.bare:pressed /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
     <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <!-- Ligne d'un menu (flyout) : pleine largeur, s'allume au survol. -->
+  <Style Selector="Button.bare.menu">
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="Padding" Value="10,8" />
+  </Style>
+  <Style Selector="Button.bare.menu /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="CornerRadius" Value="8" />
+  </Style>
+  <Style Selector="Button.bare.menu:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="#1D2024" />
   </Style>
   <!-- Une carte cliquable se soulève au survol. -->
   <Style Selector="Button.lift:pointerover">
@@ -263,19 +285,20 @@
 
   <!-- Onglet de la navigation en pilule. -->
   <Style Selector="Button.tab">
-    <Setter Property="Height" Value="32" />
+    <Setter Property="Height" Value="30" />
     <Setter Property="Padding" Value="14,0" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="Foreground" Value="{StaticResource Pierre}" />
   </Style>
   <Style Selector="Button.tab /template/ ContentPresenter#PART_ContentPresenter">
     <Setter Property="Background" Value="Transparent" />
-    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="CornerRadius" Value="8" />
     <Setter Property="Foreground" Value="{StaticResource Pierre}" />
   </Style>
+  <!-- Maquette : au survol, seul le texte s'éclaire. -->
   <Style Selector="Button.tab:pointerover /template/ ContentPresenter#PART_ContentPresenter,
                    Button.tab:pressed /template/ ContentPresenter#PART_ContentPresenter">
-    <Setter Property="Background" Value="#1C1F23" />
+    <Setter Property="Background" Value="Transparent" />
     <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
   </Style>
   <Style Selector="Button.tab.active /template/ ContentPresenter#PART_ContentPresenter,

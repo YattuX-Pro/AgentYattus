@@ -64,111 +64,159 @@
     </Style>
   </UserControl.Styles>
 
-  <Grid ColumnDefinitions="*,Auto" Margin="40,20,40,24" ColumnSpacing="24">
+  <Grid ColumnDefinitions="*,380" Margin="40,26,40,0" ColumnSpacing="24">
 
-    <!-- L'équipe -->
+    <!-- L'équipe : un vrai visage par agent, ses chiffres dessous -->
     <DockPanel>
       <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="0,0,0,16">
-        <TextBlock Text="L’équipe" FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.4" />
-        <TextBlock Text="{Binding Agents.Count, StringFormat='{}{0} agents'}" FontSize="13" Foreground="{StaticResource Cendre}" VerticalAlignment="Bottom" Margin="0,0,0,3" />
+        <TextBlock Text="L’équipe" FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.44" VerticalAlignment="Bottom" />
+        <TextBlock Text="{Binding Subtitle}" FontSize="13" Foreground="{StaticResource Cendre}" VerticalAlignment="Bottom" Margin="0,0,0,3" />
       </StackPanel>
       <TextBlock DockPanel.Dock="Top" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5" Margin="0,0,0,10"
                  IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
       <ScrollViewer>
-        <ItemsControl ItemsSource="{Binding Agents}">
+        <ItemsControl ItemsSource="{Binding Tiles}">
           <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate>
+            <ItemsPanelTemplate><UniformGrid Columns="3" ColumnSpacing="14" RowSpacing="14" VerticalAlignment="Top" /></ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="core:AgentCard">
-              <Button Classes="bare lift enter" Margin="0,0,14,14" Width="250"
+          <ItemsControl.DataTemplates>
+            <DataTemplate DataType="core:AgentCard">
+              <Button Classes="bare lift enter" HorizontalAlignment="Stretch" VerticalAlignment="Top"
                       Command="{Binding $parent[ItemsControl].((core:AgentsViewModel)DataContext).SelectCommand}" CommandParameter="{Binding}">
                 <Border Classes="card" Classes.selected="{Binding IsSelected}">
                   <StackPanel>
                     <!-- La photo, en haut de la carte, fondue vers le bas. -->
-                    <Panel Height="150" ClipToBounds="True" Background="#1D2024">
+                    <Panel x:Name="Photo" Height="150" ClipToBounds="True" Background="#1D2024">
                       <Canvas>
-                        <Image Classes="photo" Width="250" Height="250" Canvas.Top="-14"
+                        <Image Classes="photo" Canvas.Top="-12" Width="{Binding #Photo.Bounds.Width}" Height="{Binding #Photo.Bounds.Width}"
                                Source="{Binding Face.Work, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" />
                       </Canvas>
                       <TextBlock Text="{Binding Name, Converter={x:Static views:Initial.Of}}" FontSize="48" FontWeight="SemiBold"
                                  Foreground="#3A3F45" HorizontalAlignment="Center" VerticalAlignment="Center"
                                  IsVisible="{Binding Face.Work, Converter={x:Static ObjectConverters.IsNull}}" />
-                      <Border VerticalAlignment="Bottom" Height="60">
+                      <Border>
                         <Border.Background>
                           <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                            <GradientStop Color="#00111215" Offset="0" />
+                            <GradientStop Color="#00111215" Offset="0.45" />
                             <GradientStop Color="#111215" Offset="1" />
                           </LinearGradientBrush>
                         </Border.Background>
                       </Border>
+                      <!-- Ce qu'il fait en ce moment -->
+                      <Border Margin="12" Height="22" Padding="9,0" CornerRadius="11" Background="#B80B0C0E"
+                              HorizontalAlignment="Left" VerticalAlignment="Top">
+                        <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+                          <Ellipse Width="6" Height="6" Fill="{Binding State, Converter={x:Static views:StateBrush.Of}}" />
+                          <TextBlock Text="{Binding StateLabel}" FontSize="11.5" Foreground="{Binding State, Converter={x:Static views:StateBrush.Of}}" />
+                        </StackPanel>
+                      </Border>
+                      <Border Margin="12" Height="22" Padding="8,0" CornerRadius="11" Background="#B80B0C0E"
+                              HorizontalAlignment="Right" VerticalAlignment="Top" IsVisible="{Binding IsCustom}">
+                        <TextBlock Classes="mono" Text="PERSO" FontSize="10" LetterSpacing="0.8" Foreground="{StaticResource Pierre}" VerticalAlignment="Center" />
+                      </Border>
                     </Panel>
-                    <StackPanel Spacing="12" Margin="16,2,16,16">
+                    <StackPanel Spacing="12" Margin="16,4,16,16">
                       <StackPanel Spacing="2">
                         <TextBlock Text="{Binding Name}" FontSize="17" FontWeight="SemiBold" />
                         <TextBlock Text="{Binding Agent.Name}" FontSize="12.5" Foreground="{StaticResource Cendre}" />
                       </StackPanel>
-                      <UniformGrid Columns="3">
-                        <StackPanel Spacing="1">
+                      <Grid ColumnDefinitions="*,*,*" ColumnSpacing="8">
+                        <StackPanel Spacing="2">
                           <TextBlock Classes="mono" Text="{Binding Missions}" FontSize="15" />
                           <TextBlock Text="missions" FontSize="11" Foreground="{StaticResource Cendre}" />
                         </StackPanel>
-                        <StackPanel Spacing="1">
+                        <StackPanel Grid.Column="1" Spacing="2">
                           <TextBlock Classes="mono" Text="{Binding RateLabel}" FontSize="15"
                                      Foreground="{Binding Rate, Converter={x:Static views:RateBrush.Of}}" />
                           <TextBlock Text="réussite" FontSize="11" Foreground="{StaticResource Cendre}" />
                         </StackPanel>
-                        <StackPanel Spacing="1">
+                        <StackPanel Grid.Column="2" Spacing="2">
                           <TextBlock Classes="mono" Text="{Binding Cost}" FontSize="15" />
                           <TextBlock Text="par mission" FontSize="11" Foreground="{StaticResource Cendre}" />
                         </StackPanel>
-                      </UniformGrid>
-                      <Border Height="4" CornerRadius="2" Background="#1F2226" ClipToBounds="True">
+                      </Grid>
+                      <Border x:Name="Track" Height="4" CornerRadius="2" Background="#1F2226" ClipToBounds="True">
                         <Border Classes="bar" HorizontalAlignment="Left" CornerRadius="2" RenderTransformOrigin="0%,50%"
-                                Background="{Binding Rate, Converter={x:Static views:RateBrush.Of}}"
-                                Width="{Binding Rate, Converter={x:Static views:RateBrush.Width}}" />
+                                Background="{Binding Rate, Converter={x:Static views:RateBrush.Of}}">
+                          <Border.Width>
+                            <MultiBinding Converter="{x:Static views:RateBrush.Share}">
+                              <Binding Path="Rate" />
+                              <Binding ElementName="Track" Path="Bounds.Width" />
+                            </MultiBinding>
+                          </Border.Width>
+                        </Border>
                       </Border>
                     </StackPanel>
                   </StackPanel>
                 </Border>
               </Button>
             </DataTemplate>
-          </ItemsControl.ItemTemplate>
+            <!-- Recruter un collègue : une tuile en pointillés -->
+            <DataTemplate DataType="core:RecruitTile">
+              <Button Classes="bare lift enter" MinHeight="290" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Foreground="{StaticResource Cendre}"
+                      Command="{Binding $parent[ItemsControl].((core:AgentsViewModel)DataContext).CustomizeCommand}">
+                <Panel>
+                  <Rectangle RadiusX="18" RadiusY="18" Stroke="#2E3237" StrokeThickness="1.5" StrokeDashArray="4,3" />
+                  <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Border Width="52" Height="52" CornerRadius="26" BorderBrush="#2E3237" BorderThickness="1" HorizontalAlignment="Center">
+                      <Path Data="M12 5v14M5 12h14" Stroke="{StaticResource Cendre}" StrokeThickness="2" StrokeLineCap="Round"
+                            Width="20" Height="20" Stretch="None" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <TextBlock Text="Recruter un collègue" FontSize="14" FontWeight="Medium" Foreground="{StaticResource Cendre}" />
+                  </StackPanel>
+                </Panel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.DataTemplates>
         </ItemsControl>
       </ScrollViewer>
     </DockPanel>
 
     <!-- La fiche : il ou elle se présente -->
-    <Border Grid.Column="1" Width="370" CornerRadius="22" VerticalAlignment="Top" ClipToBounds="True"
-            Background="{StaticResource Graphite}" BorderBrush="{StaticResource Filet}" BorderThickness="1"
+    <Border Grid.Column="1" CornerRadius="22" VerticalAlignment="Top" ClipToBounds="True"
+            Background="{StaticResource Graphite}" BorderBrush="#1F2226" BorderThickness="1"
             BoxShadow="0 24 70 0 #73000000" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
       <StackPanel>
-        <Panel Height="220" ClipToBounds="True" Background="#1D2024">
+        <Panel Height="230" ClipToBounds="True" Background="#1D2024">
           <Canvas>
-            <Image Width="370" Height="370" Canvas.Top="-24"
+            <Image Width="378" Height="378" Canvas.Top="-20"
                    Source="{Binding Selected.Face.Talk, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" />
           </Canvas>
-          <Border VerticalAlignment="Bottom" Height="70">
+          <Border>
             <Border.Background>
               <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
-                <GradientStop Color="#0016181B" Offset="0" />
+                <GradientStop Color="#0016181B" Offset="0.55" />
                 <GradientStop Color="#16181B" Offset="1" />
               </LinearGradientBrush>
             </Border.Background>
           </Border>
-          <Border Classes="cloud" Margin="16" MaxWidth="230" HorizontalAlignment="Left" VerticalAlignment="Top" Padding="12,9"
+          <Border Classes="cloud" Margin="18" MaxWidth="220" HorizontalAlignment="Left" VerticalAlignment="Top" Padding="13,10"
                   CornerRadius="14,14,14,4" Background="{StaticResource Parchemin}" BoxShadow="0 10 30 0 #59000000">
-            <TextBlock Text="{Binding Selected.Hello}" Foreground="#16181B" FontSize="12.5" LineHeight="18" TextWrapping="Wrap" MaxLines="4"
+            <TextBlock Text="{Binding Selected.Hello}" Foreground="#16181B" FontSize="12.5" LineHeight="18" TextWrapping="Wrap" MaxLines="5"
                        TextTrimming="CharacterEllipsis" />
           </Border>
         </Panel>
         <StackPanel Spacing="18" Margin="22,4,22,22">
           <StackPanel Spacing="4">
-            <TextBlock Text="{Binding Selected.Name}" FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.4" />
+            <TextBlock Text="{Binding Selected.Name}" FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.44" />
             <TextBlock FontSize="13" Foreground="{StaticResource Pierre}" TextTrimming="CharacterEllipsis">
               <Run Text="{Binding Selected.Agent.Name}" /><Run Text=" · " /><Run Text="{Binding Selected.Agent.Model}" FontFamily="{StaticResource Mono}" FontSize="12" Foreground="{StaticResource Cendre}" />
             </TextBlock>
           </StackPanel>
+
+          <!-- Sa personnalité -->
+          <ItemsControl ItemsSource="{Binding Selected.Traits}" IsVisible="{Binding !!Selected.Traits.Count}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><WrapPanel ItemSpacing="6" LineSpacing="6" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <Border Height="26" Padding="10,0" CornerRadius="13" BorderBrush="#665E9E92" BorderThickness="1" Background="#1A5E9E92">
+                  <TextBlock Text="{Binding}" FontSize="12" VerticalAlignment="Center" />
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
 
           <StackPanel>
             <TextBlock Classes="eyebrow" Text="OUTILS" Margin="0,0,0,4" />
@@ -190,17 +238,20 @@
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
-            <Border Padding="0,10" BorderBrush="{StaticResource Filet}" BorderThickness="0,1,0,0">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Text="Tours de boucle au plus" FontSize="12.5" Foreground="{StaticResource Pierre}" />
-                <TextBlock Grid.Column="1" Classes="mono" Text="{Binding Selected.Agent.MaxIterations}" FontSize="12.5" />
-              </Grid>
-            </Border>
           </StackPanel>
 
-          <Button Classes="primary" HorizontalAlignment="Stretch" Command="{Binding AssignCommand}" CommandParameter="{Binding Selected}">
-            <TextBlock Text="{Binding Selected.Name, StringFormat='Confier une mission à {0}'}" TextTrimming="CharacterEllipsis" />
-          </Button>
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+            <Button Classes="primary" Height="40" HorizontalAlignment="Stretch" Command="{Binding AssignCommand}" CommandParameter="{Binding Selected}">
+              <TextBlock Text="{Binding Selected.Name, StringFormat='Confier une mission à {0}'}" FontSize="13.5" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            </Button>
+            <!-- Modifier la fiche : son visage, son prénom, sa personnalité -->
+            <Button Grid.Column="1" Classes="outline" Width="40" Height="40" Padding="0" Command="{Binding CustomizeCommand}" CommandParameter="{Binding Selected}"
+                    IsVisible="{Binding CanCustomize}" ToolTip.Tip="Modifier la fiche : visage, prénom, personnalité"
+                    AutomationProperties.Name="Modifier la fiche" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+              <Path Data="M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4" Stroke="{StaticResource Pierre}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                    Width="16" Height="16" Stretch="Uniform" />
+            </Button>
+          </Grid>
         </StackPanel>
       </StackPanel>
     </Border>
