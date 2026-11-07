@@ -74,7 +74,10 @@ public sealed class LocalBackend : IAsyncDisposable
         return info;
     }
 
-    /// <summary>Lance l'API et attend qu'elle réponde sur /health (30 secondes au plus).</summary>
+    /// <summary>
+    /// Lance l'API et attend qu'elle prouve connaître le jeton (30 secondes au plus). Ce n'est qu'ensuite que le
+    /// logiciel envoie son jeton : un programme qui aurait pris le port entre-temps ne le reçoit jamais.
+    /// </summary>
     public async Task StartAsync(string? seedFolder = null, CancellationToken cancellationToken = default)
     {
         _process = Process.Start(StartInfo(seedFolder)) ?? throw new InvalidOperationException("L'API locale n'a pas démarré.");
@@ -92,8 +95,18 @@ public sealed class LocalBackend : IAsyncDisposable
                 throw new InvalidOperationException($"L'API locale s'est arrêtée au démarrage (code {_process.ExitCode}).");
             try
             {
-                if ((await http.GetAsync("health", cancellationToken)).IsSuccessStatusCode)
+                var nonce = Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+                using var response = await http.GetAsync($"health/local?nonce={nonce}", cancellationToken);
+                if (response.IsSuccessStatusCode)
+                {
+                    var expected = Convert.ToHexString(HMACSHA256.HashData(System.Text.Encoding.UTF8.GetBytes(Token), System.Text.Encoding.UTF8.GetBytes(nonce)));
+                    var proof = await response.Content.ReadAsStringAsync(cancellationToken);
+                    // Quelqu'un répond sur ce port sans connaître le jeton : on ne lui parle plus.
+                    if (!CryptographicOperations.FixedTimeEquals(System.Text.Encoding.ASCII.GetBytes(proof.Trim()), System.Text.Encoding.ASCII.GetBytes(expected))
+                        || _process.HasExited)
+                        throw new InvalidOperationException("Un autre programme répond sur le port de l'API locale : démarrage annulé.");
                     return;
+                }
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
             {

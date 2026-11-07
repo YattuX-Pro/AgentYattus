@@ -67,4 +67,16 @@ public sealed class LocalModeTests : IAsyncLifetime
         Assert.True(File.Exists(Path.Combine(_data, "agent-yattus.db")));
         Assert.Equal(HttpStatusCode.OK, (await Client(Token).GetAsync(SkillsProtocol.Path, Ct)).StatusCode);
     }
+
+    [Fact]
+    public async Task The_api_proves_it_knows_the_token_without_revealing_it()
+    {
+        var nonce = "0123456789abcdef0123";
+        var proof = await Client(null).GetStringAsync($"/health/local?nonce={nonce}", Ct);
+
+        var expected = Convert.ToHexString(System.Security.Cryptography.HMACSHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(Token), System.Text.Encoding.UTF8.GetBytes(nonce)));
+        Assert.Equal(expected, proof);
+        Assert.DoesNotContain(Token, proof);
+    }
 }

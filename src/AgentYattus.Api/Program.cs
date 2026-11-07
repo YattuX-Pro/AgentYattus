@@ -30,6 +30,7 @@ app.UseUserDirectory();
 app.UseAuthorization();
 
 app.MapHealthChecks("/health").AllowAnonymous();
+app.MapLocalProof(app.Configuration);
 app.MapMissionsEndpoints();
 app.MapAgentsEndpoints();
 app.MapLlmEndpoints();

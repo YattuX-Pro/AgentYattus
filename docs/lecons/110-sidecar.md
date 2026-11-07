@@ -34,12 +34,23 @@ dotnet build src/AgentYattus.Api && AGENTYATTUS_MODE=local dotnet run --project 
 
 Un processus enfant ne meurt pas avec son parent. Une API orpheline continuerait de tourner, avec son port ouvert. Le logiciel transmet donc son numéro de processus (`Local__ParentPid`). Dans l'API, `ParentWatcher` vérifie toutes les deux secondes qu'il existe encore, et arrête l'API sinon.
 
+## 3 bis. Et si un autre programme prend le port ? (correctif après revue)
+
+Entre le moment où le logiciel choisit le port et celui où l'API l'occupe, un autre programme pourrait le prendre, et recevoir le jeton à la première requête. Une revue de sécurité automatique l'a relevé. Le correctif :
+
+- **L'API prouve qu'elle connaît le jeton, sans l'envoyer.** Le logiciel tire un nonce, l'API répond HMAC-SHA256(jeton, nonce) sur `/health/local`, et le logiciel compare en temps constant.
+- **Le jeton n'est attaché aux requêtes qu'après cette preuve.** Avant, aucune requête ne le porte.
+- **Si la preuve est fausse, le démarrage est annulé.**
+
+De même, la recherche de `deploy/portraits` en remontant les dossiers ne se fait qu'en développement. Une version installée ne prend que `portraits/` à côté d'elle.
+
 ## 4. Vérifie toi-même
 
 `dotnet test --filter LocalBackendTests` lance **la vraie API**, avec une base dans un dossier temporaire :
 
 - sans jeton, 401 ; avec le jeton, 200 ;
-- deux lancements ont deux jetons, et le jeton n'apparaît jamais dans les arguments de la commande.
+- deux lancements ont deux jetons, et le jeton n'apparaît jamais dans les arguments de la commande ;
+- un intrus qui occupe le port fait échouer le démarrage et ne reçoit jamais d'en-tête `Authorization`.
 
 ## 5. Les limites
 

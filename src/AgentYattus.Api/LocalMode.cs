@@ -34,6 +34,21 @@ internal static class LocalMode
     public static string ConnectionString(IConfiguration configuration) =>
         $"Data Source={Path.Combine(DataFolder(configuration), "agent-yattus.db")}";
 
+    /// <summary>
+    /// Avant d'envoyer son jeton, le logiciel vérifie qu'il parle bien à SON API : un autre programme qui aurait pris
+    /// le port entre-temps ne sait pas calculer HMAC-SHA256(jeton, nonce). Le jeton lui-même ne circule pas ici.
+    /// </summary>
+    public static void MapLocalProof(this IEndpointRouteBuilder app, IConfiguration configuration)
+    {
+        if (!IsOn(configuration))
+            return;
+        var key = Encoding.UTF8.GetBytes(configuration["Local:Token"] ?? "");
+        app.MapGet("/health/local", (string nonce) =>
+            nonce is { Length: >= 16 and <= 128 }
+                ? Results.Text(Convert.ToHexString(HMACSHA256.HashData(key, Encoding.UTF8.GetBytes(nonce))))
+                : Results.BadRequest()).AllowAnonymous();
+    }
+
     public static IServiceCollection AddLocalAuthentication(this IServiceCollection services, IConfiguration configuration)
     {
         // Sans jeton, l'API refuse de démarrer : jamais une API locale ouverte à tous les programmes de la machine.
