@@ -35,6 +35,11 @@ docker run --rm --name agent-yattus-… --label agent-yattus=sandbox
 - **`.git` en lecture seule** : une commande pourrait y planter un *hook*, que git exécuterait ensuite **sur ta machine**, hors du bac à sable.
 - **La sortie est lue par morceaux de taille fixe**, pas par ligne : une seule « ligne » de 60 millions de caractères ne s'accumule plus en mémoire. Au-delà de 50 millions de caractères en tout, la commande est arrêtée.
 
+Une deuxième revue a ajouté deux règles :
+
+- **Un chemin qui contient une virgule, un guillemet ou un « = » est refusé.** Docker lit `--mount` comme une liste « clé=valeur » séparée par des virgules. Un fichier nommé `x,readonly=false` changerait les options du montage. On refuse plutôt que d'échapper.
+- **Tout le dossier est parcouru pour trouver les fichiers exclus**, `node_modules` et `.git` compris : un secret peut s'y cacher. Au-delà de 50 000 entrées, la commande est refusée.
+
 ## 3. Ce que tu vois
 
 La demande d'accord montre la commande exacte, avec un avertissement : « Dans un conteneur isolé, sans réseau. Elle peut modifier les fichiers du projet. » L'open space raconte « Je lance « dotnet test » dans le bac à sable. ».

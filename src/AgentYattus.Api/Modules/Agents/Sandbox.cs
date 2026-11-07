@@ -33,6 +33,10 @@ internal sealed class DockerSandbox(Microsoft.Extensions.Options.IOptions<Agents
         var info = new ProcessStartInfo("docker") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         if (hidden is { Count: > MaxHidden })
             return new CommandResult(-1, $"Trop de fichiers exclus à masquer ({hidden.Count}) : commande refusée.", false);
+        // Docker lit --mount comme une liste « clé=valeur » séparée par des virgules : un nom de fichier qui contient
+        // une virgule ou un « = » changerait les options du montage. On refuse plutôt que d'échapper.
+        if (!SafeForMount(Path.GetFullPath(workspace)) || hidden?.Any(h => !SafeForMount(h)) == true)
+            return new CommandResult(-1, "Un chemin du projet contient une virgule, un guillemet, un « = » ou un caractère invisible : commande refusée.", false);
         // Les arguments un par un : aucun shell de la machine n'interprète la commande, seul celui du conteneur.
         foreach (var arg in Arguments(name, workspace, command, settings, await UserAsync(), hidden))
             info.ArgumentList.Add(arg);
@@ -81,6 +85,9 @@ internal sealed class DockerSandbox(Microsoft.Extensions.Options.IOptions<Agents
             return new CommandResult(process.ExitCode, output.ToString(), TimedOut: false);
         }
     }
+
+    internal static bool SafeForMount(string path) =>
+        !path.Any(c => c is ',' or '"' or '=' || char.IsControl(c) || char.GetUnicodeCategory(c) == System.Globalization.UnicodeCategory.Format);
 
     internal static IReadOnlyList<string> Arguments(
         string name, string workspace, string command, AgentsOptions settings, string? user, IReadOnlyList<string>? hidden = null)

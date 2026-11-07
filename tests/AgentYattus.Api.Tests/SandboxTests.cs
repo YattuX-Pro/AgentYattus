@@ -40,6 +40,9 @@ public sealed class SandboxTests
         Assert.Contains("type=bind,source=/srv/projet:piege,target=/work", args);
         // La commande entière est UN argument, donné au shell du conteneur.
         Assert.Equal(["sh", "-c", "dotnet test; echo fini"], args.TakeLast(3));
+        // Un nom qui changerait les options du montage est refusé.
+        Assert.False(DockerSandbox.SafeForMount("a,readonly=false"));
+        Assert.True(DockerSandbox.SafeForMount("/srv/projet/src"));
     }
 
     [Fact]

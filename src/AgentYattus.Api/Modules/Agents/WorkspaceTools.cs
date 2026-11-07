@@ -132,7 +132,8 @@ internal sealed class WorkspaceTools
 
     /// <summary>
     /// Les fichiers et dossiers exclus présents dans le dossier (chemins relatifs), pour les masquer dans le bac à sable.
-    /// Plus de 200 : on s'arrête là, et le bac à sable refuse la commande.
+    /// Tout le dossier est parcouru, dépendances et .git compris : un secret peut s'y cacher.
+    /// Plus de 200 à masquer, ou plus de 50 000 entrées à parcourir : la commande est refusée.
     /// </summary>
     internal IReadOnlyList<string> ExcludedEntries()
     {
@@ -140,14 +141,17 @@ internal sealed class WorkspaceTools
         if (_excluded.Count == 0)
             return found;
         var pending = new Stack<string>([_root]);
+        var seen = 0;
         while (pending.Count > 0 && found.Count <= DockerSandbox.MaxHidden)
             foreach (var entry in Directory.EnumerateFileSystemEntries(pending.Pop()))
             {
+                if (++seen > 50_000)
+                    throw new InvalidOperationException("Dossier trop grand pour vérifier ses fichiers exclus (plus de 50 000 entrées) : commande refusée.");
                 if (IsLink(entry))
                     continue;
                 if (MatchesExcluded(Path.GetFileName(entry)))
                     found.Add(Path.GetRelativePath(_root, entry));
-                else if (Directory.Exists(entry) && Path.GetFileName(entry) is not (".git" or "node_modules"))
+                else if (Directory.Exists(entry))
                     pending.Push(entry);
             }
         return found;
