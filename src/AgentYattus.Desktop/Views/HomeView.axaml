@@ -139,7 +139,7 @@
             <TextBox Classes="composer" Text="{Binding Goal}" PlaceholderText="Décrivez l’objectif…"
                      PlaceholderForeground="#6F6B63" AcceptsReturn="True" TextWrapping="Wrap"
                      FontSize="17" MinHeight="78" Padding="4,2" />
-            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="12">
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="12">
               <!-- Bascule : une simple question, ou une revue à deux agents qui écrit REPORT.md (avec ton accord). -->
               <ToggleButton Classes="report" IsChecked="{Binding WriteReport}" Height="32" Padding="12,0"
                             ToolTip.Tip="Revue à deux agents : l’Analyste rend ses constats, le Rédacteur écrit REPORT.md, que tu approuves">
@@ -158,9 +158,19 @@
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
               </ComboBox>
-              <TextBlock Grid.Column="2" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
+              <!-- L'agent qui fait une question (ADR 0013) ; une revue suit toujours le circuit Analyste puis Rédacteur. -->
+              <ComboBox Grid.Column="2" ItemsSource="{Binding Agents}" SelectedItem="{Binding SelectedAgent}" Height="32"
+                        MinWidth="130" MaxWidth="200" PlaceholderText="Analyste" ToolTip.Tip="L'agent qui fait la mission"
+                        IsEnabled="{Binding !WriteReport}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="contracts:AgentDto">
+                    <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Grid.Column="3" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
                          TextWrapping="Wrap" VerticalAlignment="Center" />
-              <Button Grid.Column="3" Classes="send" Command="{Binding LaunchMissionCommand}"
+              <Button Grid.Column="4" Classes="send" Command="{Binding LaunchMissionCommand}"
                       Width="42" Height="42" Padding="0" HotKey="Ctrl+Enter"
                       ToolTip.Tip="Lancer la mission (Ctrl+Entrée)"
                       HorizontalContentAlignment="Center" VerticalContentAlignment="Center">

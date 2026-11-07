@@ -7,10 +7,12 @@ namespace AgentYattus.Client.Core;
 public sealed class ApiClient(HttpClient http)
 {
     /// <param name="projectId">Le projet de la mission ; null : le projet personnel (ADR 0009).</param>
+    /// <param name="agent">L'agent qui fait une mission Question (ADR 0013) ; null : l'Analyste.</param>
     public async Task<MissionDto> CreateMissionAsync(
-        string goal, CancellationToken cancellationToken = default, MissionKind kind = MissionKind.Question, Guid? projectId = null)
+        string goal, CancellationToken cancellationToken = default, MissionKind kind = MissionKind.Question, Guid? projectId = null,
+        string? agent = null)
     {
-        using var response = await http.PostAsJsonAsync("missions", new CreateMissionRequest(goal, kind, projectId), cancellationToken);
+        using var response = await http.PostAsJsonAsync("missions", new CreateMissionRequest(goal, kind, projectId, agent), cancellationToken);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<MissionDto>(cancellationToken))!;
     }

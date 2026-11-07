@@ -82,6 +82,40 @@ public sealed class HomeViewModelTests
     }
 
     [Fact]
+    public async Task A_question_is_launched_with_the_chosen_agent_and_a_review_keeps_its_circuit()
+    {
+        var bodies = new List<string>();
+        AgentDto[] agents = [new("Analyste", "", "m", 10, [], "analyste"), new("Testeur", "", "m", 10, [], "testeur", Builtin: false)];
+        var handler = new StubHandler(request =>
+        {
+            if (request.Method == HttpMethod.Post)
+            {
+                bodies.Add(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                return new HttpResponseMessage(HttpStatusCode.Accepted)
+                {
+                    Content = JsonContent.Create(new MissionDto(Guid.NewGuid(), "But", MissionStatus.Pending, DateTimeOffset.UtcNow)),
+                };
+            }
+            var path = request.RequestUri!.AbsolutePath;
+            object content = path == "/agents" ? agents : path == "/projects" ? Array.Empty<ProjectDto>() : Array.Empty<MissionDto>();
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(content, content.GetType()) };
+        });
+        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("analyste", vm.SelectedAgent!.Key);
+        vm.SelectedAgent = vm.Agents[1];
+        vm.Goal = "Vérifie les tests";
+        await vm.LaunchMissionCommand.ExecuteAsync(null);
+        vm.WriteReport = true;
+        vm.Goal = "Revue";
+        await vm.LaunchMissionCommand.ExecuteAsync(null);
+
+        Assert.Contains("\"agent\":\"testeur\"", bodies[0]);
+        Assert.Contains("\"agent\":null", bodies[1]);
+    }
+
+    [Fact]
     public async Task Launch_shows_an_error_when_the_api_fails()
     {
         var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
@@ -117,7 +151,7 @@ public sealed class HomeViewModelTests
 
         await vm.LoadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(["http://api/missions?limit=50", "http://api/projects"], sent);
+        Assert.Equal(["http://api/missions?limit=50", "http://api/projects", "http://api/agents"], sent);
         Assert.Equal(missions.Select(m => m.Id), vm.Missions.Select(m => m.Id));
         Assert.True(vm.Missions[0].IsAwaitingApproval);
         Assert.Equal("À valider", vm.Missions[0].StatusLabel);

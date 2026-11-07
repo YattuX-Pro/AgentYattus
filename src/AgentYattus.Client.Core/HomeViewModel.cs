@@ -30,6 +30,12 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
     [ObservableProperty]
     public partial ProjectDto? SelectedProject { get; set; }
 
+    /// <summary>Les agents proposés (ADR 0013) : celui qui fera une mission Question.</summary>
+    public ObservableCollection<AgentDto> Agents { get; } = [];
+
+    [ObservableProperty]
+    public partial AgentDto? SelectedAgent { get; set; }
+
     public IReadOnlyList<string> Suggestions { get; } = ["Revue de performance", "Audit de sécurité", "Documenter une API"];
 
     private bool CanLaunchMission => !string.IsNullOrWhiteSpace(Goal);
@@ -41,7 +47,9 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         try
         {
             var kind = WriteReport ? MissionKind.Review : MissionKind.Question;
-            Missions.Insert(0, new MissionItem(await api.CreateMissionAsync(Goal, cancellationToken, kind, SelectedProject?.Id)));
+            // Une revue suit son circuit (Analyste puis Rédacteur) ; une question est faite par l'agent choisi.
+            var agent = kind == MissionKind.Question && SelectedAgent is { Key: not "analyste" } chosen ? chosen.Key : null;
+            Missions.Insert(0, new MissionItem(await api.CreateMissionAsync(Goal, cancellationToken, kind, SelectedProject?.Id, agent)));
             Goal = "";
         }
         // Délai dépassé ou réponse illisible ne doivent pas faire planter l'interface.
@@ -86,6 +94,22 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         {
             Projects.Clear();
             SelectedProject = null;
+        }
+
+        try
+        {
+            var selectedAgent = SelectedAgent?.Key;
+            Agents.Clear();
+            foreach (var agent in await api.GetAgentsAsync(cancellationToken))
+                Agents.Add(agent);
+            SelectedAgent = Agents.FirstOrDefault(a => a.Key == selectedAgent) ?? Agents.FirstOrDefault(a => a.Key == "analyste") ?? Agents.FirstOrDefault();
+        }
+        // Sans la liste des agents, la mission part avec l'Analyste.
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
+                                   || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            Agents.Clear();
+            SelectedAgent = null;
         }
     }
 

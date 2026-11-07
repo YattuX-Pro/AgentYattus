@@ -36,14 +36,15 @@ public static partial class Scene
 
     /// <param name="you">Le prénom de la personne connectée, pour {vous}.</param>
     /// <param name="approvalFile">Le fichier que le rédacteur veut écrire (la demande en cours), pour {fichier}.</param>
+    /// <param name="worker">L'agent qui fait une mission Question (ADR 0013) : il occupe le bureau de l'analyste.</param>
     public static IReadOnlyList<SceneLine> From(
-        IReadOnlyList<AuditEntryDto> events, ProjectTeamDto team, string goal, string you, string? approvalFile = null)
+        IReadOnlyList<AuditEntryDto> events, ProjectTeamDto team, string goal, string you, string? approvalFile = null, string worker = Analyst)
     {
         var names = new Dictionary<string, string>
         {
             [Leader] = team.LeaderName,
             [You] = you,
-            [Analyst] = team.Colleagues.FirstOrDefault(c => c.Role == Analyst)?.Name ?? "l'analyste",
+            [Analyst] = team.Colleagues.FirstOrDefault(c => c.Role == worker)?.Name ?? "l'analyste",
             [Writer] = team.Colleagues.FirstOrDefault(c => c.Role == Writer)?.Name ?? "le rédacteur",
         };
         var lines = new List<SceneLine>();
@@ -92,7 +93,7 @@ public static partial class Scene
                     lastActor = role;
                     statuses[role] = tool == "read_file" ? "lit le code" : "parcourt le dossier";
                     // Le premier dossier vient des archives : le workspace est l'armoire du fond.
-                    var carries = !folderBrought && role == Analyst ? SceneObject.Folder : SceneObject.None;
+                    var carries = !folderBrought && role == worker ? SceneObject.Folder : SceneObject.None;
                     folderBrought |= carries == SceneObject.Folder;
                     Say(role, $"outil:{tool}", e.At, carries, path == "." ? "le dossier" : path);
                     break;

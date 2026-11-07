@@ -65,4 +65,13 @@ public sealed class SceneTests
 
         Assert.Equal("Bonjour {inconnu}, Yatt", Scene.Fill("Bonjour {inconnu}, {vous}", new Dictionary<string, string> { ["vous"] = "Yatt" }));
     }
+
+    [Fact]
+    public void A_chosen_agent_speaks_from_the_analyst_desk_and_brings_the_folder()
+    {
+        var lines = Scene.From([E("Running"), E("action:testeur:read_file:tests/OrdersTests.cs")],
+            Team(("testeur", "Nora")), "Vérifie les tests", "Yatt", worker: "testeur");
+
+        Assert.Equal(("testeur", "Je lis tests/OrdersTests.cs.", SceneObject.Folder), (lines[1].Speaker, lines[1].Text, lines[1].Carries));
+    }
 }

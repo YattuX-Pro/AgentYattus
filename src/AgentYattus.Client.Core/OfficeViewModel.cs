@@ -9,7 +9,9 @@ namespace AgentYattus.Client.Core;
 public sealed partial class DeskViewModel(string role, string roleLabel) : ObservableObject
 {
     public string Role { get; } = role;
-    public string RoleLabel { get; } = roleLabel;
+
+    [ObservableProperty]
+    public partial string RoleLabel { get; set; } = roleLabel;
 
     [ObservableProperty]
     public partial string Name { get; set; } = "";
@@ -63,6 +65,9 @@ public sealed partial class OfficeViewModel : ObservableObject
 
     private readonly ApiClient _api;
     private readonly string _you;
+
+    /// <summary>L'agent qui fait la mission : l'analyste, ou celui choisi au lancement (ADR 0013), à son bureau.</summary>
+    private readonly string _worker;
     private readonly Dictionary<Guid, byte[]?> _images = [];
     private ProjectTeamDto? _team;
     private IReadOnlyList<SceneLine> _script = [];
@@ -75,6 +80,7 @@ public sealed partial class OfficeViewModel : ObservableObject
     {
         _api = api;
         _you = you;
+        _worker = mission.Agent ?? Scene.Analyst;
         Mission = new MissionViewModel(api, mission);
         Leader = new DeskViewModel(Scene.Leader, "CHEF D'ÉQUIPE");
         Analyst = new DeskViewModel(Scene.Analyst, "ANALYSTE");
@@ -198,9 +204,12 @@ public sealed partial class OfficeViewModel : ObservableObject
         Leader.Name = team.LeaderName;
         await DressAsync(Leader, team.LeaderPortraitId, ct);
         await DressAsync(Manager, team.ManagerPortraitId, ct);
+        if (_worker != Scene.Analyst)
+            Analyst.RoleLabel = _worker.Replace('-', ' ').ToUpperInvariant();
         foreach (var desk in new[] { Analyst, Writer })
         {
-            var colleague = team.Colleagues.FirstOrDefault(c => c.Role == desk.Role);
+            var role = desk == Analyst ? _worker : desk.Role;
+            var colleague = team.Colleagues.FirstOrDefault(c => c.Role == role);
             desk.Name = colleague?.Name ?? "Siège libre";
             await DressAsync(desk, colleague?.PortraitId, ct);
         }
@@ -240,7 +249,7 @@ public sealed partial class OfficeViewModel : ObservableObject
         if (_team is null)
             return;
         var file = Mission.PendingApproval.FirstOrDefault()?.Target;
-        _script = Scene.From(Mission.Events, _team, Mission.Mission.Goal, _you, file);
+        _script = Scene.From(Mission.Events, _team, Mission.Mission.Goal, _you, file, _worker);
         if (_firstLoad)
         {
             _firstLoad = false;
@@ -305,7 +314,8 @@ public sealed partial class OfficeViewModel : ObservableObject
 
     private IEnumerable<DeskViewModel> Desks => [Leader, Analyst, Writer, Manager];
 
-    private DeskViewModel? DeskOf(string speaker) => Desks.FirstOrDefault(d => d.Role == speaker);
+    // L'agent choisi au lancement parle depuis le bureau de l'analyste.
+    private DeskViewModel? DeskOf(string speaker) => speaker == _worker ? Analyst : Desks.FirstOrDefault(d => d.Role == speaker);
 
     // Une courbe de Bézier cubique, avec une accélération douce au départ et à l'arrivée.
     private void Move(SceneObject what, double t)
