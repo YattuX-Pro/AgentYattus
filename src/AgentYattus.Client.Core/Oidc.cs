@@ -161,8 +161,25 @@ public sealed class OidcClient(HttpClient backchannel, OidcSettings settings)
 public sealed class TokenStore(OidcClient oidc)
 {
     private readonly SemaphoreSlim _refresh = new(1, 1);
+    private readonly Lock _expire = new();
 
     public OidcSession? Session { get; set; }
+
+    /// <summary>La session vient d'être perdue (rafraîchissement refusé, ou 401 de l'API) : il faut se reconnecter.
+    /// Levé hors du thread UI.</summary>
+    public event Action? Expired;
+
+    /// <summary>Oublie la session ; prévient une seule fois, même si plusieurs requêtes échouent ensemble.</summary>
+    public void Expire()
+    {
+        lock (_expire)
+        {
+            if (Session is null)
+                return;
+            Session = null;
+        }
+        Expired?.Invoke();
+    }
 
     public async Task<string?> GetAccessTokenAsync(CancellationToken cancellationToken = default)
     {
@@ -182,7 +199,7 @@ public sealed class TokenStore(OidcClient oidc)
         catch (InvalidOperationException)
         {
             // Rafraîchissement refusé (session expirée côté Keycloak) : il faudra se reconnecter.
-            Session = null;
+            Expire();
             return null;
         }
         finally
@@ -199,6 +216,10 @@ public sealed class BearerTokenHandler(TokenStore tokens) : DelegatingHandler
     {
         if (await tokens.GetAccessTokenAsync(cancellationToken) is { } token)
             request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-        return await base.SendAsync(request, cancellationToken);
+        var response = await base.SendAsync(request, cancellationToken);
+        // L'API refuse le jeton (session fermée, révoquée) : retour à l'écran de connexion plutôt qu'une erreur brute.
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            tokens.Expire();
+        return response;
     }
 }

@@ -72,6 +72,15 @@ public sealed partial class ShellViewModel : ObservableObject
     public event Action? LoggedIn;
     public event Action? LoggedOut;
 
+    /// <summary>Session perdue (Keycloak l'a fermée) : retour à la connexion, avec la raison. Sur le thread UI.</summary>
+    public void SessionExpired()
+    {
+        if (Login is null || !IsAuthenticated)
+            return;
+        Logout();
+        Login.Error = "Votre session a expiré : reconnectez-vous.";
+    }
+
     [RelayCommand]
     private void Logout()
     {

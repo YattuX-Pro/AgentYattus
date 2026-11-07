@@ -118,6 +118,32 @@ public sealed class OidcTests
         Assert.Null(tokens.Session);
     }
 
+    [Fact]
+    public async Task A_session_closed_by_keycloak_brings_back_the_login_screen_with_the_reason()
+    {
+        var oidc = new OidcClient(new HttpClient(new FakeKeycloak()), Settings);
+        var tokens = new TokenStore(oidc);
+        // L'API refuse le jeton : Keycloak a fermé la session (30 minutes sans activité).
+        var http = new HttpClient(new BearerTokenHandler(tokens)
+        {
+            InnerHandler = new Stub(_ => new HttpResponseMessage(HttpStatusCode.Unauthorized)),
+        }) { BaseAddress = new Uri("http://api/") };
+        var api = new ApiClient(http);
+        var login = new LoginViewModel(oidc, tokens, url => Browser.ReturnAsync(url, code: "code-123"));
+        var shell = new ShellViewModel(api, new HomeViewModel(api), login);
+        var expired = 0;
+        tokens.Expired += () => { expired++; shell.SessionExpired(); };
+        await login.LoginCommand.ExecuteAsync(null);
+
+        // Deux requêtes refusées ensemble : un seul retour à la connexion.
+        await Task.WhenAll(http.GetAsync("missions", Ct), http.GetAsync("agents", Ct));
+
+        Assert.Equal(1, expired);
+        Assert.Same(login, shell.Current);
+        Assert.False(shell.IsAuthenticated);
+        Assert.Equal("Votre session a expiré : reconnectez-vous.", login.Error);
+    }
+
     /// <summary>Le navigateur après la connexion : il revient sur l'adresse de redirection, avec le code.</summary>
     private static class Browser
     {

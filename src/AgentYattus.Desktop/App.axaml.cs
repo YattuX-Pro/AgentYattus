@@ -38,6 +38,7 @@ public sealed partial class App : Application
                 AdminUrl = new Uri(Environment.GetEnvironmentVariable("AGENTYATTUS_ADMIN_URL") ?? "http://localhost:4200/"),
             };
             shell.OpenUrlRequested += uri => _ = OpenBrowserAsync(uri);
+            tokens.Expired += () => Dispatcher.UIThread.Post(shell.SessionExpired);
             var hub = new MissionsHubClient(apiUrl, accessTokenProvider: () => tokens.GetAccessTokenAsync());
             hub.MissionEventReceived += e => Dispatcher.UIThread.Post(() => _ = shell.ApplyAsync(e));
             hub.MissionTextReceived += e => Dispatcher.UIThread.Post(() => shell.ApplyText(e));
