@@ -132,6 +132,45 @@ Préalable : `feat(auth): page de connexion aux couleurs d'Agent Yattus, avec Go
 - [x] 96 `feat(admin): page Agents allégée, créer et retirer un agent`
 - [x] 97 `feat(desktop): choisir l'agent d'une mission`
 
+## Les compétences
+
+- [x] 104 `feat(agents): les compétences` · `fix(agents)` (une compétence à soi ne sert qu'aux missions de son auteur)
+- [x] 105 `feat(desktop): donner ou écrire des compétences` · 106 `feat(agents): un agent propose une compétence` · 107 `feat(skills): mesurer`
+
+## Vraiment utile, aux devs et aux autres (validé le 2026-11-07)
+
+### Phase A — « Mon dossier, mes fichiers »
+- [ ] 108 `docs(adr): 0014 mode local et mode serveur`
+- [ ] 109 `feat(desktop): l'API démarre avec le logiciel (sidecar, SQLite, sans Docker)`
+- [ ] 110 `feat(auth): mode local sans Keycloak`
+- [ ] 111 `feat(projects): chacun choisit le dossier de ses projets`
+- [ ] 112 `feat(desktop): choisir le dossier d'un projet depuis le logiciel`
+- [ ] 113 `feat(agents): lire les PDF` · 114 `feat(agents): lire Word et Excel`
+- [ ] 115 `feat(missions): glisser-déposer des fichiers dans une mission`
+- [ ] 116 `feat(agents): rendre un document Word ou PDF, avec ton accord`
+
+### Phase B — « Une vraie conversation »
+- [ ] 117 `feat(missions): répondre à l'agent` · 118 `feat(desktop): le fil de conversation`
+- [ ] 119 `feat(agents): la réponse en direct` · 120 `feat(desktop): la bulle s'écrit en direct`
+- [ ] 121 `feat(missions): reprise après redémarrage`
+
+### Phase C — « Mode développeur »
+- [ ] 122 `search` · 123 `edit_file` · 124 relecture en diff
+- [ ] 125 ADR 0015 bac à sable · 126 conteneur isolé · 127 `run_command`
+- [ ] 128 git en lecture · 129 mode branche · 130 commit puis PR avec accord
+- [ ] 131 postes Développeur et Testeur · 132 évaluations du mode développeur
+
+### Phase D — Connecteurs MCP
+- [ ] 133 ADR 0016 · 134 client MCP · 135 outils MCP par agent · 136 connexions personnelles · 137 « Connecter » · 138 sécurité MCP
+
+### Phase E — L'équipe se passe le relais
+- [ ] 139 ADR 0017 · 140 le chef planifie et délègue · 141 chaîne de postes · 142 l'open space joue la délégation
+- [ ] 143 missions planifiées · 144 webhooks · 145 budget par projet et par mission
+
+### Phase F — Simple pour tous
+- [ ] 146 première mission guidée · 147 modèles de mission · 148 modèles à soi et partagés · 149 sans jargon
+- [ ] 150 mobile, squelette · 151 approuver depuis son téléphone · 152 installeurs · 153 production · 154 guide utilisateur
+
 ## Ensuite
 
 - [ ] Équipe en chaîne (plusieurs agents à la suite) ou chef qui délègue : chacun avec sa propre décision (ADR 0013).
