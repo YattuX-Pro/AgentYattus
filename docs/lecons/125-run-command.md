@@ -29,6 +29,12 @@ docker run --rm --name agent-yattus-… --label agent-yattus=sandbox
 - **La durée** : au-delà de 120 secondes, on tue **le conteneur** (`docker kill <nom>`), pas seulement le client `docker`, qui laisserait le conteneur tourner.
 - **La fin de la sortie** : on garde les 20 000 derniers caractères, là où sont les erreurs et le résumé des tests.
 
+## 2 bis. Après revue de sécurité (un correctif à part)
+
+- **Les fichiers exclus sont masqués** dans le conteneur. Un `.env` exclu pour `read_file` était lisible par `cat .env`. Chaque fichier exclu est recouvert d'un fichier vide en lecture seule (`/dev/null`), chaque dossier exclu d'un dossier vide (`tmpfs`). Au-delà de 200 à masquer, la commande est refusée.
+- **`.git` en lecture seule** : une commande pourrait y planter un *hook*, que git exécuterait ensuite **sur ta machine**, hors du bac à sable.
+- **La sortie est lue par morceaux de taille fixe**, pas par ligne : une seule « ligne » de 60 millions de caractères ne s'accumule plus en mémoire. Au-delà de 50 millions de caractères en tout, la commande est arrêtée.
+
 ## 3. Ce que tu vois
 
 La demande d'accord montre la commande exacte, avec un avertissement : « Dans un conteneur isolé, sans réseau. Elle peut modifier les fichiers du projet. » L'open space raconte « Je lance « dotnet test » dans le bac à sable. ».
@@ -40,7 +46,8 @@ La demande d'accord montre la commande exacte, avec un avertissement : « Dans u
 - la commande écrit dans le projet et ne voit pas le disque de la machine ;
 - `wget` échoue (pas de réseau) ;
 - `sleep 60` est tué au bout de 3 secondes ;
-- les arguments construits ne contiennent jamais la commande en dehors du dernier.
+- les arguments construits ne contiennent jamais la commande en dehors du dernier ;
+- un `.env` exclu reste invisible et intact, `.git` ne se modifie pas, une sortie sans fin est arrêtée.
 
 ## 5. Quiz
 

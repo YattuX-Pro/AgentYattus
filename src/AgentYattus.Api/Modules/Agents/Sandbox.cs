@@ -10,7 +10,8 @@ internal sealed record CommandResult(int ExitCode, string Output, bool TimedOut)
 internal interface ICommandSandbox
 {
     /// <summary>Null si le bac à sable n'est pas disponible (pas de Docker).</summary>
-    Task<CommandResult?> RunAsync(string workspace, string command, CancellationToken cancellationToken);
+    /// <param name="hidden">Chemins relatifs à masquer dans le conteneur : les fichiers exclus (secrets probables).</param>
+    Task<CommandResult?> RunAsync(string workspace, string command, CancellationToken cancellationToken, IReadOnlyList<string>? hidden = null);
 }
 
 /// <summary>
@@ -20,14 +21,20 @@ internal interface ICommandSandbox
 internal sealed class DockerSandbox(Microsoft.Extensions.Options.IOptions<AgentsOptions> options, ILogger<DockerSandbox> logger) : ICommandSandbox
 {
     public const int MaxOutputChars = 20_000;
+    public const int MaxHidden = 200;
 
-    public async Task<CommandResult?> RunAsync(string workspace, string command, CancellationToken cancellationToken)
+    /// <summary>Au-delà, la commande est arrêtée : une sortie sans fin ne remplit ni la mémoire ni le disque.</summary>
+    public const long MaxTotalOutputChars = 50_000_000;
+
+    public async Task<CommandResult?> RunAsync(string workspace, string command, CancellationToken cancellationToken, IReadOnlyList<string>? hidden = null)
     {
         var settings = options.Value;
         var name = $"agent-yattus-{Guid.NewGuid():N}";
         var info = new ProcessStartInfo("docker") { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        if (hidden is { Count: > MaxHidden })
+            return new CommandResult(-1, $"Trop de fichiers exclus à masquer ({hidden.Count}) : commande refusée.", false);
         // Les arguments un par un : aucun shell de la machine n'interprète la commande, seul celui du conteneur.
-        foreach (var arg in Arguments(name, workspace, command, settings, await UserAsync()))
+        foreach (var arg in Arguments(name, workspace, command, settings, await UserAsync(), hidden))
             info.ArgumentList.Add(arg);
 
         Process process;
@@ -44,15 +51,21 @@ internal sealed class DockerSandbox(Microsoft.Extensions.Options.IOptions<Agents
         using (process)
         {
             var output = new Tail(MaxOutputChars);
-            process.OutputDataReceived += (_, e) => { if (e.Data is not null) output.Add(e.Data); };
-            process.ErrorDataReceived += (_, e) => { if (e.Data is not null) output.Add(e.Data); };
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
             using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             limit.CancelAfter(TimeSpan.FromSeconds(settings.SandboxTimeoutSeconds));
+            // Par morceaux de taille fixe, pas par ligne : une seule ligne géante ne s'accumule pas en mémoire.
+            async Task PumpAsync(StreamReader reader)
+            {
+                var buffer = new char[8192];
+                for (int read; (read = await reader.ReadAsync(buffer, limit.Token)) > 0;)
+                    if (!output.Add(buffer.AsSpan(0, read)))
+                        await limit.CancelAsync(); // trop de sortie : on arrête comme pour une durée dépassée
+            }
+            var pumps = Task.WhenAll(PumpAsync(process.StandardOutput), PumpAsync(process.StandardError));
             try
             {
                 await process.WaitForExitAsync(limit.Token);
+                await pumps;
             }
             catch (OperationCanceledException)
             {
@@ -69,8 +82,10 @@ internal sealed class DockerSandbox(Microsoft.Extensions.Options.IOptions<Agents
         }
     }
 
-    internal static IReadOnlyList<string> Arguments(string name, string workspace, string command, AgentsOptions settings, string? user)
+    internal static IReadOnlyList<string> Arguments(
+        string name, string workspace, string command, AgentsOptions settings, string? user, IReadOnlyList<string>? hidden = null)
     {
+        var root = Path.GetFullPath(workspace);
         List<string> args =
         [
             "run", "--rm", "--name", name, "--label", "agent-yattus=sandbox",
@@ -78,9 +93,20 @@ internal sealed class DockerSandbox(Microsoft.Extensions.Options.IOptions<Agents
             "--memory", "1g", "--cpus", "2", "--pids-limit", "256",
             "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
             // --mount plutôt que -v : un chemin qui contient « : » ne peut pas changer le sens de l'option.
-            "--mount", $"type=bind,source={Path.GetFullPath(workspace)},target=/work",
+            "--mount", $"type=bind,source={root},target=/work",
             "--workdir", "/work",
         ];
+        // .git en lecture seule : une commande ne peut pas y planter un « hook » que la machine exécuterait plus tard.
+        if (Directory.Exists(Path.Combine(root, ".git")))
+            args.AddRange(["--mount", $"type=bind,source={Path.Combine(root, ".git")},target=/work/.git,readonly"]);
+        // Les fichiers exclus (secrets probables) n'existent pas non plus pour une commande : vides et en lecture seule.
+        foreach (var relative in hidden ?? [])
+        {
+            var target = "/work/" + relative.Replace('\\', '/');
+            args.AddRange(Directory.Exists(Path.Combine(root, relative))
+                ? ["--mount", $"type=tmpfs,target={target},tmpfs-size=1k"]
+                : ["--mount", $"type=bind,source=/dev/null,target={target},readonly"]);
+        }
         if (user is not null)
             args.AddRange(["--user", user]);
         args.AddRange([settings.SandboxImage, "sh", "-c", command]);
@@ -124,17 +150,21 @@ internal sealed class DockerSandbox(Microsoft.Extensions.Options.IOptions<Agents
     {
         private readonly StringBuilder _text = new();
         private bool _cut;
+        private long _total;
 
-        public void Add(string line)
+        /// <summary>Faux quand la sortie totale dépasse la limite : la commande doit être arrêtée.</summary>
+        public bool Add(ReadOnlySpan<char> chunk)
         {
             lock (_text)
             {
-                _text.Append(line).Append('\n');
+                _total += chunk.Length;
+                _text.Append(chunk);
                 if (_text.Length > max)
                 {
                     _text.Remove(0, _text.Length - max);
                     _cut = true;
                 }
+                return _total <= MaxTotalOutputChars;
             }
         }
 

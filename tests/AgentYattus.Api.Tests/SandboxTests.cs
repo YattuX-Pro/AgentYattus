@@ -66,4 +66,31 @@ public sealed class SandboxTests
 
         Assert.True(result!.TimedOut);
     }
+
+    [Fact]
+    public async Task Excluded_files_are_masked_and_git_cannot_be_changed()
+    {
+        Assert.SkipUnless(DockerAvailable(), "Docker ou l'image alpine:3 n'est pas disponible.");
+        await File.WriteAllTextAsync(Path.Combine(_workspace, ".env"), "CLE=secrete", Ct);
+        Directory.CreateDirectory(Path.Combine(_workspace, ".git"));
+        var tools = new WorkspaceTools(_workspace, excluded: [".env"], sandbox: Sandbox());
+
+        var output = await tools.RunCommand("cat .env; echo pirate > .env; touch .git/hook-plante; ls .git", Ct);
+
+        Assert.DoesNotContain("secrete", output);
+        Assert.Equal("CLE=secrete", await File.ReadAllTextAsync(Path.Combine(_workspace, ".env"), Ct));
+        Assert.False(File.Exists(Path.Combine(_workspace, ".git", "hook-plante")));
+    }
+
+    [Fact]
+    public async Task An_endless_output_is_stopped_and_only_its_end_is_kept()
+    {
+        Assert.SkipUnless(DockerAvailable(), "Docker ou l'image alpine:3 n'est pas disponible.");
+
+        // Une seule « ligne » de 60 millions de caractères, sans retour à la ligne.
+        var result = await Sandbox().RunAsync(_workspace, "head -c 60000000 /dev/zero | tr '\\0' a", Ct);
+
+        Assert.True(result!.TimedOut);
+        Assert.True(result.Output.Length <= DockerSandbox.MaxOutputChars + 100);
+    }
 }

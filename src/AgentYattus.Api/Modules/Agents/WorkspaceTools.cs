@@ -66,7 +66,7 @@ internal sealed class WorkspaceTools
     {
         if (string.IsNullOrWhiteSpace(command) || command.Length > 2000)
             throw new InvalidOperationException("Une commande de 1 à 2 000 caractères.");
-        if (_sandbox is null || await _sandbox.RunAsync(_root, command, cancellationToken) is not { } result)
+        if (_sandbox is null || await _sandbox.RunAsync(_root, command, cancellationToken, ExcludedEntries()) is not { } result)
             throw new InvalidOperationException("Bac à sable indisponible : Docker n'est pas installé ou pas démarré sur le serveur.");
         var status = result.TimedOut ? "arrêtée : durée maximum dépassée" : $"code de sortie {result.ExitCode}";
         return $"Commande {status}.\n{result.Output}";
@@ -128,6 +128,29 @@ internal sealed class WorkspaceTools
             }
         }
         return results.Count == 0 ? "Aucun résultat." : string.Join('\n', results) + (results.Count >= 100 ? "\n[… 100 résultats au plus]" : "");
+    }
+
+    /// <summary>
+    /// Les fichiers et dossiers exclus présents dans le dossier (chemins relatifs), pour les masquer dans le bac à sable.
+    /// Plus de 200 : on s'arrête là, et le bac à sable refuse la commande.
+    /// </summary>
+    internal IReadOnlyList<string> ExcludedEntries()
+    {
+        var found = new List<string>();
+        if (_excluded.Count == 0)
+            return found;
+        var pending = new Stack<string>([_root]);
+        while (pending.Count > 0 && found.Count <= DockerSandbox.MaxHidden)
+            foreach (var entry in Directory.EnumerateFileSystemEntries(pending.Pop()))
+            {
+                if (IsLink(entry))
+                    continue;
+                if (MatchesExcluded(Path.GetFileName(entry)))
+                    found.Add(Path.GetRelativePath(_root, entry));
+                else if (Directory.Exists(entry) && Path.GetFileName(entry) is not (".git" or "node_modules"))
+                    pending.Push(entry);
+            }
+        return found;
     }
 
     /// <summary>
