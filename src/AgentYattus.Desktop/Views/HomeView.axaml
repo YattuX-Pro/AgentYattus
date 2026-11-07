@@ -2,71 +2,104 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:AgentYattus.Client.Core"
              xmlns:contracts="using:AgentYattus.Contracts"
-             x:Class="AgentYattus.Desktop.Views.HomeView"
+             xmlns:views="using:AgentYattus.Desktop.Views"
+             x:Class="AgentYattus.Desktop.Views.HomeView" Classes="screen"
              x:DataType="core:HomeViewModel"
              Foreground="{StaticResource Parchemin}">
 
+  <!--
+    L'accueil (maquette « Bureau des agents », artboard Accueil) : l'équipe en vrais visages, on clique sur
+    celui qui fera la mission ; le compositeur ; les missions récentes avec le visage de qui y travaille.
+  -->
   <UserControl.Styles>
     <!-- Champ de saisie nu : le cadre est porté par la carte autour. -->
     <Style Selector="TextBox.composer, TextBox.composer:pointerover, TextBox.composer:focus">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+      <Setter Property="Padding" Value="4,2" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
     </Style>
     <Style Selector="TextBox.composer /template/ Border#PART_BorderElement,
                      TextBox.composer:pointerover /template/ Border#PART_BorderElement,
                      TextBox.composer:focus /template/ Border#PART_BorderElement">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="BoxShadow" Value="none" />
     </Style>
 
-    <Style Selector="Button.send /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource VertDeGris}" />
-      <Setter Property="CornerRadius" Value="21" />
+    <!-- Le compositeur s'éclaire quand on y écrit. -->
+    <Style Selector="Border.composerCard">
+      <Setter Property="BorderBrush" Value="#2B2F34" />
+      <Setter Property="Transitions">
+        <Transitions><BrushTransition Property="BorderBrush" Duration="0:0:0.2" /></Transitions>
+      </Setter>
     </Style>
-    <Style Selector="Button.send:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#6FB3A6" />
-    </Style>
-    <Style Selector="Button.send:disabled /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource Filet}" />
+    <Style Selector="Border.composerCard:focus-within">
+      <Setter Property="BorderBrush" Value="#4D5E9E92" />
     </Style>
 
-    <Style Selector="ToggleButton.report /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="{StaticResource Filet}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="16" />
+    <!-- Un visage de l'équipe : il se soulève au survol ; le chef d'équipe est un peu en retrait. -->
+    <Style Selector="Button.member">
+      <Setter Property="Width" Value="92" />
+    </Style>
+    <Style Selector="Button.member.leader">
+      <Setter Property="Opacity" Value="0.8" />
+      <Setter Property="Cursor" Value="Arrow" />
+    </Style>
+    <Style Selector="Button.member TextBlock.role">
       <Setter Property="Foreground" Value="{StaticResource Cendre}" />
     </Style>
-    <Style Selector="ToggleButton.report:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource Nuit}" />
-      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
-    </Style>
-    <Style Selector="ToggleButton.report:checked /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#1AD8B86E" />
-      <Setter Property="BorderBrush" Value="#73D8B86E" />
-      <Setter Property="Foreground" Value="{StaticResource Laiton}" />
+    <Style Selector="Button.member.selected TextBlock.role">
+      <Setter Property="Foreground" Value="{StaticResource VertDeGris}" />
     </Style>
 
-    <Style Selector="Button.chip /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="{StaticResource Filet}" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="17" />
-      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
+    <!-- Une ligne du menu des agents. -->
+    <Style Selector="Button.option">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="8" />
     </Style>
-    <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{StaticResource Graphite}" />
-      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    <Style Selector="Button.option /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="10" />
+    </Style>
+    <Style Selector="Button.option:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     Button.option:pressed /template/ ContentPresenter#PART_ContentPresenter,
+                     Button.option.selected /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1D2024" />
+    </Style>
+
+    <!-- Le choix de l'agent dans le compositeur : un visage et un prénom. -->
+    <Style Selector="Button.who /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#111215" />
+      <Setter Property="BorderBrush" Value="#2A2D31" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="16" />
+    </Style>
+    <Style Selector="Button.who:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     Button.who:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#16181B" />
+      <Setter Property="BorderBrush" Value="#3A3F45" />
+    </Style>
+    <Style Selector="Button.who:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#111215" />
+      <Setter Property="BorderBrush" Value="#2A2D31" />
     </Style>
 
     <!-- Carte de mission : couleur selon le statut. -->
     <Style Selector="Border.mission">
       <Setter Property="Background" Value="{StaticResource Graphite}" />
       <Setter Property="BorderBrush" Value="{StaticResource Filet}" />
+      <Setter Property="Transitions">
+        <Transitions><BrushTransition Property="BorderBrush" Duration="0:0:0.2" /></Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Button:pointerover Border.mission">
+      <Setter Property="BorderBrush" Value="#3A3F45" />
     </Style>
     <Style Selector="Border.mission.failed">
-      <Setter Property="Background" Value="#14D9654B" />
+      <Setter Property="Background" Value="#12D9654B" />
       <Setter Property="BorderBrush" Value="#66D9654B" />
     </Style>
     <Style Selector="Border.mission.completed">
@@ -77,72 +110,55 @@
       <Setter Property="Background" Value="#0FD8B86E" />
       <Setter Property="BorderBrush" Value="#73D8B86E" />
     </Style>
+    <Style Selector="TextBlock.line">
+      <Setter Property="Foreground" Value="{StaticResource Cendre}" />
+    </Style>
+    <Style Selector="Border.mission.active TextBlock.line"><Setter Property="Foreground" Value="{StaticResource VertDeGris}" /></Style>
+    <Style Selector="Border.mission.awaiting TextBlock.line"><Setter Property="Foreground" Value="{StaticResource Laiton}" /></Style>
+    <Style Selector="Border.mission.failed TextBlock.line"><Setter Property="Foreground" Value="{StaticResource Cinabre}" /></Style>
   </UserControl.Styles>
 
-  <Grid>
-    <!-- Contenu centré -->
-    <ScrollViewer>
-      <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" Margin="24,48,24,28" MaxWidth="1000">
+  <ScrollViewer>
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*" Margin="24,36,24,28" MaxWidth="1000">
 
-        <!-- ponytail: orbes décoratives ; à brancher sur le module Agents quand il exposera ses agents. -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="36" HorizontalAlignment="Center" Margin="0,0,0,40">
-          <StackPanel Spacing="10">
-            <Panel Width="60" Height="60">
-              <Ellipse Classes="pulse" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" />
-              <Ellipse Fill="{StaticResource Graphite}" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" />
-              <Viewbox Width="26" Height="26">
-                <Canvas Width="20" Height="20">
-                  <Path Data="M5 14L10 5l5 9z" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.3" StrokeJoin="Round" />
-                  <Ellipse Canvas.Left="8.2" Canvas.Top="3.2" Width="3.6" Height="3.6" Fill="{StaticResource Parchemin}" />
-                  <Ellipse Canvas.Left="3.2" Canvas.Top="12.2" Width="3.6" Height="3.6" Fill="{StaticResource Parchemin}" />
-                  <Ellipse Canvas.Left="13.2" Canvas.Top="12.2" Width="3.6" Height="3.6" Fill="{StaticResource Parchemin}" />
-                </Canvas>
-              </Viewbox>
-            </Panel>
-            <TextBlock Text="Analyste" FontSize="13" FontWeight="Medium" HorizontalAlignment="Center" />
-          </StackPanel>
-          <StackPanel Spacing="10">
-            <Panel Width="60" Height="60">
-              <Ellipse Fill="{StaticResource Graphite}" Stroke="{StaticResource Laiton}" StrokeThickness="1.5" StrokeDashArray="3,2" />
-              <Viewbox Width="26" Height="26">
-                <Canvas Width="20" Height="20">
-                  <Path Data="M4 6h12M4 10h12M4 14h7" Stroke="{StaticResource Parchemin}" StrokeThickness="1.4" StrokeLineCap="Round" />
-                  <Ellipse Canvas.Left="13.2" Canvas.Top="12.2" Width="3.6" Height="3.6" Fill="{StaticResource Laiton}" />
-                </Canvas>
-              </Viewbox>
-            </Panel>
-            <TextBlock Text="Rédacteur" FontSize="13" FontWeight="Medium" HorizontalAlignment="Center" />
-          </StackPanel>
-          <StackPanel Spacing="10">
-            <Panel Width="60" Height="60">
-              <Ellipse Stroke="#3A3F45" StrokeThickness="1.5" StrokeDashArray="3,2" />
-              <Viewbox Width="26" Height="26">
-                <Canvas Width="20" Height="20">
-                  <Ellipse Canvas.Left="3.5" Canvas.Top="3.5" Width="13" Height="13" Stroke="#3A3F45" StrokeThickness="1.2" />
-                  <Path Data="M10 3.5A6.5 6.5 0 0 1 16.5 10" Stroke="{StaticResource Cendre}" StrokeThickness="1.4" StrokeLineCap="Round" />
-                  <Ellipse Canvas.Left="8.2" Canvas.Top="8.2" Width="3.6" Height="3.6" Fill="{StaticResource Pierre}" />
-                </Canvas>
-              </Viewbox>
-            </Panel>
-            <TextBlock Text="Chercheur" FontSize="13" FontWeight="Medium" HorizontalAlignment="Center" Foreground="{StaticResource Pierre}" />
-          </StackPanel>
-        </StackPanel>
+      <!-- L'équipe : un clic sur un visage choisit qui fait la mission. -->
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Spacing="20" HorizontalAlignment="Center" Margin="0,0,0,30">
+        <ItemsControl ItemsSource="{Binding Crew}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="20" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="core:CrewMember">
+              <Button Classes="bare lift member enter" Classes.leader="{Binding IsLeader}" Classes.selected="{Binding IsSelected}"
+                      Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).PickCommand}" CommandParameter="{Binding}"
+                      ToolTip.Tip="{Binding Role}">
+                <StackPanel Spacing="8" HorizontalAlignment="Center">
+                  <views:Avatar Image="{Binding Image}" Label="{Binding Name}" Size="72" HorizontalAlignment="Center"
+                                Ring="{Binding IsSelected, Converter={x:Static views:RingConverter.Selected}}" />
+                  <TextBlock Text="{Binding Name}" FontSize="13.5" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                  <TextBlock Classes="mono role" Text="{Binding Role}" FontSize="9.5" LetterSpacing="1" HorizontalAlignment="Center"
+                             Margin="0,-5,0,0" TextTrimming="CharacterEllipsis" MaxWidth="92" />
+                </StackPanel>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
 
-        <TextBlock Grid.Row="1" Text="Quelle mission aujourd’hui ?" FontSize="40" FontWeight="Medium"
-                   LetterSpacing="-1.2" HorizontalAlignment="Center" Margin="0,0,0,26" />
+      <TextBlock Grid.Row="1" Text="{Binding Title}" FontSize="38" FontWeight="Medium"
+                 LetterSpacing="-1.1" HorizontalAlignment="Center" Margin="0,0,0,24" />
 
-        <!-- Composer -->
-        <Border Grid.Row="2" MaxWidth="760" Padding="18,18,18,14" CornerRadius="22"
-                Background="{StaticResource Graphite}" BorderBrush="#2B2F34" BorderThickness="1"
-                BoxShadow="0 30 90 0 #80000000">
+      <!-- Compositeur -->
+      <StackPanel Grid.Row="2" Spacing="14">
+        <Border Classes="composerCard" MaxWidth="760" Padding="18,18,18,14" CornerRadius="22"
+                Background="{StaticResource Graphite}" BorderThickness="1" BoxShadow="0 30 90 0 #80000000">
           <StackPanel Spacing="10">
             <TextBox Classes="composer" Text="{Binding Goal}" PlaceholderText="Décrivez l’objectif…"
-                     PlaceholderForeground="#6F6B63" AcceptsReturn="True" TextWrapping="Wrap"
-                     FontSize="17" MinHeight="78" Padding="4,2" />
-            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="12">
+                     AcceptsReturn="True" TextWrapping="Wrap" FontSize="17" MinHeight="78" />
+            <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" ColumnSpacing="10">
               <!-- Bascule : une simple question, ou une revue à deux agents qui écrit REPORT.md (avec ton accord). -->
               <ToggleButton Classes="report" IsChecked="{Binding WriteReport}" Height="32" Padding="12,0"
-                            ToolTip.Tip="Revue à deux agents : l’Analyste rend ses constats, le Rédacteur écrit REPORT.md, que tu approuves">
+                            ToolTip.Tip="Revue à deux : l’Analyste rend ses constats, le Rédacteur écrit REPORT.md, que tu approuves">
                 <StackPanel Orientation="Horizontal" Spacing="7">
                   <Path Data="M7 3.5h7l5 5v12H7zM14 3.5v5h5M10 13h6M10 16.5h6" Stroke="{Binding $parent[ToggleButton].Foreground}"
                         StrokeThickness="1.6" StrokeLineCap="Round" StrokeJoin="Round" Width="13" Height="13" Stretch="Uniform" />
@@ -154,20 +170,49 @@
                         MinWidth="150" MaxWidth="240" PlaceholderText="Projet personnel" ToolTip.Tip="Le projet de la mission">
                 <ComboBox.ItemTemplate>
                   <DataTemplate x:DataType="contracts:ProjectDto">
-                    <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
                   </DataTemplate>
                 </ComboBox.ItemTemplate>
               </ComboBox>
-              <!-- L'agent qui fait une question (ADR 0013) ; une revue suit toujours le circuit Analyste puis Rédacteur. -->
-              <ComboBox Grid.Column="2" ItemsSource="{Binding Agents}" SelectedItem="{Binding SelectedAgent}" Height="32"
-                        MinWidth="130" MaxWidth="200" PlaceholderText="Analyste" ToolTip.Tip="L'agent qui fait la mission"
-                        IsEnabled="{Binding !WriteReport}">
-                <ComboBox.ItemTemplate>
-                  <DataTemplate x:DataType="contracts:AgentDto">
-                    <TextBlock Text="{Binding Name}" FontSize="12.5" TextTrimming="CharacterEllipsis" />
-                  </DataTemplate>
-                </ComboBox.ItemTemplate>
-              </ComboBox>
+              <!-- Qui fait la mission (ADR 0013) : un visage. Une revue suit toujours le circuit Analyste puis Rédacteur. -->
+              <Button Grid.Column="2" Classes="who" Height="32" Padding="4,0,10,0" IsEnabled="{Binding !WriteReport}"
+                      ToolTip.Tip="L’agent qui fait la mission">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                  <ItemsControl ItemsSource="{Binding Chosen}" VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-8" /></ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="core:CrewMember">
+                        <views:Avatar Image="{Binding Image}" Label="{Binding Name}" Size="24" />
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <TextBlock Text="{Binding ChosenLabel}" FontSize="12.5" VerticalAlignment="Center" />
+                  <Path Data="M6 9l6 6 6-6" Stroke="{StaticResource Cendre}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
+                        Width="10" Height="10" Stretch="Uniform" VerticalAlignment="Center" IsVisible="{Binding !WriteReport}" />
+                </StackPanel>
+                <Button.Flyout>
+                  <Flyout Placement="TopEdgeAlignedLeft">
+                    <ItemsControl ItemsSource="{Binding Crew}" Width="290">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="core:CrewMember">
+                          <Button Classes="option" Classes.selected="{Binding IsSelected}" IsVisible="{Binding !IsLeader}"
+                                  Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).PickCommand}" CommandParameter="{Binding}">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                              <views:Avatar Image="{Binding Image}" Label="{Binding Name}" Size="36" />
+                              <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Agent.Name}" FontSize="11.5" Foreground="{StaticResource Cendre}" />
+                              </StackPanel>
+                            </Grid>
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </Flyout>
+                </Button.Flyout>
+              </Button>
               <TextBlock Grid.Column="3" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
                          TextWrapping="Wrap" VerticalAlignment="Center" />
               <Button Grid.Column="4" Classes="send" Command="{Binding LaunchMissionCommand}"
@@ -182,68 +227,64 @@
         </Border>
 
         <!-- Suggestions -->
-        <ItemsControl Grid.Row="3" ItemsSource="{Binding Suggestions}" HorizontalAlignment="Center" Margin="0,16,0,0">
+        <ItemsControl ItemsSource="{Binding Suggestions}" HorizontalAlignment="Center">
           <ItemsControl.ItemsPanel>
-            <ItemsPanelTemplate>
-              <StackPanel Orientation="Horizontal" Spacing="8" />
-            </ItemsPanelTemplate>
+            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
           </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="x:String">
-              <Button Classes="chip" Content="{Binding}" Height="34" Padding="14,0" FontSize="13"
-                      VerticalContentAlignment="Center"
+              <Button Classes="chip" Content="{Binding}" Height="34" FontSize="13"
                       Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).UseSuggestionCommand}"
                       CommandParameter="{Binding}" />
             </DataTemplate>
           </ItemsControl.ItemTemplate>
         </ItemsControl>
+      </StackPanel>
 
-        <!-- En cours -->
-        <StackPanel Grid.Row="6" Spacing="12" Margin="0,48,0,0" IsVisible="{Binding Missions.Count}">
-          <TextBlock Classes="mono" Text="RÉCENTES" FontSize="10.5" LetterSpacing="1.5" Foreground="{StaticResource Cendre}" />
-          <ItemsControl ItemsSource="{Binding Missions}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <UniformGrid Columns="3" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="core:MissionItem">
-                <Button Classes="bare" Margin="0,0,12,12" ToolTip.Tip="Ouvrir la mission"
-                        Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).OpenMissionCommand}"
-                        CommandParameter="{Binding}">
+      <!-- Récentes : chaque mission montre qui y travaille. -->
+      <StackPanel Grid.Row="4" Spacing="12" Margin="0,44,0,0" IsVisible="{Binding Missions.Count}">
+        <TextBlock Classes="eyebrow" Text="RÉCENTES" />
+        <ItemsControl ItemsSource="{Binding Missions}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate><UniformGrid Columns="3" /></ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="core:MissionItem">
+              <Button Classes="bare lift enter" Margin="0,0,12,12" ToolTip.Tip="Ouvrir la mission"
+                      Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).OpenMissionCommand}"
+                      CommandParameter="{Binding}">
                 <Border Classes="mission" Classes.completed="{Binding IsCompleted}" Classes.failed="{Binding IsFailed}"
-                        Classes.awaiting="{Binding IsAwaitingApproval}"
-                        Padding="16,14" CornerRadius="16" BorderThickness="1">
-                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
-                    <Panel Width="36" Height="36">
-                      <Ellipse Classes="pulse" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" IsVisible="{Binding IsActive}" />
-                      <Ellipse Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" IsVisible="{Binding IsActive}" />
-                      <Ellipse Width="8" Height="8" Fill="{StaticResource VertDeGris}" IsVisible="{Binding IsActive}" />
-                      <Ellipse Fill="#14ECE6D8" IsVisible="{Binding IsCompleted}" />
-                      <Path Data="M5 12.5l4.5 4.5L19 7.5" Stroke="{StaticResource Parchemin}" StrokeThickness="2.4"
-                            StrokeLineCap="Round" StrokeJoin="Round" Width="14" Height="14" Stretch="Uniform"
-                            IsVisible="{Binding IsCompleted}" />
-                      <Ellipse Stroke="{StaticResource Cinabre}" StrokeThickness="1.5" IsVisible="{Binding IsFailed}" />
-                      <Path Data="M7 7l10 10M17 7L7 17" Stroke="{StaticResource Cinabre}" StrokeThickness="2"
-                            StrokeLineCap="Round" Width="11" Height="11" Stretch="Uniform" IsVisible="{Binding IsFailed}" />
-                      <Ellipse Stroke="{StaticResource Laiton}" StrokeThickness="1.5" IsVisible="{Binding IsAwaitingApproval}" />
-                      <Rectangle Width="9" Height="9" RadiusX="1.5" RadiusY="1.5" Fill="{StaticResource Laiton}"
-                                 RenderTransform="rotate(45deg)" IsVisible="{Binding IsAwaitingApproval}" />
+                        Classes.awaiting="{Binding IsAwaitingApproval}" Classes.active="{Binding IsActive}"
+                        Padding="14,12" CornerRadius="16" BorderThickness="1">
+                  <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                    <Panel VerticalAlignment="Center">
+                      <!-- Halo : vert-de-gris quand il travaille, laiton quand il frappe à votre porte. -->
+                      <Ellipse Classes="pulse" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.5" Width="40" Height="40"
+                               HorizontalAlignment="Right" IsVisible="{Binding IsActive}" />
+                      <Ellipse Classes="knock" Stroke="{StaticResource Laiton}" StrokeThickness="2" Width="44" Height="44"
+                               HorizontalAlignment="Right" Margin="-2" IsVisible="{Binding IsAwaitingApproval}" />
+                      <ItemsControl ItemsSource="{Binding Faces}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-12" /></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="core:Face">
+                            <views:Avatar Image="{Binding Work}" Label="{Binding Name}" Size="40" BorderBrush="{StaticResource Obsidienne}" />
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
                     </Panel>
-                    <TextBlock Grid.Column="1" Text="{Binding Goal}" FontSize="14" FontWeight="Medium"
-                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <TextBlock Grid.Column="2" Text="{Binding StatusLabel}" FontSize="12"
-                               Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Goal}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                      <TextBlock Classes="line" Text="{Binding Line}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
                   </Grid>
                 </Border>
-                </Button>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-        </StackPanel>
-      </Grid>
-    </ScrollViewer>
-
-  </Grid>
+              </Button>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Grid>
+  </ScrollViewer>
 </UserControl>

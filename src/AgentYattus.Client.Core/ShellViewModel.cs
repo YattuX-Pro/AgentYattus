@@ -70,10 +70,11 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsAgentsSection), nameof(IsReportsSection))]
+    [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsOfficeSection), nameof(IsAgentsSection), nameof(IsReportsSection))]
     public partial ObservableObject Current { get; set; }
 
-    public bool IsMissionsSection => Current is HomeViewModel or OfficeViewModel or RecruitViewModel;
+    public bool IsMissionsSection => Current is HomeViewModel;
+    public bool IsOfficeSection => Current is OfficeViewModel or RecruitViewModel;
     public bool IsAgentsSection => Current is AgentsViewModel;
     public bool IsReportsSection => Current is ReportsViewModel;
 
@@ -93,7 +94,9 @@ public sealed partial class ShellViewModel : ObservableObject
         recruit.Done += () =>
         {
             Current = office;
+            _api.Faces.Forget(project);
             _ = office.ReloadTeamAsync();
+            _ = Home.LoadCrewAsync();
         };
         Current = recruit;
         await recruit.LoadAsync();
@@ -102,10 +105,23 @@ public sealed partial class ShellViewModel : ObservableObject
     [RelayCommand]
     private void GoHome() => Current = Home;
 
+    /// <summary>L'open space : celui de la mission qui attend une décision ou qui tourne, sinon de la plus récente.</summary>
+    [RelayCommand]
+    private Task OpenOfficeAsync() =>
+        (Home.Missions.FirstOrDefault(m => m.IsAwaitingApproval) ?? Home.Missions.FirstOrDefault(m => m.IsActive) ?? Home.Missions.FirstOrDefault())
+            is { } mission ? OpenMissionAsync(mission) : Task.CompletedTask;
+
     [RelayCommand]
     private async Task ShowAgentsAsync()
     {
-        var screen = new AgentsViewModel(_api);
+        var screen = new AgentsViewModel(_api, Home.SelectedProject?.Id);
+        // « Confier une mission à Inès » : retour à l'accueil, Inès choisie.
+        screen.AssignRequested += agent =>
+        {
+            Home.WriteReport = false;
+            Home.SelectedAgent = Home.Agents.FirstOrDefault(a => a.Key == agent.Key) ?? Home.SelectedAgent;
+            Current = Home;
+        };
         Current = screen;
         await screen.LoadAsync();
     }

@@ -83,7 +83,8 @@ public sealed class MissionViewModelTests
         // Une mission s'ouvre dans l'open space de son projet (ADR 0012).
         var screen = Assert.IsType<OfficeViewModel>(shell.Current);
         Assert.Same(vm.Mission, screen.Mission.Mission);
-        Assert.True(shell.IsMissionsSection);
+        Assert.True(shell.IsOfficeSection);
+        Assert.False(shell.IsMissionsSection);
         shell.GoHomeCommand.Execute(null);
         Assert.Same(home, shell.Current);
 

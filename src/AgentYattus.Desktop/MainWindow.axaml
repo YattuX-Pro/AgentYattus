@@ -54,8 +54,18 @@
           <Button Classes="tab" Classes.active="{Binding IsMissionsSection}" Command="{Binding GoHomeCommand}">
             <ContentControl Foreground="{Binding $parent[Button].Foreground}">
               <StackPanel Orientation="Horizontal" Spacing="8">
-                <Path Classes="icon" Data="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5M3.5 18a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M15.5 6a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0" />
-                <TextBlock Text="Missions" FontSize="13" FontWeight="Medium" />
+                <Path Classes="icon" Data="M4 11.5 12 5l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5h-5v5H5a1 1 0 0 1-1-1z" />
+                <TextBlock Text="Accueil" FontSize="13" FontWeight="Medium" />
+              </StackPanel>
+            </ContentControl>
+          </Button>
+          <!-- L'open space de la mission qui attend une décision, qui tourne, ou la plus récente. -->
+          <Button Classes="tab" Classes.active="{Binding IsOfficeSection}" Command="{Binding OpenOfficeCommand}"
+                  IsEnabled="{Binding Home.Missions.Count}" ToolTip.Tip="L’équipe au travail sur la dernière mission">
+            <ContentControl Foreground="{Binding $parent[Button].Foreground}">
+              <StackPanel Orientation="Horizontal" Spacing="8">
+                <Path Classes="icon" Data="M3.5 20h17M6 20v-6h5v6M13 20V9h5v11M8.5 10.5a2 2 0 1 0 0-4a2 2 0 1 0 0 4M15.5 5.5a1.6 1.6 0 1 0 0-3.2a1.6 1.6 0 1 0 0 3.2" />
+                <TextBlock Text="Open space" FontSize="13" FontWeight="Medium" />
               </StackPanel>
             </ContentControl>
           </Button>
@@ -80,12 +90,11 @@
       <!-- L'utilisateur connecté, et la déconnexion. -->
       <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right" VerticalAlignment="Center"
                   IsVisible="{Binding IsAuthenticated}">
-        <Border Height="30" Padding="10,0" CornerRadius="15" Background="#EB16181B" BorderBrush="{StaticResource Filet}" BorderThickness="1">
-          <StackPanel Orientation="Horizontal" Spacing="7" VerticalAlignment="Center">
-            <Ellipse Width="7" Height="7" Fill="{StaticResource VertDeGris}" />
-            <TextBlock Classes="mono" Text="{Binding UserName}" FontSize="12" />
-          </StackPanel>
-        </Border>
+        <!-- Vous : votre portrait (réglé dans l'admin) et votre nom. -->
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="{Binding UserName}" FontSize="13" Foreground="{StaticResource Pierre}" VerticalAlignment="Center" />
+          <views:Avatar Image="{Binding Home.Me.Work}" Label="{Binding UserName}" Size="36" Ring="#2A2D31" />
+        </StackPanel>
         <!-- La gestion se fait dans l'espace admin web (ADR 0008) : le bouton l'ouvre dans le navigateur. -->
         <Button Classes="square" Width="36" Height="36" Padding="0" Command="{Binding OpenAdminCommand}" ToolTip.Tip="Ouvrir l’espace admin"
                 IsVisible="{Binding IsLlmAdmin}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
@@ -100,7 +109,12 @@
       </StackPanel>
     </Grid>
 
-    <ContentControl Grid.Row="1" Content="{Binding Current}" />
+    <!-- Changer d'écran : fondu enchaîné ; l'écran qui arrive monte en plus légèrement (style .screen). -->
+    <TransitioningContentControl Grid.Row="1" Content="{Binding Current}">
+      <TransitioningContentControl.PageTransition>
+        <CrossFade Duration="0:0:0.25" />
+      </TransitioningContentControl.PageTransition>
+    </TransitioningContentControl>
 
     <!-- Barre d'état -->
     <Border Grid.Row="2" MinHeight="36" Padding="20,6" IsVisible="{Binding IsAuthenticated}" BorderBrush="#1F2226" BorderThickness="0,1,0,0" Background="#F00E0F11">

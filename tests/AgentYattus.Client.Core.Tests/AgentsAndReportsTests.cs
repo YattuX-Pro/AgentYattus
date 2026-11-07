@@ -20,8 +20,11 @@ public sealed class AgentsAndReportsTests
 
         await vm.LoadAsync(TestContext.Current.CancellationToken);
 
+        // Sans collègue à ce poste ni droit sur les chiffres : le nom de l'agent, et « — ».
         Assert.Equal("Analyste", vm.Selected!.Name);
-        Assert.True(Assert.Single(vm.Selected.Tools).RequiresApproval);
+        Assert.True(vm.Selected.IsSelected);
+        Assert.True(Assert.Single(vm.Selected.Agent.Tools).RequiresApproval);
+        Assert.Equal("—", vm.Selected.RateLabel);
     }
 
     [Fact]
@@ -47,6 +50,10 @@ public sealed class AgentsAndReportsTests
 
         Assert.Equal(done.Id, Assert.Single(vm.Reports).Id);
         Assert.Equal(new ReportStats(Reads: 2, Approved: 1, Refused: 1), vm.Stats);
+        // Le rapport raconté : votre question, puis la réponse de l'agent.
+        Assert.Collection(vm.Thread,
+            you => Assert.Equal(("Vous", "Rapport", true), (you.Name, you.Text, you.IsYou)),
+            agent => Assert.Equal(("Analyste", "Fini.", false, (string?)null), (agent.Name, agent.Text, agent.IsYou, agent.File)));
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler

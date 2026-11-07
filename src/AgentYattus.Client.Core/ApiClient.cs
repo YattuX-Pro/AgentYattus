@@ -6,6 +6,19 @@ namespace AgentYattus.Client.Core;
 
 public sealed class ApiClient(HttpClient http)
 {
+    /// <summary>Les visages de l'équipe, partagés par tous les écrans (un seul cache par client).</summary>
+    public FaceBook Faces => field ??= new FaceBook(this);
+
+    /// <summary>Réussite et coût de chaque agent ; null si l'on n'a pas le droit de les voir (réservé à llm-admin).</summary>
+    public async Task<IReadOnlyList<AgentPerformanceDto>?> GetPerformanceAsync(CancellationToken cancellationToken = default)
+    {
+        using var response = await http.GetAsync(AgentsProtocol.Performance.TrimStart('/'), cancellationToken);
+        if (response.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.NotFound)
+            return null;
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<AgentPerformanceDto[]>(cancellationToken);
+    }
+
     /// <param name="projectId">Le projet de la mission ; null : le projet personnel (ADR 0009).</param>
     /// <param name="agent">L'agent qui fait une mission Question (ADR 0013) ; null : l'Analyste.</param>
     public async Task<MissionDto> CreateMissionAsync(

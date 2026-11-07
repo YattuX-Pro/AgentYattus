@@ -1,115 +1,167 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:AgentYattus.Client.Core"
-             xmlns:contracts="using:AgentYattus.Contracts"
-             x:Class="AgentYattus.Desktop.Views.ReportsView"
+             xmlns:views="using:AgentYattus.Desktop.Views"
+             x:Class="AgentYattus.Desktop.Views.ReportsView" Classes="screen"
              x:DataType="core:ReportsViewModel"
              Foreground="{StaticResource Parchemin}">
 
+  <!--
+    Les rapports (maquette « Bureau des agents », artboard Rapports) : à gauche, qui a rendu quoi ;
+    à droite, le rapport raconté comme une conversation, et ce qui a réellement été exécuté (journal d'audit).
+  -->
   <UserControl.Styles>
     <Style Selector="ListBox.reports">
-      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Padding" Value="0" />
     </Style>
     <Style Selector="ListBox.reports ListBoxItem">
-      <Setter Property="Padding" Value="14,12" />
+      <Setter Property="Padding" Value="0" />
       <Setter Property="Margin" Value="0,0,0,6" />
-      <Setter Property="CornerRadius" Value="14" />
     </Style>
-    <Style Selector="ListBox.reports ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="Border.row">
+      <Setter Property="Padding" Value="12" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="Background" Duration="0:0:0.18" />
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.18" />
+        </Transitions>
+      </Setter>
     </Style>
-    <Style Selector="ListBox.reports ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="#1C1F23" />
+    <Style Selector="ListBoxItem:pointerover Border.row">
+      <Setter Property="Background" Value="#111215" />
     </Style>
-    <Style Selector="ListBox.reports ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ListBoxItem:selected Border.row">
       <Setter Property="Background" Value="{StaticResource Graphite}" />
+      <Setter Property="BorderBrush" Value="#2A2D31" />
+    </Style>
+    <!-- Les bulles : la vôtre à droite et sombre, celle de l'agent à gauche et claire. -->
+    <Style Selector="Border.bubble">
+      <Setter Property="Padding" Value="14,11" />
+      <Setter Property="CornerRadius" Value="4,14,14,14" />
+      <Setter Property="Background" Value="{StaticResource Parchemin}" />
+    </Style>
+    <Style Selector="Border.bubble TextBlock, Border.bubble SelectableTextBlock">
+      <Setter Property="Foreground" Value="#16181B" />
+    </Style>
+    <Style Selector="Border.bubble.you">
+      <Setter Property="CornerRadius" Value="14,4,14,14" />
+      <Setter Property="Background" Value="#24272C" />
+    </Style>
+    <Style Selector="Border.bubble.you TextBlock, Border.bubble.you SelectableTextBlock">
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
     </Style>
     <Style Selector="Border.stat">
-      <Setter Property="Padding" Value="18,16" />
-      <Setter Property="CornerRadius" Value="18" />
-      <Setter Property="Background" Value="{StaticResource Graphite}" />
-      <Setter Property="BorderBrush" Value="{StaticResource Filet}" />
-      <Setter Property="BorderThickness" Value="1" />
-    </Style>
-    <Style Selector="TextBlock.statValue">
-      <Setter Property="FontSize" Value="32" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="LetterSpacing" Value="-0.6" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-    <Style Selector="TextBlock.statLabel">
-      <Setter Property="FontSize" Value="13" />
-      <Setter Property="Foreground" Value="{StaticResource Pierre}" />
-      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Padding" Value="0,0,0,0" />
     </Style>
   </UserControl.Styles>
 
-  <Grid ColumnDefinitions="300,*" Margin="40,26,40,28" ColumnSpacing="28">
+  <Grid ColumnDefinitions="340,*" Margin="28,16,28,20" ColumnSpacing="0">
 
-    <!-- Les rapports, du plus récent au plus ancien -->
-    <DockPanel>
-      <TextBlock DockPanel.Dock="Top" Classes="eyebrow" Text="RAPPORTS" Margin="0,0,0,14" />
+    <!-- Qui a rendu quoi, du plus récent au plus ancien -->
+    <DockPanel Margin="0,0,20,0">
+      <TextBlock DockPanel.Dock="Top" Classes="eyebrow" Text="RAPPORTS" Margin="12,6,0,12" />
       <TextBlock DockPanel.Dock="Top" Text="Aucune mission terminée pour l’instant." FontSize="13" Foreground="{StaticResource Cendre}"
-                 IsVisible="{Binding !Reports.Count}" />
+                 Margin="12,0" IsVisible="{Binding !Reports.Count}" />
+      <TextBlock DockPanel.Dock="Top" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5" Margin="12,0,0,8"
+                 IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
       <ListBox Classes="reports" ItemsSource="{Binding Reports}" SelectedItem="{Binding Selected}">
         <ListBox.ItemTemplate>
-          <DataTemplate x:DataType="contracts:MissionDto">
-            <StackPanel Spacing="3">
-              <TextBlock Text="{Binding Goal}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
-              <TextBlock Classes="mono" Text="{Binding CreatedAt, StringFormat='{}{0:dd/MM HH:mm}'}" FontSize="11.5" Foreground="{StaticResource Cendre}" />
-            </StackPanel>
+          <DataTemplate x:DataType="core:MissionItem">
+            <Border Classes="row enter">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="12">
+                <ItemsControl ItemsSource="{Binding Faces}" VerticalAlignment="Center">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-12" /></ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="core:Face">
+                      <views:Avatar Image="{Binding Work}" Label="{Binding Name}" Size="40" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <StackPanel Grid.Column="1" Spacing="3" VerticalAlignment="Center">
+                  <TextBlock Text="{Binding Goal}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                  <TextBlock FontSize="12" Foreground="{StaticResource Cendre}" TextTrimming="CharacterEllipsis">
+                    <Run Text="{Binding Who}" /><Run Text=" · " /><Run Text="{Binding CreatedAt, StringFormat='{}{0:dd/MM HH:mm}'}" />
+                  </TextBlock>
+                </StackPanel>
+              </Grid>
+            </Border>
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
     </DockPanel>
 
     <!-- Le rapport choisi -->
-    <ScrollViewer Grid.Column="1" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
-      <StackPanel Spacing="22" MaxWidth="900" HorizontalAlignment="Left">
-        <StackPanel Orientation="Horizontal" Spacing="14">
-          <TextBlock Text="{Binding Selected.Goal}" FontSize="26" FontWeight="SemiBold" LetterSpacing="-0.5" TextWrapping="Wrap" MaxWidth="700" />
-          <Border Height="26" Padding="10,0" CornerRadius="13" Background="#12ECE6D8" VerticalAlignment="Center">
-            <TextBlock Text="Terminée" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" />
-          </Border>
-        </StackPanel>
-
-        <!-- Ce qui a été exécuté, d'après le journal d'audit -->
-        <StackPanel Spacing="12" IsVisible="{Binding Stats, Converter={x:Static ObjectConverters.IsNotNull}}">
-          <TextBlock Classes="eyebrow" Text="EXÉCUTÉ · SOURCE BACKEND" />
-          <UniformGrid Columns="3">
-            <Border Classes="stat" Margin="0,0,12,0">
-              <StackPanel Orientation="Horizontal" Spacing="14">
-                <Ellipse Width="10" Height="10" Fill="{StaticResource VertDeGris}" VerticalAlignment="Center" />
-                <TextBlock Classes="statValue" Text="{Binding Stats.Reads}" />
-                <TextBlock Classes="statLabel" Text="lectures" />
-              </StackPanel>
-            </Border>
-            <Border Classes="stat" Margin="0,0,12,0" Background="#0DD8B86E" BorderBrush="#57D8B86E">
-              <StackPanel Orientation="Horizontal" Spacing="14">
-                <Rectangle Width="10" Height="10" RadiusX="2" RadiusY="2" Fill="{StaticResource Laiton}" RenderTransform="rotate(45deg)" VerticalAlignment="Center" />
-                <TextBlock Classes="statValue" Text="{Binding Stats.Approved}" />
-                <TextBlock Classes="statLabel" Text="écritures approuvées" />
-              </StackPanel>
-            </Border>
-            <Border Classes="stat" Background="#0DD9654B" BorderBrush="#4DD9654B">
-              <StackPanel Orientation="Horizontal" Spacing="14">
-                <Path Data="M6 6l12 12M18 6L6 18" Stroke="{StaticResource Cinabre}" StrokeThickness="3.5" StrokeLineCap="Round"
-                      Width="12" Height="12" Stretch="Uniform" VerticalAlignment="Center" />
-                <TextBlock Classes="statValue" Text="{Binding Stats.Refused}" />
-                <TextBlock Classes="statLabel" Text="refus" />
-              </StackPanel>
-            </Border>
-          </UniformGrid>
-        </StackPanel>
-
-        <Border Padding="22,20" CornerRadius="20" Background="{StaticResource Graphite}" BorderBrush="{StaticResource Filet}" BorderThickness="1">
-          <StackPanel Spacing="10">
-            <TextBlock Classes="eyebrow" Text="RÉPONSE DE L’AGENT" />
-            <SelectableTextBlock Text="{Binding Selected.Result}" TextWrapping="Wrap" FontSize="14" LineHeight="22" />
+    <Border Grid.Column="1" BorderBrush="#16181B" BorderThickness="1,0,0,0" Padding="32,0,8,0"
+            IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
+      <DockPanel>
+        <!-- Le titre, et ce qui a été exécuté d'après le journal d'audit -->
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,4,0,18">
+          <StackPanel Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Selected.Goal}" FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.4" TextTrimming="CharacterEllipsis" />
+            <TextBlock Text="{Binding Selected.CreatedAt, StringFormat='{}Terminée · {0:dddd d MMMM, HH:mm}'}" FontSize="13" Foreground="{StaticResource Cendre}" />
           </StackPanel>
-        </Border>
-      </StackPanel>
-    </ScrollViewer>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="18" VerticalAlignment="Center"
+                      IsVisible="{Binding Stats, Converter={x:Static ObjectConverters.IsNotNull}}" ToolTip.Tip="D’après le journal d’audit : ce qui a réellement été exécuté">
+            <StackPanel Spacing="1">
+              <TextBlock Classes="mono" Text="{Binding Stats.Reads}" FontSize="17" HorizontalAlignment="Right" />
+              <TextBlock Text="lectures" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
+            </StackPanel>
+            <Rectangle Width="1" Fill="#1F2226" />
+            <StackPanel Spacing="1">
+              <TextBlock Classes="mono" Text="{Binding Stats.Approved}" FontSize="17" Foreground="{StaticResource Laiton}" HorizontalAlignment="Right" />
+              <TextBlock Text="écritures approuvées" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
+            </StackPanel>
+            <Rectangle Width="1" Fill="#1F2226" />
+            <StackPanel Spacing="1">
+              <TextBlock Classes="mono" Text="{Binding Stats.Refused}" FontSize="17" Foreground="{StaticResource Cinabre}" HorizontalAlignment="Right" />
+              <TextBlock Text="refus" FontSize="11" Foreground="{StaticResource Cendre}" HorizontalAlignment="Right" />
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+        <Rectangle DockPanel.Dock="Top" Height="1" Fill="#16181B" Margin="0,0,0,22" />
+
+        <!-- La conversation -->
+        <ScrollViewer>
+          <ItemsControl ItemsSource="{Binding Thread}" MaxWidth="860" HorizontalAlignment="Left">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="18" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="core:ReportMessage">
+                <Grid Classes="enter" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                  <views:Avatar Grid.Column="0" Image="{Binding Avatar}" Label="{Binding Name}" Size="46" Ring="#5E9E92" VerticalAlignment="Top"
+                                IsVisible="{Binding !IsYou}" />
+                  <views:Avatar Grid.Column="2" Image="{Binding Avatar}" Label="{Binding Name}" Size="46" Ring="#2A2D31" VerticalAlignment="Top"
+                                IsVisible="{Binding IsYou}" />
+                  <StackPanel Grid.Column="1" Spacing="6" MaxWidth="640"
+                              HorizontalAlignment="{Binding IsYou, Converter={x:Static views:Side.Of}}">
+                    <TextBlock FontSize="12" Foreground="{StaticResource Cendre}" HorizontalAlignment="{Binding IsYou, Converter={x:Static views:Side.Of}}">
+                      <Run Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource Parchemin}" /><Run Text=" · " /><Run Text="{Binding What}" />
+                    </TextBlock>
+                    <Border Classes="bubble" Classes.you="{Binding IsYou}" HorizontalAlignment="{Binding IsYou, Converter={x:Static views:Side.Of}}">
+                      <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13.5" LineHeight="21" />
+                    </Border>
+                    <Border Height="30" Padding="12,0" CornerRadius="8" Background="#14D8B86E" BorderBrush="#66D8B86E" BorderThickness="1"
+                            HorizontalAlignment="Left" IsVisible="{Binding File, Converter={x:Static ObjectConverters.IsNotNull}}">
+                      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Path Data="M7 3.5h7l5 5v12H7zM14 3.5v5h5" Stroke="{StaticResource Laiton}" StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round"
+                              Width="13" Height="13" Stretch="Uniform" />
+                        <TextBlock Classes="mono" Text="{Binding File, StringFormat='{}{0} · écrit avec votre accord'}" FontSize="11.5" Foreground="{StaticResource Laiton}" />
+                      </StackPanel>
+                    </Border>
+                  </StackPanel>
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
   </Grid>
 </UserControl>
