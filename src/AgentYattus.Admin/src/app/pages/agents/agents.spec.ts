@@ -1,18 +1,17 @@
-import { Agent } from '../../core/api';
-import { toolRows } from './agents';
+import { formErrors } from './tools';
 
-const agent = (name: string, tools: [string, boolean][]): Agent => ({
-  name, role: '', model: '', maxIterations: 10, key: name.toLowerCase(), modelOverride: null,
-  instructions: '', defaultInstructions: '', guardrails: '', version: 0, maxIterationsOverride: null,
-  tools: tools.map(([n, a]) => ({ name: n, description: n, requiresApproval: a })),
-});
+describe('nouvel agent', () => {
+  const ok = { name: 'Testeur', summary: 'Vérifie les tests.', instructions: 'Tu es le Testeur. Tu lis les tests et tu dis ce qui manque.', tools: ['read_file'] };
 
-describe('toolRows', () => {
-  it('regroupe chaque outil avec les agents qui s’en servent', () => {
-    const rows = toolRows([agent('Analyste', [['read_file', false]]), agent('Rédacteur', [['read_file', false], ['write_file', true]])]);
-    expect(rows.map((r) => [r.name, r.agents.join('+'), r.requiresApproval])).toEqual([
-      ['read_file', 'Analyste+Rédacteur', false],
-      ['write_file', 'Rédacteur', true],
-    ]);
+  it('accepte un agent complet', () => {
+    expect(formErrors(ok, true)).toEqual([]);
+  });
+
+  it('signale un nom trop court, une présentation vide, aucun outil et une consigne trop courte', () => {
+    expect(formErrors({ name: 'x', summary: '', instructions: 'court', tools: [] }, true)).toEqual(['name', 'summary', 'tools', 'instructions']);
+  });
+
+  it('ne demande pas la consigne quand on modifie seulement le profil', () => {
+    expect(formErrors({ ...ok, instructions: '' }, false)).toEqual([]);
   });
 });

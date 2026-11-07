@@ -27,7 +27,10 @@ export interface Agent {
   name: string; role: string; model: string; maxIterations: number; tools: ToolInfo[]; key: string; modelOverride: LlmSelection | null;
   stats?: AgentStats | null;
   instructions: string; defaultInstructions: string; guardrails: string; version: number; maxIterationsOverride: number | null;
+  /** Faux pour un agent créé dans l'admin (ADR 0013). */
+  builtin?: boolean;
 }
+export interface AgentProfile { name: string; summary: string; tools: string[] }
 export interface AgentVersion { version: number; instructions: string | null; maxIterations: number | null; at: string; by: string }
 
 export type MissionStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'AwaitingApproval' | 'Cancelled';
@@ -119,6 +122,9 @@ export class AdminApi {
   updateAgent(role: string, instructions: string | null, maxIterations: number | null) {
     return this.send('PUT', `/agents/${encodeURIComponent(role)}`, { instructions, maxIterations });
   }
+  createAgent(profile: AgentProfile & { instructions: string }) { return this.send<Agent>('POST', '/agents', profile); }
+  updateAgentProfile(role: string, profile: AgentProfile) { return this.send('PUT', `/agents/${encodeURIComponent(role)}/profile`, profile); }
+  retireAgent(role: string) { return this.send('DELETE', `/agents/${encodeURIComponent(role)}`); }
   agentVersions(role: string) { return this.get<AgentVersion[]>(`/agents/${encodeURIComponent(role)}/versions`); }
   setAgentModel(role: string, model: LlmSelection | null) { return this.send('PUT', `/agents/${encodeURIComponent(role)}/model`, { model }); }
 

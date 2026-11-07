@@ -1,106 +1,48 @@
-<app-page-header title="Agents" description="Les rôles, leur modèle et leurs outils. Les apps de travail n'en montrent que le résultat.">
-  <button hlmBtn variant="outline" (click)="load()"><ng-icon name="lucideRefreshCw" /> Actualiser</button>
+<app-page-header title="Agents" description="Qui travaille sur vos missions.">
+  <button hlmBtn (click)="openCreate()"><ng-icon name="lucidePlus" /> Nouvel agent</button>
 </app-page-header>
 
-<div class="grid grid-cols-1 gap-2.5 lg:grid-cols-2">
+<ul class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
   @if (!agents()) {
-    @for (i of [1, 2]; track i) {
-      <div class="bg-card flex flex-col gap-3 rounded-xl border p-4"><hlm-skeleton class="h-6 w-40" /><hlm-skeleton class="h-24 w-full" /></div>
+    @for (i of [1, 2, 3]; track i) {
+      <li class="bg-card flex flex-col gap-3 rounded-2xl border p-4"><hlm-skeleton class="h-6 w-40" /><hlm-skeleton class="h-16 w-full" /></li>
     }
   }
-  @for (agent of agents(); track agent.key; let odd = $odd) {
-    <section class="bg-card flex flex-col rounded-xl border">
-      <div class="flex items-center gap-3 border-b p-3.5">
-        <div
-          class="bg-muted grid size-9 shrink-0 place-items-center rounded-full border"
-          [class.text-primary]="!odd"
-          [class.text-warning]="odd"
-        >
-          <ng-icon name="lucideBot" />
+  @for (agent of agents(); track agent.key) {
+    <li class="bg-card group flex flex-col gap-3 rounded-2xl border p-4 transition-[box-shadow,transform] duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+      <div class="flex items-start gap-3">
+        <div class="bg-primary-soft text-primary grid size-10 shrink-0 place-items-center rounded-xl transition-transform duration-300 group-hover:scale-105">
+          <ng-icon [name]="agent.builtin === false ? 'lucideSparkles' : 'lucideBot'" />
         </div>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2">
-            <h2 class="text-[15px] font-semibold">{{ agent.name }}</h2>
-            <span class="text-muted-foreground font-mono text-xs">{{ agent.key }}</span>
+            <h2 class="truncate text-[15px] font-semibold">{{ agent.name }}</h2>
+            @if (agent.builtin === false) {
+              <span hlmBadge variant="outline">créé</span>
+            }
           </div>
-          <div class="text-muted-foreground">{{ agent.role }}</div>
-        </div>
-        <button hlmBtn variant="outline" size="sm" (click)="edit(agent)">Modifier</button>
-      </div>
-
-      <div class="grid grid-cols-2 border-b sm:grid-cols-4">
-        @for (k of [
-          { label: 'Exécutions', value: agent.stats?.runs ?? 0 },
-          { label: 'Tokens moyens', value: tokens(agent.stats?.averageTokens) },
-          { label: 'Tokens au total', value: tokens(agent.stats?.totalTokens) },
-          { label: 'Tours max', value: agent.maxIterations }
-        ]; track k.label) {
-          <div class="-ml-px flex flex-col gap-1 border-l px-3.5 py-2.5">
-            <span class="text-muted-foreground text-[10.5px] tracking-wider uppercase">{{ k.label }}</span>
-            <b class="num text-[15px]">{{ k.value }}</b>
-          </div>
-        }
-      </div>
-
-      <div class="flex flex-wrap items-center justify-between gap-3 border-b px-3.5 py-3">
-        <div class="min-w-0">
-          <div class="font-medium">Modèle</div>
-          <div class="text-muted-foreground text-xs">{{ source(agent) }}</div>
-        </div>
-        <div class="flex min-w-0 items-center gap-2">
-          <span class="truncate font-mono text-xs">{{ agent.model }}</span>
-          @if (agent.modelOverride) {
-            <button hlmBtn variant="ghost" size="xs" (click)="set(agent, null)" [disabled]="busy()">Par défaut</button>
-          }
-          <button hlmBtn variant="outline" size="xs" (click)="change(agent)" [disabled]="busy() || !models().length">Changer</button>
+          <p class="text-muted-foreground line-clamp-2 text-[12.5px]">{{ agent.role }}</p>
         </div>
       </div>
 
-      <div class="flex flex-wrap gap-1.5 px-3.5 py-3">
+      <div class="flex flex-wrap gap-1.5">
         @for (tool of agent.tools; track tool.name) {
-          <span hlmBadge [variant]="tool.requiresApproval ? 'warning' : 'secondary'" class="font-mono">
-            {{ tool.name }}{{ tool.requiresApproval ? ' · approbation' : '' }}
+          <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[11.5px]" [class.border-warning]="tool.requiresApproval" [class.text-warning]="tool.requiresApproval" [title]="tool.description">
+            <ng-icon [name]="icon(tool.name)" size="13" /> {{ label(tool.name) }}
           </span>
         }
       </div>
-    </section>
-  }
 
-  <section class="bg-card rounded-xl border lg:col-span-2">
-    <div class="flex min-h-11 items-center justify-between border-b px-3.5">
-      <h2 class="font-semibold">Outils</h2>
-      <span class="text-muted-foreground text-xs">bac à sable en lecture seule, sauf écriture approuvée</span>
-    </div>
-    <div hlmTableContainer>
-      <table hlmTable>
-        <thead hlmTHead>
-          <tr hlmTr>
-            <th hlmTh>Outil</th>
-            <th hlmTh>Ce qu'il fait</th>
-            <th hlmTh>Utilisé par</th>
-            <th hlmTh>Garde-fou</th>
-          </tr>
-        </thead>
-        <tbody hlmTBody>
-          @for (tool of tools(); track tool.name) {
-            <tr hlmTr>
-              <td hlmTd class="font-mono text-xs">{{ tool.name }}</td>
-              <td hlmTd class="text-muted-foreground whitespace-normal">{{ tool.description }}</td>
-              <td hlmTd>{{ tool.agents.join(', ') }}</td>
-              <td hlmTd>
-                @if (tool.requiresApproval) {
-                  <span hlmBadge variant="warning"><ng-icon name="lucideShieldCheck" /> Approbation humaine</span>
-                } @else {
-                  <span class="text-muted-foreground">—</span>
-                }
-              </td>
-            </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-  </section>
-</div>
+      <div class="text-muted-foreground flex items-center justify-between gap-2 border-t pt-3 text-xs">
+        <button type="button" class="hover:text-foreground min-w-0 truncate text-left font-mono" (click)="change(agent)" [disabled]="busy() || !models().length" [title]="'Modèle : ' + agent.model + ' (' + source(agent) + ') — cliquer pour changer'">
+          {{ agent.model }} <span class="font-sans">· {{ source(agent) }}</span>
+        </button>
+        <span class="num shrink-0">{{ agent.stats?.runs ?? 0 }} missions</span>
+      </div>
+      <button hlmBtn variant="outline" size="sm" (click)="edit(agent)">Modifier</button>
+    </li>
+  }
+</ul>
 
 <app-model-picker
   [(open)]="pickerOpen"
@@ -115,13 +57,31 @@
   <hlm-sheet-content *hlmSheetPortal="let ctx" class="flex w-full flex-col gap-0 p-0 sm:max-w-2xl">
     @if (editingRole(); as role) {
       <hlm-sheet-header class="border-b p-4">
-        <h3 hlmSheetTitle>{{ role.name }} · consigne</h3>
-        <p hlmSheetDescription>
-          Version {{ role.version || 'd’origine' }}. Une modification crée une nouvelle version ; elle s’applique dès la prochaine mission.
-        </p>
+        <h3 hlmSheetTitle>{{ role.name }}</h3>
+        <p hlmSheetDescription>Consigne en version {{ role.version || 'd’origine' }}.</p>
       </hlm-sheet-header>
 
       <div class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
+        @if (role.builtin === false) {
+          <section class="flex flex-col gap-3 rounded-xl border p-3">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <input hlmInput maxlength="40" placeholder="Nom" aria-label="Nom" [value]="profile().name" (input)="profile.set({ ...profile(), name: $any($event.target).value })" />
+              <input hlmInput maxlength="200" placeholder="Ce qu’il fait" aria-label="Ce qu’il fait" [value]="profile().summary" (input)="profile.set({ ...profile(), summary: $any($event.target).value })" />
+            </div>
+            <div class="flex flex-wrap gap-2">
+              @for (t of toolChoices; track t.name) {
+                <button type="button" (click)="toggle('profile', t.name)" [attr.aria-pressed]="has(profile(), t.name)"
+                  class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs" [class.border-primary]="has(profile(), t.name)" [class.bg-primary-soft]="has(profile(), t.name)">
+                  <ng-icon [name]="t.icon" size="13" /> {{ t.label }}
+                </button>
+              }
+            </div>
+            <div class="flex justify-end gap-2">
+              <button hlmBtn variant="ghost" size="sm" [class.text-destructive]="confirmRetire()" (click)="retire()" [disabled]="busy()">{{ confirmRetire() ? 'Confirmer le retrait' : 'Retirer l’agent' }}</button>
+              <button hlmBtn variant="outline" size="sm" (click)="saveProfile()" [disabled]="busy() || profileErrors().length > 0">Enregistrer le profil</button>
+            </div>
+          </section>
+        }
         <label class="flex flex-col gap-1.5">
           <span class="flex items-center justify-between">
             <span class="font-medium">Consigne</span>
@@ -130,14 +90,13 @@
           <textarea hlmTextarea rows="10" class="font-mono text-xs leading-relaxed" placeholder="Décrivez le rôle, le ton et les règles de l’agent…" [value]="draft()" (input)="draft.set($any($event.target).value)"></textarea>
         </label>
 
-        <div class="flex flex-col gap-1.5">
-          <span class="font-medium">Toujours ajouté par le code</span>
-          <p class="bg-muted text-muted-foreground m-0 rounded-md border p-2.5 font-mono text-xs leading-relaxed">{{ role.guardrails }}</p>
-          <span class="text-muted-foreground text-xs">Les outils, l’approbation des écritures et le dossier de travail ne dépendent pas de la consigne.</span>
-        </div>
+        <details class="group rounded-md border">
+          <summary class="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-2 px-2.5 py-2 text-xs"><ng-icon name="lucideShieldCheck" /> Règles ajoutées par le code</summary>
+          <p class="text-muted-foreground m-0 border-t p-2.5 font-mono text-xs leading-relaxed">{{ role.guardrails }}</p>
+        </details>
 
         <label class="flex items-center justify-between gap-3">
-          <span><span class="block font-medium">Tours maximum pour ce rôle</span><span class="text-muted-foreground text-xs">Vide : la limite de l’instance</span></span>
+          <span class="font-medium">Tours maximum</span>
           <input hlmInput type="number" min="1" max="50" class="w-28" placeholder="Limite de l’instance" [value]="maxTurns()" (input)="maxTurns.set($any($event.target).value)" />
         </label>
 
@@ -181,5 +140,47 @@
         <button hlmBtn (click)="saveRole(draft(), maxTurns(), 'Nouvelle version enregistrée.')" [disabled]="busy() || !draftValid()">Enregistrer</button>
       </hlm-sheet-footer>
     }
+  </hlm-sheet-content>
+</hlm-sheet>
+
+
+<hlm-sheet side="right" [state]="createState()" (closed)="createOpen.set(false)">
+  <hlm-sheet-content *hlmSheetPortal="let ctx" class="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
+    <hlm-sheet-header class="border-b p-4">
+      <h3 hlmSheetTitle>Nouvel agent</h3>
+      <p hlmSheetDescription>On le choisit au lancement d’une mission Question.</p>
+    </hlm-sheet-header>
+    <form class="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4" (submit)="$event.preventDefault(); create()">
+      <label class="flex flex-col gap-1.5">
+        <span class="font-medium">Nom</span>
+        <input hlmInput maxlength="40" placeholder="ex. Testeur" [value]="form().name" (input)="form.set({ ...form(), name: $any($event.target).value })" />
+      </label>
+      <label class="flex flex-col gap-1.5">
+        <span class="font-medium">Ce qu’il fait</span>
+        <input hlmInput maxlength="200" placeholder="ex. Vérifie que les tests couvrent le code modifié." [value]="form().summary" (input)="form.set({ ...form(), summary: $any($event.target).value })" />
+      </label>
+      <div class="flex flex-col gap-1.5">
+        <span class="font-medium">Ce qu’il peut faire</span>
+        <div class="grid grid-cols-1 gap-2">
+          @for (t of toolChoices; track t.name) {
+            <button type="button" (click)="toggle('form', t.name)" [attr.aria-pressed]="has(form(), t.name)"
+              class="hover:border-foreground/30 flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left"
+              [class.border-primary]="has(form(), t.name)" [class.bg-primary-soft]="has(form(), t.name)">
+              <ng-icon [name]="t.icon" />
+              <span class="flex-1">{{ t.label }}</span>
+              <span class="size-4 rounded-full border transition-colors" [class.bg-primary]="has(form(), t.name)" [class.border-primary]="has(form(), t.name)"></span>
+            </button>
+          }
+        </div>
+      </div>
+      <label class="flex flex-col gap-1.5">
+        <span class="font-medium">Consigne</span>
+        <textarea hlmTextarea rows="7" class="font-mono text-xs leading-relaxed" placeholder="Tu es le Testeur d’Agent Yattus. Tu lis les tests et tu dis ce qui manque, fichier par fichier." [value]="form().instructions" (input)="form.set({ ...form(), instructions: $any($event.target).value })"></textarea>
+      </label>
+    </form>
+    <hlm-sheet-footer class="flex-row justify-end gap-2 border-t p-3">
+      <button hlmBtn variant="outline" (click)="createOpen.set(false)">Annuler</button>
+      <button hlmBtn (click)="create()" [disabled]="busy() || createErrors().length > 0">Créer l’agent</button>
+    </hlm-sheet-footer>
   </hlm-sheet-content>
 </hlm-sheet>
