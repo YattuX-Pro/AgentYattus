@@ -12,22 +12,6 @@
     celui qui fera la mission ; le compositeur ; les missions récentes avec le visage de qui y travaille.
   -->
   <UserControl.Styles>
-    <!-- Champ de saisie nu : le cadre est porté par la carte autour. -->
-    <Style Selector="TextBox.composer, TextBox.composer:pointerover, TextBox.composer:focus">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
-      <Setter Property="Padding" Value="4,2" />
-      <Setter Property="VerticalContentAlignment" Value="Top" />
-    </Style>
-    <Style Selector="TextBox.composer /template/ Border#PART_BorderElement,
-                     TextBox.composer:pointerover /template/ Border#PART_BorderElement,
-                     TextBox.composer:focus /template/ Border#PART_BorderElement">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="BoxShadow" Value="none" />
-    </Style>
-
     <!-- Le compositeur s'éclaire quand on y écrit. -->
     <Style Selector="Border.composerCard">
       <Setter Property="BorderBrush" Value="#2B2F34" />

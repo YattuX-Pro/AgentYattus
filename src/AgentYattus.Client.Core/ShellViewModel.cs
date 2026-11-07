@@ -179,5 +179,7 @@ public sealed partial class ShellViewModel : ObservableObject
         Home.Apply(e);
         if (Current is OfficeViewModel office)
             await office.ApplyAsync(e);
+        else if (Current is ReportsViewModel reports)
+            await reports.ApplyAsync(e);
     }
 }

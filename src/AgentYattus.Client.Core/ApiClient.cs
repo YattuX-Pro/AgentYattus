@@ -222,6 +222,17 @@ public sealed class ApiClient(HttpClient http)
         throw new HttpRequestException(detail.Length > 0 ? detail : $"{(int)response.StatusCode} {response.ReasonPhrase}", null, response.StatusCode);
     }
 
+    /// <summary>Répondre à l'agent (leçon 117) : la mission reprend, avec toute sa conversation.</summary>
+    public async Task ReplyAsync(Guid mission, string text, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync($"missions/{mission}/messages", new ReplyRequest(text), cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
+    }
+
+    /// <summary>Le fil après le but : les réponses de l'agent et les tiennes ; vide pour une mission plus ancienne.</summary>
+    public async Task<IReadOnlyList<MissionTurnDto>> GetTurnsAsync(Guid mission, CancellationToken cancellationToken = default) =>
+        await http.GetFromJsonAsync<MissionTurnDto[]>($"missions/{mission}/turns", cancellationToken) ?? [];
+
     public async Task<MissionDto?> GetMissionAsync(Guid id, CancellationToken cancellationToken = default)
     {
         using var response = await http.GetAsync($"missions/{id}", cancellationToken);

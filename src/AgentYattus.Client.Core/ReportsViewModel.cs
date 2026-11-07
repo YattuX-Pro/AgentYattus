@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using AgentYattus.Contracts;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 namespace AgentYattus.Client.Core;
 
@@ -8,7 +9,8 @@ namespace AgentYattus.Client.Core;
 /// <param name="IsYou">Vos bulles s'alignent à droite.</param>
 /// <param name="File">Le fichier écrit avec votre accord (REPORT.md), s'il y en a un.</param>
 /// <param name="Failed">La réponse d'une mission en échec : bulle cinabre.</param>
-public sealed record ReportMessage(string Name, byte[]? Avatar, string What, string Text, bool IsYou, string? File, bool Failed = false);
+/// <param name="Last">La dernière réponse de l'agent : elle porte la pastille des compétences utilisées.</param>
+public sealed record ReportMessage(string Name, byte[]? Avatar, string What, string Text, bool IsYou, string? File, bool Failed = false, bool Last = false);
 
 /// <summary>L'écran Rapports : les missions terminées, racontées comme une conversation, et ce qui a été exécuté.</summary>
 public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
@@ -26,6 +28,20 @@ public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
 
     [ObservableProperty]
     public partial string? Error { get; set; }
+
+    /// <summary>Ta réponse à l'agent (leçon 117), écrite sous le fil.</summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendReplyCommand))]
+    public partial string ReplyText { get; set; } = "";
+
+    /// <summary>Vrai entre l'envoi de ta réponse et celle de l'agent : la bulle « écrit… » est affichée.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanReply))]
+    [NotifyCanExecuteChangedFor(nameof(SendReplyCommand))]
+    public partial bool IsWaiting { get; set; }
+
+    /// <summary>On répond à une mission terminée ; pour une mission en échec, c'est « Relancer ».</summary>
+    public bool CanReply => Selected is { IsCompleted: true } && !IsWaiting;
 
     private Face? _me;
     private Dictionary<Guid, string> _projects = [];
@@ -68,6 +84,9 @@ public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
     partial void OnSelectedChanged(MissionItem? value)
     {
         OnPropertyChanged(nameof(Subtitle));
+        OnPropertyChanged(nameof(CanReply));
+        SendReplyCommand.NotifyCanExecuteChanged();
+        IsWaiting = false;
         Thread.Clear();
         if (value is not null)
         {
@@ -78,9 +97,86 @@ public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
                 ? new ReportMessage(author?.Name ?? "L'agent", author?.Talk ?? author?.Work, "n’a pas abouti",
                     string.IsNullOrWhiteSpace(value.Result) ? "Je n’ai pas pu terminer cette mission." : value.Result, false, null, Failed: true)
                 : new ReportMessage(author?.Name ?? "L'agent", author?.Talk ?? author?.Work, value.IsReview ? "a rédigé le rapport" : "a répondu",
-                    value.Result ?? "", false, value.IsReview ? "REPORT.md" : null));
+                    value.Result ?? "", false, value.IsReview ? "REPORT.md" : null, Last: true));
         }
         _ = LoadStatsAsync(value);
+        _ = LoadTurnsAsync(value);
+    }
+
+    /// <summary>
+    /// Le fil complet (leçon 117) : le but, puis chaque réponse de l'agent et chacune des tiennes.
+    /// Une mission plus ancienne n'a pas de tours : on garde le but et le résultat.
+    /// </summary>
+    private async Task LoadTurnsAsync(MissionItem? report)
+    {
+        if (report is null)
+            return;
+        try
+        {
+            var turns = await api.GetTurnsAsync(report.Id);
+            if (Selected?.Id != report.Id || turns.Count == 0)
+                return;
+            var author = report.Faces.LastOrDefault();
+            var first = Thread.FirstOrDefault();
+            Thread.Clear();
+            if (first is not null)
+                Thread.Add(first);
+            var answered = false;
+            var lastAnswer = turns.ToList().FindLastIndex(t => !t.FromUser);
+            for (var i = 0; i < turns.Count; i++)
+            {
+                var turn = turns[i];
+                Thread.Add(turn.FromUser
+                    ? new ReportMessage("Vous", _me?.Talk ?? _me?.Work, "avez répondu", turn.Text, true, null)
+                    : new ReportMessage(author?.Name ?? "L'agent", author?.Talk ?? author?.Work, "a répondu", turn.Text, false,
+                        !answered && report.IsReview ? "REPORT.md" : null, Last: i == lastAnswer));
+                answered |= !turn.FromUser;
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            // Sans les tours, le but et le résultat restent affichés.
+        }
+    }
+
+    private bool CanSendReply => CanReply && !string.IsNullOrWhiteSpace(ReplyText);
+
+    [RelayCommand(CanExecute = nameof(CanSendReply))]
+    private async Task SendReplyAsync(CancellationToken cancellationToken)
+    {
+        if (Selected is not { } report)
+            return;
+        var text = ReplyText.Trim();
+        try
+        {
+            await api.ReplyAsync(report.Id, text, cancellationToken);
+            Thread.Add(new ReportMessage("Vous", _me?.Talk ?? _me?.Work, "avez répondu", text, true, null));
+            var author = report.Faces.LastOrDefault();
+            Thread.Add(new ReportMessage(author?.Name ?? "L'agent", author?.Talk ?? author?.Work, "écrit…", "…", false, null));
+            ReplyText = "";
+            report.Status = MissionStatus.Pending;
+            IsWaiting = true;
+            Error = null;
+        }
+        catch (HttpRequestException ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    /// <summary>Le direct : la réponse de l'agent arrive, le fil se recharge.</summary>
+    public async Task ApplyAsync(MissionEventDto e)
+    {
+        if (Selected is not { } report || e.MissionId != report.Id)
+            return;
+        report.Status = e.Status;
+        if (e.Status is MissionStatus.Completed or MissionStatus.Failed or MissionStatus.Cancelled)
+        {
+            IsWaiting = false;
+            OnPropertyChanged(nameof(CanReply));
+            await LoadTurnsAsync(report);
+            await LoadStatsAsync(report);
+        }
     }
 
     // Les chiffres viennent du journal d'audit : ce qui a réellement été exécuté, pas ce que l'agent en dit.

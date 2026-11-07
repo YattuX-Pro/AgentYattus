@@ -42,7 +42,8 @@ public sealed class AgentsAndReportsTests
             new("outil:list_files", DateTimeOffset.UtcNow), new("outil:read_file", DateTimeOffset.UtcNow),
             new("decision:refusee", DateTimeOffset.UtcNow), new("decision:approuvee", DateTimeOffset.UtcNow),
         ];
-        var vm = new ReportsViewModel(Api(path => path.EndsWith("/events") ? events : missions));
+        // Missions antérieures aux tours (leçon 117) : pas de fil, le but et le résultat suffisent.
+        var vm = new ReportsViewModel(Api(path => path.EndsWith("/events") ? events : path.EndsWith("/turns") ? Array.Empty<MissionTurnDto>() : missions));
 
         await vm.LoadAsync(TestContext.Current.CancellationToken);
         for (var i = 0; i < 50 && vm.Stats is null; i++)
@@ -61,7 +62,7 @@ public sealed class AgentsAndReportsTests
     public async Task A_failed_mission_is_told_in_a_red_bubble()
     {
         MissionDto[] missions = [new(Guid.NewGuid(), "Échouée", MissionStatus.Failed, DateTimeOffset.UtcNow)];
-        var vm = new ReportsViewModel(Api(path => path.EndsWith("/events") ? Array.Empty<AuditEntryDto>() : missions));
+        var vm = new ReportsViewModel(Api(path => path.EndsWith("/events") ? Array.Empty<AuditEntryDto>() : path.EndsWith("/turns") ? Array.Empty<MissionTurnDto>() : missions));
 
         await vm.LoadAsync(TestContext.Current.CancellationToken);
 
