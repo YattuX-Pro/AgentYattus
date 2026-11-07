@@ -1,87 +1,127 @@
+<!-- Menu latéral : un panneau flottant. Sur grand écran, il se réduit aux icônes (rail) ; sur mobile, il glisse par-dessus la page. -->
 <aside
-  class="bg-sidebar text-sidebar-foreground border-sidebar-border fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r p-3 transition-transform lg:translate-x-0"
+  class="ay-nav fixed inset-y-0 left-0 z-30 flex p-2 transition-[transform,width] duration-300 ease-[cubic-bezier(.2,.8,.2,1)] lg:translate-x-0"
   [class.-translate-x-full]="!menuOpen()"
+  [style.width.px]="rail() ? 76 : 260"
 >
-  <div class="flex items-center gap-2 border-b px-2 pb-3 font-semibold tracking-tight">
-    <svg class="text-primary size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-      <path d="M5 3.5 12 11l7-7.5M12 11v9.5" /><circle cx="12" cy="11" r="2.2" fill="currentColor" stroke="none" />
-    </svg>
-    Agent Yattus
-    <span class="text-muted-foreground ml-auto rounded border px-1.5 py-0.5 font-mono text-[10px] tracking-widest uppercase">Admin</span>
-  </div>
-
-  <nav class="mt-2 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto" aria-label="Sections">
-    @for (group of nav; track group.label) {
-      <div hlmCollapsible [expanded]="open()[group.label]" (expandedChange)="setGroup(group.label, $event)">
-        <button
-          hlmCollapsibleTrigger
-          class="text-muted-foreground hover:text-foreground flex w-full items-center justify-between rounded-md px-2 py-2 text-[10.5px] font-medium tracking-wider uppercase"
-        >
-          {{ group.label }}
-          <ng-icon name="lucideChevronDown" class="transition-transform" [class.-rotate-90]="!open()[group.label]" />
-        </button>
-        <div hlmCollapsibleContent class="flex flex-col gap-px">
-          @for (item of group.items; track item.path) {
-            <a
-              [routerLink]="item.path"
-              routerLinkActive="bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-border [&>ng-icon]:text-primary"
-              [routerLinkActiveOptions]="{ exact: item.path === '/' }"
-              (click)="menuOpen.set(false)"
-              class="text-muted-foreground hover:bg-sidebar-accent hover:text-foreground flex items-center gap-2.5 rounded-md px-2 py-2 font-medium"
-            >
-              <ng-icon [name]="item.icon" />
-              {{ item.label }}
-            </a>
-          }
-        </div>
+  <div class="bg-sidebar text-sidebar-foreground border-sidebar-border relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-16px_rgb(0_0_0/0.25)]">
+    <!-- Marque -->
+    <div class="flex h-16 shrink-0 items-center gap-3 px-3.5">
+      <a routerLink="/" class="ay-logo group relative grid size-9 shrink-0 place-items-center rounded-xl" aria-label="Vue d’ensemble">
+        <svg class="text-primary relative size-[18px] transition-transform duration-500 group-hover:rotate-[-8deg] group-hover:scale-110" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+          <path d="M5 3.5 12 11l7-7.5M12 11v9.5" /><circle cx="12" cy="11" r="2.2" fill="currentColor" stroke="none" />
+        </svg>
+      </a>
+      <div class="ay-fade-label min-w-0 flex-1" [class.ay-hidden]="rail()">
+        <div class="truncate text-[14px] font-semibold tracking-tight">Agent Yattus</div>
+        <div class="text-muted-foreground font-mono text-[10px] tracking-[.18em] uppercase">Espace admin</div>
       </div>
-    }
-  </nav>
-
-  <div class="mt-2 flex items-center gap-2.5 border-t px-1 pt-3">
-    <hlm-avatar class="size-8">
-      <span hlmAvatarFallback class="text-xs font-semibold">{{ initials() }}</span>
-    </hlm-avatar>
-    <div class="min-w-0 flex-1">
-      <div class="truncate font-medium">{{ auth.name() }}</div>
-      <div class="text-muted-foreground text-xs">Administrateur</div>
     </div>
-    <button hlmBtn variant="ghost" size="icon-sm" (click)="auth.logout()" aria-label="Se déconnecter">
-      <ng-icon name="lucideLogOut" />
-    </button>
+
+    <nav class="ay-scroll flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-2.5 pt-1 pb-3" aria-label="Sections">
+      @for (group of nav; track group.label; let gi = $index) {
+        <div>
+          <button
+            type="button"
+            class="ay-group-trigger text-muted-foreground hover:text-foreground flex h-7 w-full items-center gap-2 rounded-lg px-2 text-[10.5px] font-medium tracking-[.14em] uppercase"
+            [attr.aria-expanded]="open()[group.label]"
+            (click)="setGroup(group.label, !open()[group.label])"
+          >
+            @if (rail()) {
+              <span class="bg-border mx-auto h-px w-6"></span>
+            } @else {
+              <span class="flex-1 text-left">{{ group.label }}</span>
+              <span class="bg-muted text-muted-foreground num rounded-full px-1.5 py-px font-mono text-[9.5px] tracking-normal">{{ group.items.length }}</span>
+              <ng-icon name="lucideChevronDown" class="transition-transform duration-300" [class.-rotate-90]="!open()[group.label]" />
+            }
+          </button>
+          <!-- La hauteur s'anime : une grille passe de 0fr à 1fr. -->
+          <div class="mt-1 grid transition-[grid-template-rows,opacity] duration-300 ease-out" [style.grid-template-rows]="open()[group.label] || rail() ? '1fr' : '0fr'" [class.opacity-0]="!open()[group.label] && !rail()">
+            <div class="flex min-h-0 flex-col gap-0.5 overflow-hidden">
+              @for (item of group.items; track item.path; let i = $index) {
+                <a
+                  [routerLink]="item.path"
+                  routerLinkActive="ay-active"
+                  [routerLinkActiveOptions]="{ exact: item.path === '/' }"
+                  (click)="menuOpen.set(false)"
+                  class="ay-item group relative flex h-9 items-center gap-3 rounded-xl px-2.5 font-medium"
+                  [style.--i]="i"
+                  [attr.title]="rail() ? item.label : null"
+                  [attr.aria-label]="item.label"
+                >
+                  <span class="ay-bar" aria-hidden="true"></span>
+                  <ng-icon [name]="item.icon" class="ay-icon shrink-0" />
+                  <span class="ay-fade-label truncate" [class.ay-hidden]="rail()">{{ item.label }}</span>
+                </a>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </nav>
+
+    <!-- Bas du menu : la personne connectée, la réduction en rail. -->
+    <div class="border-sidebar-border flex shrink-0 flex-col gap-1 border-t p-2.5">
+      <div class="ay-user group flex items-center gap-2.5 rounded-xl p-1.5">
+        <hlm-avatar class="ring-primary/30 size-8 shrink-0 ring-2 ring-offset-2 ring-offset-[var(--sidebar)] transition-shadow group-hover:ring-primary/60">
+          <span hlmAvatarFallback class="bg-primary-soft text-primary text-xs font-semibold">{{ initials() }}</span>
+        </hlm-avatar>
+        <div class="ay-fade-label min-w-0 flex-1" [class.ay-hidden]="rail()">
+          <div class="truncate font-medium">{{ auth.name() }}</div>
+          <div class="text-muted-foreground text-xs">Administrateur</div>
+        </div>
+        <button hlmBtn variant="ghost" size="icon-sm" class="ay-fade-label" [class.ay-hidden]="rail()" (click)="auth.logout()" aria-label="Se déconnecter">
+          <ng-icon name="lucideLogOut" />
+        </button>
+      </div>
+      <button
+        type="button"
+        class="text-muted-foreground hover:bg-sidebar-accent hover:text-foreground hidden h-8 items-center gap-2 rounded-lg px-2.5 text-xs lg:flex"
+        (click)="toggleRail()"
+        [attr.aria-label]="rail() ? 'Déplier le menu' : 'Réduire le menu'"
+      >
+        <ng-icon name="lucidePanelLeft" class="shrink-0 transition-transform duration-300" [class.rotate-180]="rail()" />
+        <span class="ay-fade-label" [class.ay-hidden]="rail()">Réduire le menu</span>
+      </button>
+    </div>
   </div>
 </aside>
 
 @if (menuOpen()) {
-  <div class="fixed inset-0 z-20 bg-black/40 lg:hidden" (click)="menuOpen.set(false)" aria-hidden="true"></div>
+  <div class="animate-in fade-in-0 fixed inset-0 z-20 bg-black/40 backdrop-blur-[2px] duration-200 lg:hidden" (click)="menuOpen.set(false)" aria-hidden="true"></div>
 }
 
-<div class="lg:pl-60">
-  <header class="bg-background/90 sticky top-0 z-10 flex h-14 items-center gap-3 border-b px-4 backdrop-blur">
+<div class="transition-[padding] duration-300 ease-[cubic-bezier(.2,.8,.2,1)]" [class.lg:pl-[76px]]="rail()" [class.lg:pl-[260px]]="!rail()">
+  <header class="bg-background/85 sticky top-0 z-10 flex h-14 items-center gap-3 border-b px-4 backdrop-blur">
     <button hlmBtn variant="outline" size="icon-sm" class="lg:hidden" (click)="menuOpen.set(true)" aria-label="Ouvrir le menu">
       <ng-icon name="lucideMenu" />
     </button>
     <div class="text-muted-foreground flex min-w-0 flex-1 items-center gap-2 truncate">
       @if (here(); as h) {
         <span class="hidden sm:inline">{{ h.group }}</span>
-        <span class="hidden sm:inline">/</span>
-        <span class="text-foreground font-semibold">{{ h.label }}</span>
+        <ng-icon name="lucideChevronRight" class="hidden opacity-50 sm:inline" />
+        <span class="ay-crumb text-foreground font-semibold" [attr.data-k]="h.label">{{ h.label }}</span>
       }
     </div>
-    <label class="bg-muted text-muted-foreground hidden h-8 w-56 items-center gap-2 rounded-md border px-2.5 md:flex">
+    <label class="bg-muted text-muted-foreground focus-within:ring-ring/40 focus-within:bg-background hidden h-8 w-56 items-center gap-2 rounded-lg border px-2.5 transition-[box-shadow,background-color,width] duration-200 focus-within:w-72 focus-within:ring-[3px] md:flex">
       <ng-icon name="lucideSearch" />
       <input
         id="search"
         #q
         class="text-foreground min-w-0 flex-1 bg-transparent outline-none"
-        placeholder="Chercher une mission"
+        placeholder="Chercher une mission…"
         aria-label="Chercher une mission"
         (keydown.enter)="search(q.value)"
       />
       <kbd hlmKbd>⌘K</kbd>
     </label>
     <span class="text-muted-foreground hidden items-center gap-1.5 text-xs sm:flex" [title]="live.connected() ? 'Missions en direct' : 'Direct déconnecté'">
-      <span class="size-2 rounded-full" [class.bg-primary]="live.connected()" [class.bg-input]="!live.connected()"></span>
+      <span class="relative flex size-2">
+        @if (live.connected()) {
+          <span class="bg-primary absolute inline-flex size-full animate-ping rounded-full opacity-60"></span>
+        }
+        <span class="relative inline-flex size-2 rounded-full" [class.bg-primary]="live.connected()" [class.bg-input]="!live.connected()"></span>
+      </span>
       {{ live.connected() ? 'En direct' : 'Hors ligne' }}
     </span>
     <hlm-toggle-group type="single" variant="outline" size="sm" [value]="theme.choice()" (valueChange)="setTheme($event)" aria-label="Thème">
@@ -90,7 +130,8 @@
       <button hlmToggleGroupItem value="dark" aria-label="Sombre"><ng-icon name="lucideMoon" /></button>
     </hlm-toggle-group>
   </header>
-  <main class="p-4">
+  <!-- view-transition-name : seule la page change en fondu, le menu reste immobile. -->
+  <main class="ay-page p-4">
     <router-outlet />
   </main>
 </div>

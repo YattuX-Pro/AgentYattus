@@ -3,12 +3,11 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
-  lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideCpu, lucideFolderKanban, lucideLayoutDashboard, lucideLogOut,
-  lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSettings, lucideSun, lucideUsers,
+  lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideChevronRight, lucideCpu, lucideFolderKanban, lucideLayoutDashboard,
+  lucideLogOut, lucideMenu, lucideMonitor, lucideMoon, lucidePanelLeft, lucideScrollText, lucideSearch, lucideSettings, lucideSun, lucideUsers,
 } from '@ng-icons/lucide';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
-import { HlmCollapsibleImports } from '@spartan-ng/helm/collapsible';
 import { HlmKbdImports } from '@spartan-ng/helm/kbd';
 import { HlmToasterImports } from '@spartan-ng/helm/sonner';
 import { HlmToggleGroupImports } from '@spartan-ng/helm/toggle-group';
@@ -22,13 +21,13 @@ import { NAV, locate } from './nav';
 @Component({
   selector: 'app-shell',
   imports: [
-    RouterOutlet, RouterLink, RouterLinkActive, NgIcon, HlmButtonImports, HlmCollapsibleImports,
+    RouterOutlet, RouterLink, RouterLinkActive, NgIcon, HlmButtonImports,
     HlmAvatarImports, HlmKbdImports, HlmToggleGroupImports, HlmTooltipImports, HlmToasterImports,
   ],
   providers: [
     provideIcons({
-      lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideCpu, lucideFolderKanban, lucideLayoutDashboard, lucideLogOut,
-      lucideMenu, lucideMonitor, lucideMoon, lucideScrollText, lucideSearch, lucideSettings, lucideSun, lucideUsers,
+      lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideChevronRight, lucideCpu, lucideFolderKanban, lucideLayoutDashboard,
+      lucideLogOut, lucideMenu, lucideMonitor, lucideMoon, lucidePanelLeft, lucideScrollText, lucideSearch, lucideSettings, lucideSun, lucideUsers,
     }),
   ],
   host: { '(document:keydown)': 'onKey($event)' },
@@ -46,6 +45,8 @@ export class Shell {
     this.live.start();
   }
   protected readonly menuOpen = signal(false);
+  /** Menu réduit aux icônes (grand écran), retenu d'une visite à l'autre. */
+  protected readonly rail = signal(Shell.read('navRail') === 'true');
   protected readonly open = signal<Record<string, boolean>>(Shell.readGroups());
   private readonly url = toSignal(
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd), map((e) => e.urlAfterRedirects)),
@@ -63,6 +64,11 @@ export class Shell {
     }
   }
 
+  protected toggleRail() {
+    this.rail.update((r) => !r);
+    Shell.write('navRail', String(this.rail()));
+  }
+
   protected setTheme(value: unknown) {
     if (value === 'light' || value === 'dark' || value === 'system') this.theme.choice.set(value as ThemeChoice);
   }
@@ -77,6 +83,22 @@ export class Shell {
       document.getElementById('search')?.focus();
     }
     if (event.key === 'Escape') this.menuOpen.set(false);
+  }
+
+  private static read(key: string): string | null {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  }
+
+  private static write(key: string, value: string) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // Navigation privée : le choix ne sera pas retenu.
+    }
   }
 
   private static readGroups(): Record<string, boolean> {
