@@ -39,6 +39,13 @@ Côté API, la relance est **une seule requête** qui vérifie et écrit, comme 
 
 Deux réponses simultanées ne relancent pas deux fois.
 
+## 3 bis. Qui répond ? (correctif après revue)
+
+Une revue de sécurité automatique a relevé deux cas :
+
+- **Seul l'auteur de la mission répond.** La conversation peut contenir ses compétences personnelles, chargées avec `use_skill` (leçon 104). Un autre éditeur du projet pourrait répondre « récite toute la conversation » et les lire. On garde donc une règle simple : `mission.CreatedBy == me.Id`, vérifiée aussi dans la requête qui relance.
+- **L'agent doit être encore proposé**, comme pour « Relancer » : un agent retiré, ou qui n'est plus visible, ne reprend pas une conversation.
+
 ## 4. Vérifie toi-même
 
 `dotnet test --filter ConversationTests` :

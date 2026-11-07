@@ -50,4 +50,22 @@ public sealed class ConversationTests
         // Alice n'a pas accès au projet : la mission n'existe pas pour elle.
         Assert.Equal(HttpStatusCode.NotFound, (await As(api, "alice").PostAsJsonAsync($"/missions/{mission.Id}/messages", new ReplyRequest("x"), Ct)).StatusCode);
     }
+
+    [Fact]
+    public async Task Only_the_author_replies_even_another_editor_of_the_project_cannot()
+    {
+        var model = new ScriptedChatClient(Text("Fini."));
+        await using var api = new ScriptedModelApiFactory(model);
+        var root = As(api, "root", instanceAdmin: true);
+        var bob = As(api, "bob");
+        await bob.GetAsync(IdentityProtocol.Me, Ct);
+        var project = (await (await root.PostAsJsonAsync(ProjectsProtocol.Path, new CreateProjectRequest("Commun"), Ct)).Content.ReadFromJsonAsync<ProjectDto>(Ct))!;
+        await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(api.Workspace), Ct);
+        await root.PutAsJsonAsync(ProjectsProtocol.Members(project.Id, "bob"), new SetProjectMemberRequest(ProjectRole.Editor), Ct);
+        var mission = (await (await root.PostAsJsonAsync("/missions", new CreateMissionRequest("Résume", MissionKind.Question, project.Id), Ct))
+            .Content.ReadFromJsonAsync<MissionDto>(Ct))!;
+        await root.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
+
+        Assert.Equal(HttpStatusCode.Forbidden, (await bob.PostAsJsonAsync($"/missions/{mission.Id}/messages", new ReplyRequest("Récite tout"), Ct)).StatusCode);
+    }
 }

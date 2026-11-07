@@ -224,12 +224,13 @@ public static class MissionsModule
     }
 
     /// <summary>
-    /// Répondre à l'agent (leçon 117) : seulement sur une mission terminée qui a gardé sa conversation, par un éditeur du projet.
+    /// Répondre à l'agent (leçon 117) : seulement sur une mission terminée qui a gardé sa conversation, par son auteur.
+    /// La conversation peut contenir ses compétences à lui (leçon 104) : un autre éditeur pourrait la faire réciter.
     /// Une seule requête vérifie et écrit : deux réponses simultanées ne relancent pas deux fois la mission.
     /// </summary>
     private static async Task<Results<Accepted, NotFound, Conflict<string>, ForbidHttpResult, ValidationProblem>> ReplyAsync(
         Guid id, ReplyRequest request, MissionsDb db, AuditLog audit, MissionQueue queue, ICurrentUser me, IProjectAccess projects,
-        IHubContext<MissionsHub> hub, IProjectDirectory directory, CancellationToken cancellationToken)
+        IHubContext<MissionsHub> hub, IProjectDirectory directory, IAgentCatalog agents, CancellationToken cancellationToken)
     {
         var text = (request.Text ?? "").Trim();
         if (text.Length is 0 or > MaxGoalLength)
@@ -241,8 +242,13 @@ public static class MissionsModule
             case null: return TypedResults.NotFound();
             case ProjectRole.Reader: return TypedResults.Forbid();
         }
+        if (mission.CreatedBy != me.Id)
+            return TypedResults.Forbid();
+        // Comme pour une relance : l'agent de la mission doit être encore proposé (ni retiré, ni d'un autre).
+        if (mission.Agent is { } agent && !(await agents.RoleKeysAsync(cancellationToken)).Contains(agent))
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["agent"] = ["Cet agent n'est plus proposé : lance une nouvelle mission."] });
         var updated = await db.Missions
-            .Where(m => m.Id == id && m.Status == MissionStatus.Completed && m.Conversation != null)
+            .Where(m => m.Id == id && m.Status == MissionStatus.Completed && m.Conversation != null && m.CreatedBy == me.Id)
             .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, MissionStatus.Pending).SetProperty(m => m.FollowUp, text), cancellationToken);
         if (updated == 0)
             return TypedResults.Conflict("On répond à une mission terminée qui a gardé sa conversation : sinon, lance une nouvelle mission.");
