@@ -151,9 +151,10 @@ Préalable : `feat(auth): page de connexion aux couleurs d'Agent Yattus, avec Go
 - [x] 116 `feat(agents): write_document, un document Word avec ton accord` (PDF : Word sait l'exporter)
 
 ### Phase B — « Une vraie conversation »
-- [ ] 117 `feat(missions): répondre à l'agent` · 118 `feat(desktop): le fil de conversation`
-- [ ] 119 `feat(agents): la réponse en direct` · 120 `feat(desktop): la bulle s'écrit en direct`
-- [ ] 121 `feat(missions): reprise après redémarrage`
+- [x] 117 `feat(missions): répondre à l'agent` · `fix(security)` (seul l'auteur répond, agent encore proposé)
+- [x] 118 `feat(desktop): le fil de conversation et « Répondre » dans Rapports`
+- [x] 119 `feat(agents): la réponse en direct, par SignalR` · 120 `feat(desktop): la bulle s'écrit en direct`
+- [x] 121 `feat(missions): reprise après redémarrage`
 
 ### Phase C — « Mode développeur »
 - [ ] 122 `search` · 123 `edit_file` · 124 relecture en diff
