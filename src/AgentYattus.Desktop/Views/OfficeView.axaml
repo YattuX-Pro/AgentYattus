@@ -460,8 +460,20 @@
             </ItemsControl.ItemTemplate>
           </ItemsControl>
         </ScrollViewer>
-        <TextBlock Grid.Row="2" Margin="16,0,16,14" FontSize="12" Foreground="#8A857B"
+        <!-- La réponse en train de s'écrire (leçon 120) : elle s'allonge morceau par morceau, en bas du fil. -->
+        <StackPanel Grid.Row="2">
+        <Border Margin="12,0,12,10" Padding="12,10" CornerRadius="12" Background="#16181B" BorderBrush="#2A2D31" BorderThickness="1"
+                IsVisible="{Binding LiveText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" MaxHeight="260">
+          <ScrollViewer>
+            <StackPanel Spacing="4">
+              <TextBlock Classes="label" Text="{Binding Author.Name, StringFormat='{}RÉPONSE DE {0}'}" Foreground="{StaticResource VertDeGris}" />
+              <SelectableTextBlock Text="{Binding LiveText}" FontSize="13" LineHeight="19" Foreground="#D9D3C5" TextWrapping="Wrap" />
+            </StackPanel>
+          </ScrollViewer>
+        </Border>
+        <TextBlock Margin="16,0,16,14" FontSize="12" Foreground="#8A857B"
                    Text="{Binding Typing, StringFormat='{}{0} écrit…'}" IsVisible="{Binding Typing, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+        </StackPanel>
       </Grid>
     </Border>
     <!-- /region -->

@@ -23,9 +23,13 @@ public sealed class MissionsHubClient : IAsyncDisposable
             .WithAutomaticReconnect()
             .Build();
         _connection.On<MissionEventDto>(MissionsHubProtocol.MissionEvent, e => MissionEventReceived?.Invoke(e));
+        _connection.On<MissionTextDto>(MissionsHubProtocol.MissionText, e => MissionTextReceived?.Invoke(e));
     }
 
     public event Action<MissionEventDto>? MissionEventReceived;
+
+    /// <summary>Un morceau de réponse en train de s'écrire (leçon 120).</summary>
+    public event Action<MissionTextDto>? MissionTextReceived;
 
     public Task StartAsync(CancellationToken cancellationToken = default) => _connection.StartAsync(cancellationToken);
 

@@ -43,6 +43,11 @@ public sealed class ReplyTests
         Assert.True(vm.IsWaiting);
         Assert.False(vm.CanReply);
         Assert.Equal(("écrit…", "…"), (vm.Thread[^1].What, vm.Thread[^1].Text));
+        // Le direct (leçon 120) : la bulle se remplit morceau par morceau.
+        vm.ApplyText(new MissionTextDto(mission.Id, "POST "));
+        vm.ApplyText(new MissionTextDto(mission.Id, "et deux GET."));
+        vm.ApplyText(new MissionTextDto(Guid.NewGuid(), "autre mission"));
+        Assert.Equal("POST et deux GET.", vm.Thread[^1].Text);
 
         // L'agent a répondu : le fil se recharge depuis l'API, la bulle d'attente disparaît.
         turns.Add(new(true, "Lesquelles ?", DateTimeOffset.UtcNow));

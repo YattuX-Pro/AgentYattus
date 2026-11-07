@@ -164,6 +164,15 @@ public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
         }
     }
 
+    /// <summary>La réponse en train de s'écrire (leçon 120) : la bulle « écrit… » se remplit.</summary>
+    public void ApplyText(MissionTextDto e)
+    {
+        if (!IsWaiting || Selected?.Id != e.MissionId || Thread.Count == 0)
+            return;
+        var last = Thread[^1];
+        Thread[^1] = last with { Text = last.Text == "…" ? e.Text : last.Text + e.Text };
+    }
+
     /// <summary>Le direct : la réponse de l'agent arrive, le fil se recharge.</summary>
     public async Task ApplyAsync(MissionEventDto e)
     {

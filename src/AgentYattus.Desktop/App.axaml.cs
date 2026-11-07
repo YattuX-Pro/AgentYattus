@@ -40,6 +40,7 @@ public sealed partial class App : Application
             shell.OpenUrlRequested += uri => _ = OpenBrowserAsync(uri);
             var hub = new MissionsHubClient(apiUrl, accessTokenProvider: () => tokens.GetAccessTokenAsync());
             hub.MissionEventReceived += e => Dispatcher.UIThread.Post(() => _ = shell.ApplyAsync(e));
+            hub.MissionTextReceived += e => Dispatcher.UIThread.Post(() => shell.ApplyText(e));
             // Le hub exige un jeton : on s'y connecte après la connexion, on s'en détache à la déconnexion.
             shell.LoggedIn += () => _ = ConnectAsync(hub, vm);
             shell.LoggedOut += () => _ = hub.StopAsync();
@@ -77,6 +78,7 @@ public sealed partial class App : Application
         shell.OpenUrlRequested += uri => _ = OpenBrowserAsync(uri);
         var hub = new MissionsHubClient(local.Url, accessTokenProvider: () => tokens.GetAccessTokenAsync());
         hub.MissionEventReceived += e => Dispatcher.UIThread.Post(() => _ = shell.ApplyAsync(e));
+        hub.MissionTextReceived += e => Dispatcher.UIThread.Post(() => shell.ApplyText(e));
         desktop.ShutdownRequested += (_, _) =>
         {
             hub.DisposeAsync().AsTask().GetAwaiter().GetResult();

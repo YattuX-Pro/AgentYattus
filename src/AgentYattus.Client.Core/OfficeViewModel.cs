@@ -224,7 +224,28 @@ public sealed partial class OfficeViewModel : ObservableObject
     }
 
     /// <summary>Un événement du hub : on recharge si c'est notre mission, et les nouvelles répliques se jouent à la suite.</summary>
-    public Task ApplyAsync(MissionEventDto e) => e.MissionId == Mission.Mission.Id ? LoadAsync() : Task.CompletedTask;
+    public Task ApplyAsync(MissionEventDto e)
+    {
+        if (e.MissionId != Mission.Mission.Id)
+            return Task.CompletedTask;
+        // Une nouvelle exécution (relance, réponse) : la réponse en direct repart de zéro.
+        if (e.Status is MissionStatus.Pending)
+            LiveText = null;
+        return LoadAsync();
+    }
+
+    /// <summary>La réponse en train de s'écrire (leçon 120), dans le fil de l'équipe ; elle reste une fois finie.</summary>
+    [ObservableProperty]
+    public partial string? LiveText { get; set; }
+
+    /// <summary>Qui écrit la réponse : le rédacteur dans une revue, sinon l'agent de la mission.</summary>
+    public DeskViewModel Author => Mission.Mission.IsReview ? Writer : Analyst;
+
+    public void ApplyText(MissionTextDto e)
+    {
+        if (e.MissionId == Mission.Mission.Id)
+            LiveText += e.Text;
+    }
 
     private async Task DressDesksAsync(ProjectTeamDto team, CancellationToken ct)
     {

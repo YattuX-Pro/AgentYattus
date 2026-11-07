@@ -174,6 +174,15 @@ public sealed partial class ShellViewModel : ObservableObject
     }
 
     /// <summary>Appelé sur le thread UI pour chaque événement du hub.</summary>
+    /// <summary>Le texte d'une réponse en train de s'écrire (leçon 120) : à l'écran qui la montre.</summary>
+    public void ApplyText(MissionTextDto e)
+    {
+        if (Current is OfficeViewModel office)
+            office.ApplyText(e);
+        else if (Current is ReportsViewModel reports)
+            reports.ApplyText(e);
+    }
+
     public async Task ApplyAsync(MissionEventDto e)
     {
         Home.Apply(e);
