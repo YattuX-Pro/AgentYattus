@@ -52,6 +52,9 @@ public static class AgentsProtocol
 {
     public const string Path = "/agents";
 
+    /// <summary>Tous les outils qu'on peut donner à un agent (« Nouveau collègue »).</summary>
+    public const string Tools = "/agents/tools";
+
     /// <summary>Réussite et coût des missions de chaque agent (calculés par le module Missions).</summary>
     public const string Performance = "/agents/performance";
 

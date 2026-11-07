@@ -53,7 +53,8 @@ public sealed class RecruitViewModelTests
             if (path.EndsWith("/travail"))
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1]) };
             object body = path.EndsWith("/portraits") ? portraits : path.EndsWith("/traits") ? traits : path == "/skills" ? skills
-                : path == "/skills/performance" ? Array.Empty<SkillPerformanceDto>() : agents;
+                : path == "/skills/performance" ? Array.Empty<SkillPerformanceDto>()
+                : path == "/agents/tools" ? new[] { new ToolInfoDto("read_file", "", false), new ToolInfoDto("write_document", "", true) } : agents;
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(body, body.GetType()) };
         });
         var api = new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") });

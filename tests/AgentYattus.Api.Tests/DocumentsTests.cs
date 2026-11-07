@@ -101,4 +101,19 @@ public sealed class DocumentsTests
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => new WorkspaceTools(_workspace).ReadFile("bombe.docx", Ct));
         Assert.StartsWith("Document illisible : bombe.docx", refused.Message);
     }
+
+    [Fact]
+    public async Task An_agent_writes_a_word_document_that_reads_back_as_the_same_text()
+    {
+        var tools = new WorkspaceTools(_workspace);
+
+        tools.WriteDocument("rapport/synthese.docx", "# Synthèse\nTrois points :\n- délais tenus\n- <b>pas de XML</b>");
+
+        var text = await tools.ReadFile("rapport/synthese.docx", Ct);
+        Assert.Equal("Synthèse\nTrois points :\n• délais tenus\n• <b>pas de XML</b>\n", text);
+        Assert.Throws<InvalidOperationException>(() => tools.WriteDocument("notes.txt", "x"));
+        Assert.Throws<UnauthorizedAccessException>(() => tools.WriteDocument("../dehors.docx", "x"));
+        // Comme write_file, l'écriture attend un humain.
+        Assert.IsType<Microsoft.Extensions.AI.ApprovalRequiredAIFunction>(tools.AsAIFunctions().Single(f => f.Name == "write_document"));
+    }
 }

@@ -272,6 +272,9 @@ public static class AgentsModule
             return TypedResults.NoContent();
         });
 
+        app.MapGet(AgentsProtocol.Tools, () => TypedResults.Ok(
+            WorkspaceTools.Catalog.Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)).ToList()));
+
         SkillsEndpoints.Map(app);
         return app;
     }

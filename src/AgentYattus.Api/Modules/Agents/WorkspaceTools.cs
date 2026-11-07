@@ -35,6 +35,7 @@ internal sealed class WorkspaceTools
         ("list_files", "Liste les fichiers et dossiers d'un dossier du workspace.", false),
         ("read_file", "Lit le contenu texte d'un fichier du workspace ; un PDF, un Word (.docx) ou un Excel (.xlsx) est converti en texte.", false),
         ("write_file", "Crée ou remplace un fichier texte du workspace. Un humain doit approuver chaque écriture.", true),
+        ("write_document", "Crée ou remplace un document Word (.docx) du workspace, à partir d'un texte : « # » pour un titre, « - » pour une puce. Un humain doit approuver.", true),
     ];
 
     public IReadOnlyList<AIFunction> AsAIFunctions() =>
@@ -43,7 +44,25 @@ internal sealed class WorkspaceTools
         AIFunctionFactory.Create(ReadFile, Catalog[1].Name, Catalog[1].Description),
         // Écrire modifie le disque de l'utilisateur : la boucle s'arrête et demande son accord avant chaque appel.
         new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteFile, Catalog[2].Name, Catalog[2].Description)),
+        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteDocument, Catalog[3].Name, Catalog[3].Description)),
     ];
+
+    /// <summary>Un document Word (leçon 116) : l'humain approuve le texte, le code le met en page.</summary>
+    public string WriteDocument(
+        [Description("Chemin du document, relatif à la racine du workspace ; il finit par .docx.")] string path,
+        [Description("Le texte du document : une ligne par paragraphe, « # » ou « ## » pour un titre, « - » pour une puce.")] string content)
+    {
+        if (!path.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Un document Word finit par .docx ; pour un autre fichier, utilise write_file.");
+        var fullPath = Resolve(path);
+        if (System.Text.Encoding.UTF8.GetByteCount(content) > _maxFileBytes)
+            throw new InvalidOperationException($"Contenu trop volumineux (maximum {_maxFileBytes} octets).");
+        if (Directory.Exists(fullPath))
+            throw new InvalidOperationException($"'{path}' est un dossier.");
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        Documents.WriteDocx(fullPath, content);
+        return $"Document écrit : {path}";
+    }
 
     public string[] ListFiles([Description("Chemin du dossier, relatif à la racine du workspace.")] string path = ".")
     {

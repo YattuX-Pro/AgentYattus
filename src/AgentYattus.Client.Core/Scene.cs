@@ -89,7 +89,7 @@ public static partial class Scene
                 case "action":
                 {
                     var parts = rest.Split(':', 3);
-                    if (parts.Length < 3 || parts[1] is "write_file" or "propose_skill")
+                    if (parts.Length < 3 || parts[1] is "write_file" or "write_document" or "propose_skill")
                         break; // l'écriture et l'apprentissage se racontent avec la décision humaine
                     var (role, tool, path) = (parts[0], parts[1], parts[2]);
                     lastActor = role;

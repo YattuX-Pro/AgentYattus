@@ -174,7 +174,8 @@ public sealed record ApprovalItem(
                 ? value.GetString()
                 : null;
 
-        if (call.Tool == "write_file" && Text("path") is { } path)
+        // write_document (leçon 116) se relit comme un fichier : le texte exact qui sera mis en page.
+        if (call.Tool is "write_file" or "write_document" && Text("path") is { } path)
         {
             var lines = (Text("content") ?? "").Split('\n').Select(Visible).ToList();
             return new ApprovalItem(call.Tool, $"Écrire {Visible(Path.GetFileName(path))} ?", Visible(path),

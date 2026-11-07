@@ -61,6 +61,7 @@ public sealed partial class ToolRow(ToolInfoDto tool) : ObservableObject
         "list_files" => "Parcourir les dossiers",
         "read_file" => "Lire un fichier",
         "write_file" => "Écrire un fichier",
+        "write_document" => "Écrire un document Word",
         _ => tool.Description,
     };
 
@@ -263,7 +264,17 @@ public sealed partial class RecruitViewModel(
                 Roles.Add(new RoleChoice(a));
             Roles.Add(RoleChoice.Personalized());
             Tools.Clear();
-            foreach (var tool in agents.SelectMany(a => a.Tools).DistinctBy(t => t.Name))
+            // Tous les outils de l'instance (leçon 116), même ceux qu'aucun agent n'a encore ; sinon, ceux des agents.
+            IReadOnlyList<ToolInfoDto> catalog;
+            try
+            {
+                catalog = await api.GetToolsAsync(cancellationToken);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+            {
+                catalog = [.. agents.SelectMany(a => a.Tools).DistinctBy(t => t.Name)];
+            }
+            foreach (var tool in catalog)
             {
                 var row = new ToolRow(tool);
                 row.PropertyChanged += (_, _) =>

@@ -144,6 +144,33 @@ internal static class Documents
             : cell.DataType?.Value == CellValues.InlineString ? cell.InlineString?.InnerText ?? ""
             : cell.CellValue?.Text ?? "";
 
+    /// <summary>
+    /// Écrit un .docx à partir d'un texte simple : « # » titre, « ## » sous-titre, « - » puce, une ligne vide sépare.
+    /// Le texte est mis tel quel dans des runs : aucun XML ni champ Word ne peut être injecté par le contenu.
+    /// </summary>
+    public static void WriteDocx(string path, string content)
+    {
+        using var doc = WordprocessingDocument.Create(path, DocumentFormat.OpenXml.WordprocessingDocumentType.Document);
+        var main = doc.AddMainDocumentPart();
+        var body = new Word.Body();
+        foreach (var raw in content.Replace("\r\n", "\n").Split('\n'))
+        {
+            var line = raw.TrimEnd();
+            var (text, size, bold) = line switch
+            {
+                _ when line.StartsWith("## ", StringComparison.Ordinal) => (line[3..], "28", true),
+                _ when line.StartsWith("# ", StringComparison.Ordinal) => (line[2..], "36", true),
+                _ when line.StartsWith("- ", StringComparison.Ordinal) => ("• " + line[2..], "22", false),
+                _ => (line, "22", false),
+            };
+            var properties = new Word.RunProperties(new Word.FontSize { Val = size });
+            if (bold)
+                properties.Append(new Word.Bold());
+            body.Append(new Word.Paragraph(new Word.Run(properties, new Word.Text(text) { Space = DocumentFormat.OpenXml.SpaceProcessingModeValues.Preserve })));
+        }
+        main.Document = new Word.Document(body);
+    }
+
     /// <summary>Accumule des lignes jusqu'à la limite ; ensuite, une seule note dit que le texte est coupé.</summary>
     private sealed class Bounded(int max, CancellationToken budget)
     {

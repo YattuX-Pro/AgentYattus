@@ -182,6 +182,9 @@ public sealed class ApiClient(HttpClient http)
     private sealed record ValidationProblem(Dictionary<string, string[]>? Errors);
 
 
+    public async Task<IReadOnlyList<ToolInfoDto>> GetToolsAsync(CancellationToken cancellationToken = default) =>
+        await http.GetFromJsonAsync<ToolInfoDto[]>(AgentsProtocol.Tools.TrimStart('/'), cancellationToken) ?? [];
+
     /// <summary>Les compétences qu'on peut donner à ses collègues : les siennes et celles de l'instance (leçon 104).</summary>
     public async Task<IReadOnlyList<SkillDto>> GetSkillsAsync(CancellationToken cancellationToken = default) =>
         await http.GetFromJsonAsync<SkillDto[]>(SkillsProtocol.Path.TrimStart('/'), cancellationToken) ?? [];
