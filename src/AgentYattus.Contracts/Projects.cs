@@ -41,6 +41,10 @@ public sealed record SetWorkspaceRequest(string? Path);
 /// <summary>Où l'on peut choisir le dossier de ses projets (ADR 0014).</summary>
 /// <param name="Anywhere">Vrai pour l'administrateur de l'instance (et en mode local) : n'importe quel dossier.</param>
 /// <param name="Roots">Sinon, les dossiers autorisés par l'administrateur : le dossier choisi doit être dedans.</param>
+/// <summary>Un fichier glissé dans une mission, copié dans le dossier du projet (leçon 115).</summary>
+/// <param name="Path">Son chemin dans le dossier du projet (« pieces-jointes/devis.pdf ») : celui que l'agent donne à read_file.</param>
+public sealed record AttachmentDto(string Path, string Name, long Size);
+
 public sealed record WorkspaceRootsDto(bool Anywhere, IReadOnlyList<string> Roots);
 
 public static class ProjectsProtocol
@@ -52,4 +56,6 @@ public static class ProjectsProtocol
     public static string Workspace(Guid project) => $"/projects/{project}/workspace";
 
     public const string WorkspaceRoots = "/projects/workspace-roots";
+
+    public static string Attachments(Guid project) => $"/projects/{project}/attachments";
 }

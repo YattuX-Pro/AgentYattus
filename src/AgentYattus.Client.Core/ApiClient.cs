@@ -57,6 +57,16 @@ public sealed class ApiClient(HttpClient http)
         await EnsureOkAsync(response, cancellationToken);
     }
 
+    /// <summary>Copie un fichier de cette machine dans le dossier du projet, sous « pieces-jointes/ » (leçon 115).</summary>
+    public async Task<AttachmentDto> UploadAttachmentAsync(Guid project, string localPath, CancellationToken cancellationToken = default)
+    {
+        await using var stream = File.OpenRead(localPath);
+        using var form = new MultipartFormDataContent { { new StreamContent(stream), "file", Path.GetFileName(localPath) } };
+        using var response = await http.PostAsync(ProjectsProtocol.Attachments(project).TrimStart('/'), form, cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
+        return (await response.Content.ReadFromJsonAsync<AttachmentDto>(cancellationToken))!;
+    }
+
     public async Task<IReadOnlyList<ProjectDto>> GetProjectsAsync(CancellationToken cancellationToken = default) =>
         await http.GetFromJsonAsync<ProjectDto[]>(ProjectsProtocol.Path.TrimStart('/'), cancellationToken) ?? [];
 

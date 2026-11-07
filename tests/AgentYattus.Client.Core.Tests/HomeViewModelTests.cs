@@ -219,6 +219,46 @@ public sealed class HomeViewModelTests
         Assert.Equal(folder, vm.SelectedProject!.Workspace);
     }
 
+    [Fact]
+    public async Task Attached_files_are_uploaded_then_listed_in_the_goal_for_read_file()
+    {
+        var project = new ProjectDto(Guid.NewGuid(), "Perso", null, null, new UserRefDto("me", "me", null), ProjectVisibility.Private, true, "/w",
+            ProjectRole.Owner, true, [], DateTimeOffset.UtcNow);
+        var local = Path.Combine(Directory.CreateTempSubdirectory().FullName, "devis.pdf");
+        await File.WriteAllTextAsync(local, "%PDF", TestContext.Current.CancellationToken);
+        string? goal = null;
+        var handler = new StubHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Post && path.EndsWith("/attachments"))
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(new AttachmentDto("pieces-jointes/devis.pdf", "devis.pdf", 4)) };
+            if (request.Method == HttpMethod.Post)
+            {
+                goal = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+                return new HttpResponseMessage(HttpStatusCode.Accepted) { Content = JsonContent.Create(new MissionDto(Guid.NewGuid(), "x", MissionStatus.Pending, DateTimeOffset.UtcNow)) };
+            }
+            object content = path switch
+            {
+                "/projects" => new[] { project },
+                "/projects/workspace-roots" => new WorkspaceRootsDto(true, []),
+                "/agents" => Array.Empty<AgentDto>(),
+                _ => Array.Empty<MissionDto>(),
+            };
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(content, content.GetType()) };
+        });
+        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        await vm.AttachFilesAsync([local]);
+        Assert.Equal("devis.pdf", Assert.Single(vm.Attachments).Name);
+        vm.Goal = "Résume ce devis";
+        await vm.LaunchMissionCommand.ExecuteAsync(null);
+
+        var sent = System.Text.Json.JsonDocument.Parse(goal!).RootElement.GetProperty("goal").GetString();
+        Assert.Equal("Résume ce devis\n\nPièces jointes (dans le dossier du projet, à lire avec read_file) :\n- pieces-jointes/devis.pdf", sent);
+        Assert.Empty(vm.Attachments);
+    }
+
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>

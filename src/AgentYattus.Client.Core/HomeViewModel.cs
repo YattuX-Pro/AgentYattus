@@ -92,6 +92,47 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
         _ = LoadCrewAsync();
     }
 
+    /// <summary>Les fichiers joints à la prochaine mission, déjà copiés dans le dossier du projet (leçon 115).</summary>
+    public ObservableCollection<AttachmentDto> Attachments { get; } = [];
+
+    /// <summary>Ouvre le sélecteur de fichiers du système ; fourni par la vue.</summary>
+    public Func<Task<IReadOnlyList<string>>>? PickFiles { get; set; }
+
+    [RelayCommand]
+    private async Task AttachAsync()
+    {
+        if (PickFiles is not null)
+            await AttachFilesAsync(await PickFiles());
+    }
+
+    /// <summary>Joindre des fichiers (bouton ou glisser-déposer) : chacun est copié tout de suite dans le dossier du projet.</summary>
+    public async Task AttachFilesAsync(IEnumerable<string> paths)
+    {
+        if (SelectedProject is not { } project)
+            return;
+        foreach (var path in paths)
+        {
+            try
+            {
+                Attachments.Add(await api.UploadAttachmentAsync(project.Id, path));
+                Error = null;
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException)
+            {
+                Error = ex.Message;
+            }
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveAttachment(AttachmentDto attachment) => Attachments.Remove(attachment);
+
+    /// <summary>Le but envoyé : celui écrit, puis la liste des pièces jointes, que l'agent lit avec read_file.</summary>
+    internal string GoalWithAttachments() => Attachments.Count == 0
+        ? Goal
+        : $"{Goal.TrimEnd()}\n\nPièces jointes (dans le dossier du projet, à lire avec read_file) :\n"
+          + string.Join('\n', Attachments.Select(a => $"- {a.Path}"));
+
     // Où l'on peut choisir le dossier de ses projets (ADR 0014) ; inconnu tant que l'API n'a pas répondu.
     private WorkspaceRootsDto _roots = new(false, []);
 
@@ -220,7 +261,8 @@ public sealed partial class HomeViewModel(ApiClient api) : ObservableObject
             var kind = WriteReport ? MissionKind.Review : MissionKind.Question;
             // Une revue suit son circuit (Analyste puis Rédacteur) ; une question est faite par l'agent choisi.
             var agent = kind == MissionKind.Question && SelectedAgent is { Key: not "analyste" } chosen ? chosen.Key : null;
-            var item = new MissionItem(await api.CreateMissionAsync(Goal, cancellationToken, kind, SelectedProject?.Id, agent));
+            var item = new MissionItem(await api.CreateMissionAsync(GoalWithAttachments(), cancellationToken, kind, SelectedProject?.Id, agent));
+            Attachments.Clear();
             Missions.Insert(0, item);
             RefreshStates();
             Goal = "";

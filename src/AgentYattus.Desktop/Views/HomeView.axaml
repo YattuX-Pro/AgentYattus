@@ -183,12 +183,33 @@
         <TextBlock Text="{Binding Title}" FontSize="40" FontWeight="Medium" LetterSpacing="-1.2" HorizontalAlignment="Center" Margin="0,34,0,22" />
 
         <!-- Le compositeur -->
-        <Border Classes="composerCard" Width="760" Padding="18,18,18,14" CornerRadius="22"
+        <Border x:Name="Composer" Classes="composerCard" Width="760" Padding="18,18,18,14" CornerRadius="22" DragDrop.AllowDrop="True"
                 Background="{StaticResource Graphite}" BorderThickness="1" BoxShadow="0 30 90 0 #80000000">
           <StackPanel Spacing="8">
             <TextBox Classes="composer" Text="{Binding Goal}" PlaceholderText="Décrivez l’objectif…"
                      AcceptsReturn="True" TextWrapping="Wrap" FontSize="17" LineHeight="24.65" Height="78" />
-            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="10">
+            <!-- Les pièces jointes (leçon 115) : glissées sur le composeur ou choisies avec le trombone. -->
+            <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding !!Attachments.Count}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate><WrapPanel ItemSpacing="8" LineSpacing="8" /></ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="contracts:AttachmentDto">
+                  <Border Height="28" Padding="10,0,4,0" CornerRadius="8" Background="#141518" BorderBrush="{StaticResource Filet}" BorderThickness="1">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                      <Path Data="M7 3.5h7l5 5v12H7zM14 3.5v5h5" Stroke="{StaticResource Pierre}" StrokeThickness="1.8" StrokeJoin="Round"
+                            Width="12" Height="12" Stretch="Uniform" VerticalAlignment="Center" />
+                      <TextBlock Classes="mono" Text="{Binding Name}" FontSize="11.5" MaxWidth="220" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                      <Button Classes="bare" Width="20" Height="20" Padding="0" AutomationProperties.Name="Retirer"
+                              Command="{Binding $parent[ItemsControl].((core:HomeViewModel)DataContext).RemoveAttachmentCommand}" CommandParameter="{Binding}">
+                        <Path Data="M7 7l10 10M17 7L7 17" Stroke="{StaticResource Cendre}" StrokeThickness="2" StrokeLineCap="Round" Width="9" Height="9" Stretch="Uniform" />
+                      </Button>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,*,Auto" ColumnSpacing="10">
               <!-- Bascule : une simple question, ou une revue à deux agents qui écrit REPORT.md (avec ton accord). -->
               <ToggleButton Classes="report" IsChecked="{Binding WriteReport}" Height="32" Padding="12,0" VerticalAlignment="Center"
                             ToolTip.Tip="Revue à deux : l’Analyste rend ses constats, le Rédacteur écrit REPORT.md, que tu approuves">
@@ -198,8 +219,15 @@
                   <TextBlock Classes="mono" Text="REPORT.md" FontSize="11.5" VerticalAlignment="Center" />
                 </StackPanel>
               </ToggleButton>
+              <!-- Le trombone : joindre des fichiers, copiés dans le dossier du projet. -->
+              <Button Grid.Column="1" Classes="who" Width="32" Height="32" Padding="0" VerticalAlignment="Center" Command="{Binding AttachCommand}"
+                      IsVisible="{Binding SelectedProject.Workspace, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}"
+                      ToolTip.Tip="Joindre des fichiers (ou glissez-les ici)" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                <Path Data="M16.5 6.5l-7.8 7.8a2 2 0 0 0 2.8 2.8l7.8-7.8a4 4 0 0 0-5.7-5.7l-7.8 7.8a6 6 0 0 0 8.5 8.5l6.4-6.4" Stroke="{StaticResource Pierre}"
+                      StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round" Width="14" Height="14" Stretch="Uniform" />
+              </Button>
               <!-- Le projet de la mission (ADR 0009) ; sans choix, le projet personnel. -->
-              <ComboBox Grid.Column="1" Classes="project" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}" Height="32"
+              <ComboBox Grid.Column="2" Classes="project" ItemsSource="{Binding Projects}" SelectedItem="{Binding SelectedProject}" Height="32"
                         MaxWidth="240" VerticalAlignment="Center" PlaceholderText="Projet personnel" ToolTip.Tip="Le projet de la mission">
                 <ComboBox.ItemTemplate>
                   <DataTemplate x:DataType="contracts:ProjectDto">
@@ -208,7 +236,7 @@
                 </ComboBox.ItemTemplate>
               </ComboBox>
               <!-- Le dossier du projet (ADR 0014) : son propriétaire le choisit avec le sélecteur du système. -->
-              <Button Grid.Column="2" Classes="who" Height="32" Padding="10,0" VerticalAlignment="Center" Command="{Binding ChooseFolderCommand}"
+              <Button Grid.Column="3" Classes="who" Height="32" Padding="10,0" VerticalAlignment="Center" Command="{Binding ChooseFolderCommand}"
                       IsVisible="{Binding CanChooseFolder}" ToolTip.Tip="{Binding FolderTip}">
                 <StackPanel Orientation="Horizontal" Spacing="7">
                   <Path Data="M3.5 7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" Stroke="{StaticResource Pierre}"
@@ -217,7 +245,7 @@
                 </StackPanel>
               </Button>
               <!-- Qui fait la mission (ADR 0013) : un visage. Une revue suit toujours le circuit Analyste puis Rédacteur. -->
-              <Button Grid.Column="3" Classes="who" Height="32" Padding="4,0,10,0" IsEnabled="{Binding !WriteReport}" VerticalAlignment="Center"
+              <Button Grid.Column="4" Classes="who" Height="32" Padding="4,0,10,0" IsEnabled="{Binding !WriteReport}" VerticalAlignment="Center"
                       ToolTip.Tip="L’agent qui fait la mission">
                 <StackPanel Orientation="Horizontal" Spacing="8">
                   <ItemsControl ItemsSource="{Binding Chosen}" VerticalAlignment="Center">
@@ -255,9 +283,9 @@
                   </Flyout>
                 </Button.Flyout>
               </Button>
-              <TextBlock Grid.Column="4" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
+              <TextBlock Grid.Column="5" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" FontSize="12.5"
                          TextWrapping="Wrap" VerticalAlignment="Center" Margin="4,0" />
-              <Button Grid.Column="5" Classes="send" Command="{Binding LaunchMissionCommand}"
+              <Button Grid.Column="6" Classes="send" Command="{Binding LaunchMissionCommand}"
                       Width="42" Height="42" Padding="0" HotKey="Ctrl+Enter"
                       ToolTip.Tip="Lancer la mission (Ctrl+Entrée)"
                       HorizontalContentAlignment="Center" VerticalContentAlignment="Center">

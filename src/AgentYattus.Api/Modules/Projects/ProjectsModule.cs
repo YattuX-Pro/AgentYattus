@@ -205,7 +205,53 @@ public static class ProjectsModule
             }
         });
 
+        // Joindre un fichier à une mission : il est copié dans le dossier du projet, sous « pieces-jointes/ » (leçon 115).
+        projects.MapPost("/{id:guid}/attachments", async Task<Results<Ok<AttachmentDto>, NotFound, ForbidHttpResult, ValidationProblem>> (
+            Guid id, IFormFile file, ProjectsDb db, IProjectAccess access, CancellationToken ct) =>
+        {
+            switch (await access.AccessAsync(id, ct))
+            {
+                case null: return TypedResults.NotFound();
+                case ProjectRole.Reader: return TypedResults.Forbid();
+            }
+            if (await db.Projects.FindAsync([id], ct) is not { Workspace: { Length: > 0 } workspace } || !System.IO.Directory.Exists(workspace))
+                return Invalid("file", "Choisis d'abord le dossier du projet : les pièces jointes y sont copiées.");
+            if (file.Length is 0 or > MaxAttachmentBytes)
+                return Invalid("file", $"Un fichier de 1 octet à {MaxAttachmentBytes / 1024 / 1024} Mo.");
+            var name = AttachmentName(file.FileName);
+            var folder = Path.Combine(workspace, AttachmentsFolder);
+            // Un dossier « pieces-jointes » qui serait un lien (dans un dépôt cloné) mènerait hors du projet.
+            if (new DirectoryInfo(folder).LinkTarget is not null)
+                return Invalid("file", "« pieces-jointes » est un lien symbolique : copie refusée.");
+            System.IO.Directory.CreateDirectory(folder);
+            // Jamais d'écrasement : « devis.pdf », puis « devis (2).pdf »…
+            var target = Path.Combine(folder, name);
+            for (var n = 2; File.Exists(target) || System.IO.Directory.Exists(target); n++)
+                target = Path.Combine(folder, $"{Path.GetFileNameWithoutExtension(name)} ({n}){Path.GetExtension(name)}");
+            await using (var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write))
+                await file.CopyToAsync(output, ct);
+            var relative = Path.GetRelativePath(workspace, target).Replace(Path.DirectorySeparatorChar, '/');
+            return TypedResults.Ok(new AttachmentDto(relative, Path.GetFileName(target), file.Length));
+        }).DisableAntiforgery().WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(MaxAttachmentBytes + 64 * 1024));
+
         return app;
+    }
+
+    public const string AttachmentsFolder = "pieces-jointes";
+    private const long MaxAttachmentBytes = 20 * 1024 * 1024;
+
+    /// <summary>
+    /// Le nom seul, sans dossier (« ../../x » devient « x »), sans caractère invisible ni réservé, sans point au début
+    /// (pas de fichier caché comme « .env »), 100 caractères au plus.
+    /// </summary>
+    internal static string AttachmentName(string? fileName)
+    {
+        var name = Path.GetFileName((fileName ?? "").Replace('\\', '/').Split('/').Last());
+        var clean = new string([.. name.Where(c => !char.IsControl(c) && char.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.Format
+            && !Path.GetInvalidFileNameChars().Contains(c) && c is not (':' or '*' or '?' or '"' or '<' or '>' or '|'))]).Trim().TrimStart('.');
+        if (clean.Length > 100)
+            clean = clean[..(100 - Path.GetExtension(clean).Length)] + Path.GetExtension(clean);
+        return clean.Length == 0 ? "piece-jointe" : clean;
     }
 
     private static IReadOnlyList<string> AllowedRoots(IConfiguration configuration) =>
