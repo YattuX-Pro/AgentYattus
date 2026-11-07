@@ -195,11 +195,11 @@
       </StackPanel>
     </Border>
 
-    <ScrollViewer>
-      <Grid ColumnDefinitions="500,*" ColumnSpacing="24" Margin="24,20,24,0" MinHeight="876">
+    <!-- Le badge reste en place ; seul le formulaire défile, si la fenêtre est trop basse. -->
+    <Grid ColumnDefinitions="500,*" ColumnSpacing="24" Margin="24,20,24,0">
 
         <!-- Le badge, mis à jour en direct -->
-        <Border Classes="card" Padding="0" CornerRadius="16" ClipToBounds="True">
+        <Border Classes="card" Padding="0" CornerRadius="16" ClipToBounds="True" Margin="0,0,0,24">
           <Panel>
             <!-- Fond pointillé -->
             <Panel.Background>
@@ -277,8 +277,9 @@
           </Panel>
         </Border>
 
-        <!-- Le formulaire -->
-        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*,Auto" RowSpacing="16">
+        <!-- Le formulaire : 876 px de haut comme la maquette ; il défile seul quand la fenêtre est plus basse. -->
+        <ScrollViewer Grid.Column="1">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="16" MinHeight="876">
 
           <!-- La galerie -->
           <!-- La liste garde 4 px autour des tuiles (l'anneau déborde) : marges réduites d'autant. -->
@@ -426,7 +427,7 @@
             </Grid>
           </Border>
         </Grid>
-      </Grid>
-    </ScrollViewer>
+        </ScrollViewer>
+    </Grid>
   </DockPanel>
 </UserControl>
