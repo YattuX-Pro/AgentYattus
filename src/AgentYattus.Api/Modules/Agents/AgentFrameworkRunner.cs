@@ -68,7 +68,11 @@ internal sealed class AgentFrameworkRunner(
         if (string.IsNullOrWhiteSpace(workspace))
             throw new InvalidOperationException(
                 "Workspace absent. Lance : dotnet user-secrets set \"Agents:Workspace\" \"<dossier>\" --project src/AgentYattus.Api");
-        var tools = new WorkspaceTools(workspace, tuning.MaxFileKb * 1024L, tuning.ExcludedFiles, sandbox).AsAIFunctions();
+        IReadOnlyList<AIFunction> tools =
+        [
+            .. new WorkspaceTools(workspace, tuning.MaxFileKb * 1024L, tuning.ExcludedFiles, sandbox).AsAIFunctions(),
+            .. new GitTools(workspace, tuning.MaxFileKb * 1024).AsAIFunctions(),
+        ];
 
         var usage = new AgentUsage(0, 0, 0);
         Stage stage;

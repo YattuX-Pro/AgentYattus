@@ -100,7 +100,14 @@ public static partial class Scene
                         Say(role, "outil:use_skill", e.At, file: path);
                         break;
                     }
-                    statuses[role] = tool switch { "read_file" => "lit le code", "search" => "cherche dans le code", _ => "parcourt le dossier" };
+                    statuses[role] = tool switch
+                    {
+                        "read_file" => "lit le code",
+                        "search" => "cherche dans le code",
+                        "git_status" or "git_diff" or "git_log" => "regarde l'historique git",
+                        "run_command" => "lance une commande",
+                        _ => "parcourt le dossier",
+                    };
                     // Le premier dossier vient des archives : le workspace est l'armoire du fond.
                     var carries = !folderBrought && role == worker ? SceneObject.Folder : SceneObject.None;
                     folderBrought |= carries == SceneObject.Folder;

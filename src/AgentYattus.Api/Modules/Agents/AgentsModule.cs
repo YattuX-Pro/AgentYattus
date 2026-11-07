@@ -83,7 +83,7 @@ public static class AgentsModule
             errors["name"] = ["De 2 à 40 caractères : lettres, chiffres, espaces, apostrophes et tirets."];
         if (summary.Length is < 5 or > 200)
             errors["summary"] = ["Une phrase de 5 à 200 caractères."];
-        var known = WorkspaceTools.Catalog.Select(t => t.Name).ToHashSet();
+        var known = AllTools.Select(t => t.Name).ToHashSet();
         if (tools.Count == 0 || tools.Any(t => !known.Contains(t)))
             errors["tools"] = [$"Au moins un outil, parmi : {string.Join(", ", known)}."];
         return errors;
@@ -100,8 +100,12 @@ public static class AgentsModule
         return key.Length == 0 ? "agent" : key;
     }
 
+    /// <summary>Tous les outils qu'on peut donner à un agent : ceux du dossier (et des commandes), puis ceux de git.</summary>
+    internal static IReadOnlyList<(string Name, string Description, bool RequiresApproval)> AllTools { get; } =
+        [.. WorkspaceTools.Catalog, .. GitTools.Catalog.Select(t => (t.Name, t.Description, false))];
+
     private static List<ToolInfoDto> ToolsOf(AgentRole role) =>
-        [.. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name)).Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval))];
+        [.. AllTools.Where(t => role.Tools.Contains(t.Name)).Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval))];
 
     /// <summary>Lit les événements « usage:rôle:entrée:sortie » (leçon 52) et en fait des statistiques par rôle.</summary>
     internal static Dictionary<string, AgentStatsDto> Stats(IEnumerable<string> usageEvents)
@@ -138,7 +142,7 @@ public static class AgentsModule
                 var current = await definitions.CurrentAsync(role.Key, cancellationToken);
                 agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, cancellationToken), current?.MaxIterations ?? instanceMax,
                 [
-                    .. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name))
+                    .. AllTools.Where(t => role.Tools.Contains(t.Name))
                         .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
                 ], role.Key, await models.GetAsync(role.Key, cancellationToken), stats.GetValueOrDefault(role.Key, new AgentStatsDto(0, 0, 0)),
                 admin ? current?.Instructions ?? role.Instructions : "", admin ? role.Instructions : "", admin ? AgentRoles.Guardrails(role) : "",
@@ -278,7 +282,7 @@ public static class AgentsModule
         });
 
         app.MapGet(AgentsProtocol.Tools, () => TypedResults.Ok(
-            WorkspaceTools.Catalog.Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)).ToList()));
+            AllTools.Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)).ToList()));
 
         SkillsEndpoints.Map(app);
         return app;

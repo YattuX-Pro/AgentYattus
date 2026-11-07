@@ -65,6 +65,9 @@ public sealed partial class ToolRow(ToolInfoDto tool) : ObservableObject
         "search" => "Chercher dans le code",
         "edit_file" => "Modifier un passage",
         "run_command" => "Lancer une commande",
+        "git_status" => "Voir l'état du dépôt git",
+        "git_diff" => "Voir les modifications git",
+        "git_log" => "Voir l'historique git",
         _ => tool.Description,
     };
 
