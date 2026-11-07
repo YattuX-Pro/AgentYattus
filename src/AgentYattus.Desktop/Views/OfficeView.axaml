@@ -55,6 +55,52 @@
       </Style.Animations>
     </Style>
     <!-- /region -->
+    <!-- region:knock -->
+    <Style Selector="Border.office">
+      <Setter Property="BorderBrush" Value="#2A2D31" />
+      <Setter Property="Background" Value="#05ECE6D8" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.3" />
+          <BrushTransition Property="Background" Duration="0:0:0.3" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.office.knocking">
+      <Setter Property="BorderBrush" Value="{StaticResource Laiton}" />
+      <Setter Property="Background" Value="#0DD8B86E" />
+    </Style>
+    <Style Selector="Border.knock">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" IterationCount="INFINITE">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0.82" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Button.gold, Button.outline">
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Button.gold /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Laiton}" />
+      <Setter Property="Foreground" Value="#17150F" />
+      <Setter Property="CornerRadius" Value="8" />
+    </Style>
+    <Style Selector="Button.gold:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{StaticResource Filet}" />
+      <Setter Property="Foreground" Value="{StaticResource Cendre}" />
+    </Style>
+    <Style Selector="Button.outline /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="#3A3F45" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <!-- /region -->
   </UserControl.Styles>
 
   <UserControl.Resources>
@@ -252,11 +298,92 @@
             </StackPanel>
             <!-- /region -->
 
+            <!-- region:knock -->
+            <!-- On frappe à votre porte : la demande d'accord, au-dessus du bureau vitré. -->
+            <Border Classes="knock" Canvas.Left="762" Canvas.Top="330" Width="236" Padding="16,14" CornerRadius="12" Background="#17150F"
+                    BorderBrush="{StaticResource Laiton}" BorderThickness="1" IsVisible="{Binding IsKnocking}" ZIndex="10"
+                    BoxShadow="0 24 48 -20 #CC000000">
+              <StackPanel Spacing="10">
+                <TextBlock Text="{Binding Writer.Name, StringFormat='{}{0} frappe à votre porte'}" FontSize="12.5" FontWeight="SemiBold"
+                           Foreground="{StaticResource Laiton}" TextWrapping="Wrap" />
+                <TextBlock Text="Il veut écrire dans le workspace. Relisez tout avant de décider." FontSize="12" TextWrapping="Wrap"
+                           Foreground="{StaticResource Parchemin}" />
+                <Button Classes="gold" Command="{Binding OpenReviewCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Height="34">
+                  <TextBlock Text="Voir et décider" FontSize="12.5" FontWeight="SemiBold" />
+                </Button>
+              </StackPanel>
+            </Border>
+            <!-- /region -->
           </Canvas>
         </Viewbox>
       </Border>
       <!-- /region -->
 
+      <!-- region:knock -->
+      <!-- La relecture : exactement ce qui sera écrit. « Approuver » reste désactivé tant que tout n'a pas été affiché (leçon 26). -->
+      <Border Grid.Row="1" IsVisible="{Binding IsReviewing}" Background="#B30B0C0E" CornerRadius="16">
+        <Border Width="520" MaxHeight="620" Padding="22" CornerRadius="16" Background="{StaticResource Graphite}" BorderBrush="{StaticResource Laiton}"
+                BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center" BoxShadow="0 30 90 0 #8C000000">
+          <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14">
+            <StackPanel Spacing="4">
+              <TextBlock Classes="label" Text="DEMANDE D'ACCORD" Foreground="{StaticResource Laiton}" />
+              <TextBlock Text="{Binding Writer.Name, StringFormat='{}{0} veut écrire ceci'}" FontSize="20" FontWeight="SemiBold" />
+            </StackPanel>
+            <ScrollViewer Grid.Row="1">
+              <ItemsControl ItemsSource="{Binding Mission.PendingApproval}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="core:ApprovalItem">
+                    <StackPanel Spacing="10" Margin="0,0,0,12">
+                      <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" />
+                      <TextBlock Classes="mono" Text="{Binding Target}" FontSize="12" Foreground="{StaticResource Pierre}" TextWrapping="Wrap"
+                                 IsVisible="{Binding Target, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                      <TextBlock Text="{Binding Warning}" FontSize="12" Foreground="{StaticResource Cinabre}" TextWrapping="Wrap"
+                                 IsVisible="{Binding Warning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+                      <Border Padding="12,10" CornerRadius="10" Background="{StaticResource Obsidienne}" BorderBrush="{StaticResource Filet}" BorderThickness="1">
+                        <StackPanel>
+                          <ItemsControl ItemsSource="{Binding Preview}"
+                                        IsVisible="{Binding !$parent[UserControl].((core:OfficeViewModel)DataContext).Mission.AllShown}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="x:String">
+                                <TextBlock Classes="mono" Text="{Binding StringFormat='+ {0}'}" FontSize="12" LineHeight="20" TextWrapping="Wrap" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                          <ItemsControl ItemsSource="{Binding AllLines}"
+                                        IsVisible="{Binding $parent[UserControl].((core:OfficeViewModel)DataContext).Mission.AllShown}">
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="x:String">
+                                <TextBlock Classes="mono" Text="{Binding StringFormat='+ {0}'}" FontSize="12" LineHeight="20" TextWrapping="Wrap" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                          <TextBlock Classes="mono" FontSize="12" Foreground="{StaticResource Cendre}" IsVisible="{Binding HasMoreLines}"
+                                     Text="{Binding MoreLines, StringFormat='  +{0} lignes'}" />
+                        </StackPanel>
+                      </Border>
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+            </ScrollViewer>
+            <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="8">
+              <Button Classes="outline" Command="{Binding Mission.ShowAllCommand}" IsVisible="{Binding Mission.NeedsFullReview}" Height="36" Padding="12,0">
+                <TextBlock Text="Tout afficher" FontSize="12.5" />
+              </Button>
+              <Button Grid.Column="1" Classes="outline" Command="{Binding CloseReviewCommand}" Height="36" Padding="12,0">
+                <TextBlock Text="Plus tard" FontSize="12.5" />
+              </Button>
+              <Button Grid.Column="2" Classes="outline" Command="{Binding Mission.RefuseCommand}" Height="36" Padding="12,0">
+                <TextBlock Text="Refuser" FontSize="12.5" />
+              </Button>
+              <Button Grid.Column="3" Classes="gold" Command="{Binding Mission.ApproveCommand}" Height="36" Padding="14,0">
+                <TextBlock Text="Approuver" FontSize="12.5" FontWeight="SemiBold" />
+              </Button>
+            </Grid>
+          </Grid>
+        </Border>
+      </Border>
+      <!-- /region -->
     </Grid>
 
   </Grid>
