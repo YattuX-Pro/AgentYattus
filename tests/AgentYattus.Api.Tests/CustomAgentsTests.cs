@@ -80,6 +80,12 @@ public sealed class CustomAgentsTests
         Assert.Equal("Tu relis les migrations et tu signales les risques.",
             (await alice.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!.Single(a => a.Key == own.Key).Instructions);
 
+        // Même nom chez Bob : un autre identifiant, pas une collision avec l'agent d'Alice.
+        var bobs = (await (await bob.PostAsJsonAsync(AgentsProtocol.Path,
+            new CreateAgentRequest("Agent de Lina", "Relit les migrations.", "Tu relis les migrations et tu signales les risques.", ["read_file"]), Ct))
+            .Content.ReadFromJsonAsync<AgentDto>(Ct))!;
+        Assert.NotEqual(own.Key, bobs.Key);
+
         // On ne recopie que ce que l'on voit : Bob ne part pas de l'agent d'Alice.
         Assert.Equal(HttpStatusCode.BadRequest, (await bob.PostAsJsonAsync(AgentsProtocol.Path,
             new CreateAgentRequest("Copie", "Copie de Nora.", "", ["read_file"], BasedOn: nora.Key), Ct)).StatusCode);

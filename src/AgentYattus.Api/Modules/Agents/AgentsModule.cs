@@ -201,7 +201,8 @@ public static class AgentsModule
                 return TypedResults.ValidationProblem(errors);
 
             // L'identifiant vient du nom et ne change plus ; un nom déjà pris (même retiré) reçoit un suffixe.
-            var taken = (await catalog.RolesAsync(cancellationToken, includeRetired: true)).Select(r => r.Key).ToHashSet();
+            // Tous les agents, même ceux des autres utilisateurs : l'identifiant est unique dans toute l'instance.
+            var taken = (await catalog.RolesAsync(cancellationToken, includeRetired: true, everyone: true)).Select(r => r.Key).ToHashSet();
             var key = KeyFrom(name);
             for (var n = 2; taken.Contains(key); n++)
                 key = $"{KeyFrom(name)[..Math.Min(36, KeyFrom(name).Length)]}-{n}";
