@@ -7,6 +7,7 @@ using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Contracts;
 using Microsoft.Agents.AI;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 
@@ -34,14 +35,15 @@ internal sealed class AgentFrameworkRunner(
     ILlmPricing pricing,
     IInstanceSettings instance,
     AgentDefinitions definitions,
-    AgentCatalog catalog) : IAgentRunner
+    AgentCatalog catalog,
+    AgentsDb db) : IAgentRunner
 {
     // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
 
     public async Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
-        IReadOnlyDictionary<string, string>? styles, string? agent, CancellationToken cancellationToken)
+        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         // Les réglages de l'instance (admin › Réglages) l'emportent sur la configuration de départ (ADR 0010).
@@ -73,7 +75,7 @@ internal sealed class AgentFrameworkRunner(
             // Revue, étape 1 : l'Analyste explore et rend ses constats. Il n'a aucun outil d'écriture : il ne s'arrête jamais.
             await audit.AppendAsync(missionId, $"agent:{AgentRoles.Analyst.Key}", cancellationToken);
             var (analysis, analysisUsage) = await RunRoleAsync(missionId, AgentRoles.Analyst, tools, instanceMax,
-                [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], styles, cancellationToken);
+                [new ChatMessage(ChatRole.User, AgentRoles.ReviewBrief(goal))], seats, cancellationToken);
             usage += analysisUsage;
             var findings = analysis.Text;
 
@@ -85,7 +87,7 @@ internal sealed class AgentFrameworkRunner(
         // Même retiré entre-temps, l'agent d'une mission en pause la termine : la décision humaine reste possible.
         var role = await catalog.FindAsync(stage.Role, cancellationToken)
                    ?? throw new InvalidOperationException($"L'agent « {stage.Role} » n'existe plus.");
-        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, styles, cancellationToken);
+        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, seats, cancellationToken);
         usage += roleUsage;
 
         var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
@@ -112,12 +114,17 @@ internal sealed class AgentFrameworkRunner(
 
     private async Task<(AgentResponse Response, AgentUsage Usage)> RunRoleAsync(
         Guid missionId, AgentRole role, IReadOnlyList<AIFunction> allTools, int instanceMax,
-        List<ChatMessage> history, IReadOnlyDictionary<string, string>? styles, CancellationToken cancellationToken)
+        List<ChatMessage> history, IReadOnlyDictionary<string, AgentSeat>? seats, CancellationToken cancellationToken)
     {
         // La consigne et la limite en vigueur pour ce rôle ; les garde-fous sont toujours ajoutés par le code.
         var definition = await definitions.CurrentAsync(role.Key, cancellationToken);
         var maxIterations = definition?.MaxIterations ?? instanceMax;
-        var instructions = AgentRoles.Compose(role, definition?.Instructions, styles?.GetValueOrDefault(role.Key));
+        var seat = seats?.GetValueOrDefault(role.Key);
+        // Les compétences du collègue (leçon 104) ; une compétence retirée depuis n'est plus chargée.
+        var keys = seat?.Skills ?? [];
+        var skills = keys.Count == 0 ? [] : await db.Skills.AsNoTracking()
+            .Where(s => keys.Contains(s.Key) && s.Active).OrderBy(s => s.Key).ToListAsync(cancellationToken);
+        var instructions = AgentRoles.Compose(role, definition?.Instructions, seat?.Style, [.. skills.Select(s => (s.Key, s.Description))]);
 
         // Chaque rôle a son modèle : le sien s'il en a un, sinon celui par défaut.
         var client = await llm.GetAsync(role.Key, cancellationToken) ?? throw new InvalidOperationException(
@@ -127,6 +134,8 @@ internal sealed class AgentFrameworkRunner(
 
         // Chaque rôle ne reçoit que ses outils : l'Analyste ne peut pas écrire, même s'il le demandait.
         var tools = allTools.Where(t => role.Tools.Contains(t.Name)).ToList();
+        if (skills.Count > 0)
+            tools.Add(UseSkillFunction(missionId, role.Key, [.. skills.Select(s => s.Key)], cancellationToken));
         var agent = CreateAgent(role, instructions, client.Client, tools, maxIterations);
         var response = await agent.RunAsync(history, cancellationToken: cancellationToken);
 
@@ -161,6 +170,24 @@ internal sealed class AgentFrameworkRunner(
         await audit.AppendAsync(missionId, $"usage:{role.Key}:{input}:{output}", cancellationToken);
         return (response, new AgentUsage(input, output, pricing.CostMicros(client.Model, input, output)));
     }
+
+    /// <summary>
+    /// Le deuxième étage du chargement progressif : la procédure, lue en base au moment où l'agent la demande.
+    /// Seulement les compétences de ce collègue : le nom vient du modèle, il ne peut pas en ouvrir une autre.
+    /// Chaque chargement est compté (Uses) et entre dans le journal : on sait quelles compétences servent.
+    /// </summary>
+    private AIFunction UseSkillFunction(Guid missionId, string role, IReadOnlyList<string> allowed, CancellationToken ct) =>
+        AIFunctionFactory.Create(async ([System.ComponentModel.Description("Le nom de la compétence, tel qu'il est listé.")] string name) =>
+        {
+            var key = (name ?? "").Trim();
+            if (!allowed.Contains(key) || await db.Skills.FirstOrDefaultAsync(s => s.Key == key && s.Active, ct) is not { } skill)
+                return $"Compétence inconnue. Tes compétences : {string.Join(", ", allowed)}.";
+            skill.Uses++;
+            skill.LastUsedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+            await audit.AppendAsync(missionId, $"competence:{role}:{skill.Key}", ct);
+            return skill.Body;
+        }, AgentRoles.UseSkill, "Charge la procédure d'une de tes compétences. À appeler avant la tâche qu'elle décrit.");
 
     /// <summary>
     /// « action:analyste:read_file:src/Api.cs » : le rôle, l'outil et le chemin visé. Seulement le chemin, jamais le

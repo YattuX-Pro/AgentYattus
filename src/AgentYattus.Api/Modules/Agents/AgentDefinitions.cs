@@ -71,6 +71,7 @@ internal sealed class AgentsDb(DbContextOptions<AgentsDb> options) : DbContext(o
 
     public DbSet<RoleVersion> Versions => Set<RoleVersion>();
     public DbSet<CustomRole> CustomRoles => Set<CustomRole>();
+    public DbSet<Skill> Skills => Set<Skill>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -92,6 +93,16 @@ internal sealed class AgentsDb(DbContextOptions<AgentsDb> options) : DbContext(o
             e.Property(r => r.Instructions).HasMaxLength(8000);
             e.Property(r => r.Tools).HasMaxLength(200);
             e.Property(r => r.CreatedBy).HasMaxLength(100);
+        });
+        modelBuilder.Entity<Skill>(e =>
+        {
+            e.HasKey(s => s.Key);
+            e.Property(s => s.Key).HasMaxLength(40);
+            e.Property(s => s.Name).HasMaxLength(40);
+            e.Property(s => s.Description).HasMaxLength(200);
+            e.Property(s => s.Body).HasMaxLength(8000);
+            e.Property(s => s.OwnerId).HasMaxLength(64);
+            e.Property(s => s.CreatedBy).HasMaxLength(100);
         });
     }
 }

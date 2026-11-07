@@ -43,18 +43,32 @@ internal static class AgentRoles
     /// Toujours ajouté à la fin de la consigne, modifiable ou non (ADR 0011) : effacer la consigne n'efface pas
     /// la règle sur les données, et le rappel des outils dit au modèle ce que le code lui permet réellement.
     /// </summary>
-    public static string Guardrails(AgentRole role) =>
-        $"{Data} Tes seuls outils sont : {string.Join(", ", role.Tools)}. " +
+    public static string Guardrails(AgentRole role, bool skills = false) =>
+        $"{Data} Tes seuls outils sont : {string.Join(", ", skills ? [.. role.Tools, UseSkill] : role.Tools)}. " +
         (role.Tools.Contains("write_file") ? "Chaque écriture attend la décision d'un humain." : "Tu ne peux rien écrire ni modifier.");
 
     /// <summary>
     /// La consigne complète envoyée au modèle : le texte (modifiable), la présentation du collègue (prénom, traits),
     /// puis les garde-fous (fixes). Les garde-fous viennent toujours en dernier : un trait ne peut pas les contredire après coup.
     /// </summary>
-    public static string Compose(AgentRole role, string? custom, string? style = null) =>
-        string.IsNullOrWhiteSpace(style)
-            ? $"{custom ?? role.Instructions}\n\n{Guardrails(role)}"
-            : $"{custom ?? role.Instructions}\n\n{style}\n\n{Guardrails(role)}";
+    public static string Compose(AgentRole role, string? custom, string? style = null, IReadOnlyList<(string Key, string Description)>? skills = null) =>
+        string.Join("\n\n", new[]
+        {
+            custom ?? role.Instructions,
+            style,
+            skills is { Count: > 0 } ? SkillsIndex(skills) : null,
+            Guardrails(role, skills is { Count: > 0 }),
+        }.Where(part => !string.IsNullOrWhiteSpace(part)));
+
+    public const string UseSkill = "use_skill";
+
+    /// <summary>
+    /// Le premier étage du chargement progressif (leçon 104) : seulement le nom et la description de chaque compétence.
+    /// La procédure n'entre dans la conversation que si l'agent appelle use_skill.
+    /// </summary>
+    public static string SkillsIndex(IReadOnlyList<(string Key, string Description)> skills) =>
+        "Tes compétences, des procédures écrites pour toi. Avant une tâche qui correspond à l'une d'elles, appelle " +
+        $"{UseSkill} avec son nom, puis suis la procédure :\n" + string.Join('\n', skills.Select(s => $"- {s.Key} : {s.Description}"));
 
     /// <summary>Ce que l'Analyste reçoit dans une revue : il rend des constats, pas un rapport.</summary>
     public static string ReviewBrief(string goal) =>
@@ -71,11 +85,21 @@ public interface IAgentCatalog
 {
     /// <summary>Les identifiants des agents proposés (ceux qu'on a retirés n'y sont plus).</summary>
     Task<IReadOnlyList<string>> RoleKeysAsync(CancellationToken cancellationToken);
+
+    /// <summary>Les compétences que l'utilisateur peut donner à un collègue : celles de l'instance et les siennes.</summary>
+    Task<IReadOnlySet<string>> SkillKeysAsync(CancellationToken cancellationToken);
 }
 
 internal sealed class AgentCatalog(AgentsDb db, ICurrentUser me) : IAgentCatalog
 {
     public async Task<IReadOnlyList<string>> RoleKeysAsync(CancellationToken ct) => [.. (await RolesAsync(ct)).Select(r => r.Key)];
+
+    public async Task<IReadOnlySet<string>> SkillKeysAsync(CancellationToken ct)
+    {
+        var mine = MeId;
+        return (await db.Skills.AsNoTracking().Where(s => s.Active && (s.OwnerId == null || s.OwnerId == mine))
+            .Select(s => s.Key).ToListAsync(ct)).ToHashSet();
+    }
 
     /// <summary>L'utilisateur de la requête ; null hors requête (le worker).</summary>
     private string? MeId

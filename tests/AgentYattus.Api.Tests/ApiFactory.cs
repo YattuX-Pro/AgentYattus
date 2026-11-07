@@ -131,19 +131,23 @@ public sealed class FakeAgentRunner : IAgentRunner
     /// <summary>Le dossier de travail reçu pour chaque but.</summary>
     public ConcurrentDictionary<string, string?> Workspaces { get; } = new();
 
-    /// <summary>Les présentations reçues par mission : ce que les collègues ajoutent aux consignes.</summary>
-    public ConcurrentDictionary<Guid, IReadOnlyDictionary<string, string>?> Styles { get; } = new();
+    /// <summary>Les sièges reçus par mission : ce que les collègues ajoutent aux consignes (présentation, compétences).</summary>
+    public ConcurrentDictionary<Guid, IReadOnlyDictionary<string, AgentSeat>?> Seats { get; } = new();
+
+    /// <summary>Seulement les présentations, par mission et par rôle.</summary>
+    public IReadOnlyDictionary<Guid, Dictionary<string, string>?> Styles =>
+        Seats.ToDictionary(m => m.Key, m => m.Value?.ToDictionary(s => s.Key, s => s.Value.Style));
 
     /// <summary>L'agent choisi au lancement, par mission (ADR 0013).</summary>
     public ConcurrentDictionary<Guid, string?> Agents { get; } = new();
 
     public Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
-        IReadOnlyDictionary<string, string>? styles, string? agent, CancellationToken cancellationToken)
+        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, CancellationToken cancellationToken)
     {
         Goals.Enqueue(goal);
         Workspaces[goal] = workspace;
-        Styles[missionId] = styles;
+        Seats[missionId] = seats;
         Agents[missionId] = agent;
         // Une mission longue : elle tourne jusqu'à son annulation (arrêt, durée maximum, fin de l'hôte).
         if (goal.StartsWith(LongGoal, StringComparison.Ordinal))

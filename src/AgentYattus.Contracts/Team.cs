@@ -36,7 +36,7 @@ public sealed record TeamSettingsDto(
 
 public sealed record ColleagueDto(
     Guid Id, Guid ProjectId, string Role, Guid PortraitId, string Name, IReadOnlyList<string> Traits,
-    UserRefDto? RecruitedBy, DateTimeOffset RecruitedAt, bool Active, DateTimeOffset? RemovedAt);
+    UserRefDto? RecruitedBy, DateTimeOffset RecruitedAt, bool Active, DateTimeOffset? RemovedAt, IReadOnlyList<string>? Skills = null);
 
 /// <summary>Pour la page Équipes de l'admin : un collègue et son projet.</summary>
 public sealed record ColleagueEntryDto(ColleagueDto Colleague, string ProjectName);
@@ -47,7 +47,8 @@ public sealed record ProjectTeamDto(
     Guid ProjectId, IReadOnlyList<ColleagueDto> Colleagues, string LeaderName, Guid? LeaderPortraitId, Guid? ManagerPortraitId,
     int TypingMs, int PauseMs, IReadOnlyDictionary<string, string> Lines, bool CanRecruit);
 
-public sealed record RecruitRequest(string Role, Guid PortraitId, string Name, IReadOnlyList<string> Traits);
+/// <param name="Skills">Les compétences du collègue (clés de /skills) : dix au plus.</param>
+public sealed record RecruitRequest(string Role, Guid PortraitId, string Name, IReadOnlyList<string> Traits, IReadOnlyList<string>? Skills = null);
 
 public static class TeamProtocol
 {

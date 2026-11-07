@@ -63,6 +63,11 @@ namespace AgentYattus.Api.Modules.Team.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<string>("Skills")
+                        .IsRequired()
+                        .HasMaxLength(420)
+                        .HasColumnType("character varying(420)");
+
                     b.Property<string>("Traits")
                         .IsRequired()
                         .HasMaxLength(200)

@@ -11,21 +11,22 @@ namespace AgentYattus.Api.Modules.Team;
 public interface ITeamDirectory
 {
     /// <summary>
-    /// Par rôle, la présentation du collègue à ajouter à la consigne : son prénom et ses traits.
+    /// Par rôle, le collègue qui l'occupe : sa présentation (prénom, traits) à ajouter à la consigne, et ses compétences.
     /// Un rôle sans collègue n'a pas d'entrée.
     /// </summary>
-    Task<IReadOnlyDictionary<string, string>> StylesAsync(Guid projectId, CancellationToken cancellationToken);
+    Task<IReadOnlyDictionary<string, AgentSeat>> SeatsAsync(Guid projectId, CancellationToken cancellationToken);
 }
 
 internal sealed class TeamDirectory(TeamDb db) : ITeamDirectory
 {
-    public async Task<IReadOnlyDictionary<string, string>> StylesAsync(Guid projectId, CancellationToken ct)
+    public async Task<IReadOnlyDictionary<string, AgentSeat>> SeatsAsync(Guid projectId, CancellationToken ct)
     {
         var colleagues = await db.Colleagues.AsNoTracking().Where(c => c.ProjectId == projectId && c.Active).ToListAsync(ct);
         if (colleagues.Count == 0)
-            return new Dictionary<string, string>();
+            return new Dictionary<string, AgentSeat>();
         var traits = (await TeamModule.TraitsAsync(db, ct)).ToDictionary(t => t.Key, t => t.Style);
-        return colleagues.ToDictionary(c => c.Role, c => TeamModule.Style(c.Name, c.TraitKeys.Select(k => traits.GetValueOrDefault(k)).OfType<string>()));
+        return colleagues.ToDictionary(c => c.Role, c => new AgentSeat(
+            TeamModule.Style(c.Name, c.TraitKeys.Select(k => traits.GetValueOrDefault(k)).OfType<string>()), c.SkillKeys));
     }
 }
 
@@ -65,6 +66,7 @@ public static partial class TeamModule
 
             var name = (request.Name ?? "").Trim();
             var traitKeys = (request.Traits ?? []).Select(t => (t ?? "").Trim()).Distinct().ToList();
+            var skillKeys = (request.Skills ?? []).Select(s => (s ?? "").Trim()).Distinct().ToList();
             var knownTraits = (await TraitsAsync(db, ct)).Select(t => t.Key).ToHashSet();
             var errors = new Dictionary<string, string[]>();
             var roles = await catalog.RoleKeysAsync(ct);
@@ -74,6 +76,13 @@ public static partial class TeamModule
                 errors["name"] = ["De 1 à 24 caractères : lettres, espaces, apostrophes et tirets."];
             if (traitKeys.Count > 5 || traitKeys.Any(k => !knownTraits.Contains(k)))
                 errors["traits"] = ["Cinq traits au plus, parmi ceux proposés."];
+            // Seulement des compétences que l'on voit : celles de l'instance et les siennes (leçon 104).
+            if (skillKeys.Count > 0)
+            {
+                var visible = await catalog.SkillKeysAsync(ct);
+                if (skillKeys.Count > 10 || skillKeys.Any(k => !visible.Contains(k)))
+                    errors["skills"] = ["Dix compétences au plus, parmi les tiennes et celles de l'instance."];
+            }
             if (!await db.Portraits.AnyAsync(p => p.Id == request.PortraitId && p.Active, ct))
                 errors["portraitId"] = ["Ce portrait n'existe pas ou n'est plus proposé."];
             if (errors.Count > 0)
@@ -93,7 +102,7 @@ public static partial class TeamModule
             var colleague = new Colleague
             {
                 Id = Guid.CreateVersion7(), ProjectId = projectId, Role = request.Role!, PortraitId = request.PortraitId, Name = name,
-                Traits = string.Join(',', traitKeys), CreatedAt = now, CreatedBy = me.Id,
+                Traits = string.Join(',', traitKeys), Skills = string.Join(',', skillKeys), CreatedAt = now, CreatedBy = me.Id,
             };
             db.Colleagues.Add(colleague);
             await db.SaveChangesAsync(ct);
@@ -167,6 +176,6 @@ public static partial class TeamModule
         var people = await directory.ResolveAsync(colleagues.Select(c => c.CreatedBy).Distinct(), ct);
         return colleagues.Select(c => new ColleagueDto(
             c.Id, c.ProjectId, c.Role, c.PortraitId, c.Name, c.TraitKeys, people.GetValueOrDefault(c.CreatedBy), c.CreatedAt,
-            c.Active, c.RemovedAt)).ToList();
+            c.Active, c.RemovedAt, c.SkillKeys)).ToList();
     }
 }

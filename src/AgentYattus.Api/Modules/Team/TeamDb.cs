@@ -30,6 +30,9 @@ internal sealed class Colleague
     /// <summary>Les clés des traits, séparées par des virgules.</summary>
     public string Traits { get; set; } = "";
 
+    /// <summary>Les clés des compétences (module Agents), séparées par des virgules (leçon 104).</summary>
+    public string Skills { get; set; } = "";
+
     public bool Active { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
@@ -37,6 +40,7 @@ internal sealed class Colleague
     public string? RemovedBy { get; set; }
 
     public IReadOnlyList<string> TraitKeys => Traits.Split(',', StringSplitOptions.RemoveEmptyEntries);
+    public IReadOnlyList<string> SkillKeys => Skills.Split(',', StringSplitOptions.RemoveEmptyEntries);
 }
 
 internal sealed class Trait
@@ -102,6 +106,7 @@ internal sealed class TeamDb(DbContextOptions<TeamDb> options) : DbContext(optio
             e.Property(c => c.Role).HasMaxLength(40);
             e.Property(c => c.Name).HasMaxLength(24);
             e.Property(c => c.Traits).HasMaxLength(200);
+            e.Property(c => c.Skills).HasMaxLength(420);
             e.Property(c => c.CreatedBy).HasMaxLength(100);
             e.Property(c => c.RemovedBy).HasMaxLength(100);
             e.HasIndex(c => c.ProjectId, "IX_Colleagues_ProjectId");

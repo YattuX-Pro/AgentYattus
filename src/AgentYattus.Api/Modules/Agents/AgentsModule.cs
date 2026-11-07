@@ -13,12 +13,15 @@ public interface IAgentRunner
 {
     /// <param name="resume">La conversation mise en pause et la décision humaine, ou null pour un premier passage.</param>
     /// <param name="workspace">Le dossier de travail du projet ; null pour le dossier configuré (Agents:Workspace).</param>
-    /// <param name="styles">Par rôle, la présentation du collègue (prénom, traits) à ajouter à la consigne (ADR 0012).</param>
+    /// <param name="seats">Par rôle, le collègue qui l'occupe : sa présentation (ADR 0012) et ses compétences (leçon 104).</param>
     /// <param name="agent">L'agent qui fait une mission « Question » (ADR 0013) ; null : l'Analyste.</param>
     Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
-        IReadOnlyDictionary<string, string>? styles, string? agent, CancellationToken cancellationToken);
+        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, CancellationToken cancellationToken);
 }
+
+/// <summary>Le collègue qui occupe un rôle dans le projet : « Tu t'appelles Inès… », et les clés de ses compétences.</summary>
+public sealed record AgentSeat(string Style, IReadOnlyList<string> Skills);
 
 /// <summary>
 /// Soit l'agent a fini (<see cref="Answer"/>), soit il attend une décision humaine (<see cref="Approval"/>).
@@ -261,6 +264,8 @@ public static class AgentsModule
             await db.SaveChangesAsync(cancellationToken);
             return TypedResults.NoContent();
         });
+
+        SkillsEndpoints.Map(app);
         return app;
     }
 }
