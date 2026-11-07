@@ -46,7 +46,8 @@ internal sealed class AgentFrameworkRunner(
 
     public async Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
-        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken)
+        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken,
+        Func<string, Task>? onText = null)
     {
         var settings = options.Value;
         // Les réglages de l'instance (admin › Réglages) l'emportent sur la configuration de départ (ADR 0010).
@@ -93,7 +94,7 @@ internal sealed class AgentFrameworkRunner(
         // Même retiré entre-temps, l'agent d'une mission en pause la termine : la décision humaine reste possible.
         var role = await catalog.FindAsync(stage.Role, cancellationToken)
                    ?? throw new InvalidOperationException($"L'agent « {stage.Role} » n'existe plus.");
-        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, seats, launchedBy, cancellationToken);
+        var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, seats, launchedBy, cancellationToken, onText);
         usage += roleUsage;
 
         var requests = response.Messages.SelectMany(m => m.Contents).OfType<ToolApprovalRequestContent>().ToList();
@@ -124,7 +125,8 @@ internal sealed class AgentFrameworkRunner(
 
     private async Task<(AgentResponse Response, AgentUsage Usage)> RunRoleAsync(
         Guid missionId, AgentRole role, IReadOnlyList<AIFunction> allTools, int instanceMax,
-        List<ChatMessage> history, IReadOnlyDictionary<string, AgentSeat>? seats, string? launchedBy, CancellationToken cancellationToken)
+        List<ChatMessage> history, IReadOnlyDictionary<string, AgentSeat>? seats, string? launchedBy, CancellationToken cancellationToken,
+        Func<string, Task>? onText = null)
     {
         // La consigne et la limite en vigueur pour ce rôle ; les garde-fous sont toujours ajoutés par le code.
         var definition = await definitions.CurrentAsync(role.Key, cancellationToken);
@@ -153,7 +155,16 @@ internal sealed class AgentFrameworkRunner(
         if (learn)
             tools.Add(ProposeSkillFunction(missionId, role.Key, launchedBy!, cancellationToken));
         var agent = CreateAgent(role, instructions, client.Client, tools, maxIterations);
-        var response = await agent.RunAsync(history, cancellationToken: cancellationToken);
+        // En flux (leçon 119) : chaque morceau de texte part tout de suite vers qui regarde ; la réponse complète
+        // (appels d'outils, demandes d'accord, tokens) est reconstituée ensuite à partir des mêmes morceaux.
+        var updates = new List<AgentResponseUpdate>();
+        await foreach (var update in agent.RunStreamingAsync(history, cancellationToken: cancellationToken))
+        {
+            updates.Add(update);
+            if (onText is not null && update.Text is { Length: > 0 } text)
+                await onText(text);
+        }
+        var response = updates.ToAgentResponse();
 
         // Mode Gratuit : chaque bascule vers le modèle suivant de la chaîne entre dans le journal.
         if (client.Client.GetService<FallbackChatClient>() is { } fallback)

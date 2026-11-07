@@ -33,10 +33,16 @@ public sealed class ScriptedChatClient(params ChatResponse[] script) : IChatClie
             : throw new InvalidOperationException("Script épuisé : le modèle a été appelé plus de fois que prévu.");
     }
 
-    public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+    /// <summary>La même réponse écrite d'avance, découpée en morceaux comme un vrai modèle en flux (leçon 119).</summary>
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,
-        CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var response = await GetResponseAsync(messages, options, cancellationToken);
+        foreach (var update in response.ToChatResponseUpdates())
+            yield return update;
+    }
 
     public object? GetService(Type serviceType, object? serviceKey = null) => null;
 

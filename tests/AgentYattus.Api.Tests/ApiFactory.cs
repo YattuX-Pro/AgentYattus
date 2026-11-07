@@ -153,7 +153,8 @@ public sealed class FakeAgentRunner : IAgentRunner
 
     public Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
-        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken)
+        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken,
+        Func<string, Task>? onText = null)
     {
         Goals.Enqueue(goal);
         Workspaces[goal] = workspace;

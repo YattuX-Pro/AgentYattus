@@ -16,9 +16,11 @@ public interface IAgentRunner
     /// <param name="seats">Par rôle, le collègue qui l'occupe : sa présentation (ADR 0012) et ses compétences (leçon 104).</param>
     /// <param name="agent">L'agent qui fait une mission « Question » (ADR 0013) ; null : l'Analyste.</param>
     /// <param name="launchedBy">Qui a lancé la mission : ses compétences à lui, et celles de l'instance, sont les seules chargées.</param>
+    /// <param name="onText">Reçoit la réponse finale au fur et à mesure qu'elle s'écrit (leçon 119) ; null : pas de direct.</param>
     Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
-        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken);
+        IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken,
+        Func<string, Task>? onText = null);
 }
 
 /// <summary>Le collègue qui occupe un rôle dans le projet : « Tu t'appelles Inès… », et les clés de ses compétences.</summary>

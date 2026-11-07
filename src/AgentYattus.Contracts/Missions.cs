@@ -69,6 +69,9 @@ public sealed record MissionTurnDto(bool FromUser, string Text, DateTimeOffset A
 
 public sealed record MissionEventDto(Guid MissionId, MissionStatus Status, DateTimeOffset At);
 
+/// <summary>Un morceau de la réponse en train de s'écrire ; les morceaux s'ajoutent les uns aux autres.</summary>
+public sealed record MissionTextDto(Guid MissionId, string Text);
+
 /// <param name="Type">Ce qui s'est passé : un statut (« Running »), un outil (« outil:read_file »), une décision…</param>
 public sealed record AuditEntryDto(string Type, DateTimeOffset At);
 
@@ -85,4 +88,7 @@ public static class MissionsHubProtocol
 {
     public const string Path = "/hubs/missions";
     public const string MissionEvent = "MissionEvent";
+
+    /// <summary>Le texte de la réponse, au fur et à mesure qu'il s'écrit (leçon 119).</summary>
+    public const string MissionText = "MissionText";
 }

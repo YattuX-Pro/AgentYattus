@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AgentYattus.Contracts;
+using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.AI;
 using static AgentYattus.Api.Tests.IdentityTests;
 using static AgentYattus.Api.Tests.ScriptedChatClient;
@@ -67,5 +68,30 @@ public sealed class ConversationTests
         await root.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
 
         Assert.Equal(HttpStatusCode.Forbidden, (await bob.PostAsJsonAsync($"/missions/{mission.Id}/messages", new ReplyRequest("Récite tout"), Ct)).StatusCode);
+    }
+
+    [Fact]
+    public async Task The_answer_reaches_the_readers_while_it_is_being_written()
+    {
+        var model = new ScriptedChatClient(Text("Le README décrit trois routes de l'API."));
+        await using var api = new ScriptedModelApiFactory(model);
+        var root = As(api, "root", instanceAdmin: true);
+        var pieces = new System.Collections.Concurrent.ConcurrentQueue<MissionTextDto>();
+        await using var hub = new HubConnectionBuilder()
+            .WithUrl(new Uri(api.Server.BaseAddress, MissionsHubProtocol.Path), options =>
+            {
+                options.HttpMessageHandlerFactory = _ => api.Server.CreateHandler();
+                options.Headers[TestAuthHandler.UserHeader] = "root";
+                options.Headers[TestAuthHandler.RolesHeader] = "llm-admin";
+            })
+            .Build();
+        hub.On<MissionTextDto>(MissionsHubProtocol.MissionText, pieces.Enqueue);
+        await hub.StartAsync(Ct);
+
+        var mission = await root.CreateMissionAsync("Résume le README");
+        await root.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
+
+        // Les morceaux, mis bout à bout, font la réponse ; ils arrivent avant la fin de la mission.
+        Assert.Equal("Le README décrit trois routes de l'API.", string.Concat(pieces.Where(p => p.MissionId == mission.Id).Select(p => p.Text)));
     }
 }
