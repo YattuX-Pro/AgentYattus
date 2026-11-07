@@ -1,3 +1,4 @@
+using AgentYattus.Api.Modules.Identity;
 using Microsoft.EntityFrameworkCore;
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Llm;
@@ -106,16 +107,19 @@ public static class AgentsModule
     {
         app.MapGet(AgentsProtocol.Path, async (
             IOptions<AgentsOptions> options, ILlmClientProvider llm, ILlmAgentModels models, AuditLog audit, AgentDefinitions definitions,
-            AgentCatalog catalog, IInstanceSettings instance, HttpContext http, CancellationToken cancellationToken) =>
+            AgentCatalog catalog, IInstanceSettings instance, HttpContext http, bool? all, CancellationToken cancellationToken) =>
         {
             // Les consignes (qui peuvent contenir des règles internes) et leur version : administrateurs seulement,
-            // comme l'historique. Les autres voient le rôle, son modèle et ses outils.
-            var admin = http.User.IsInRole(Authentication.LlmAdminRole);
+            // comme l'historique. Les autres voient le rôle, son modèle et ses outils ; et la consigne de leurs propres agents.
+            // ?all=true (espace admin) : aussi les agents de chaque utilisateur.
+            var isAdmin = http.User.IsInRole(Authentication.LlmAdminRole);
+            var mine = await catalog.MineAsync(cancellationToken);
             var stats = Stats(await audit.TypesStartingWithAsync("usage:", cancellationToken));
             var instanceMax = (await instance.GetAsync(cancellationToken)).MaxIterations ?? options.Value.MaxIterations;
             var agents = new List<AgentDto>();
-            foreach (var role in await catalog.RolesAsync(cancellationToken))
+            foreach (var role in await catalog.RolesAsync(cancellationToken, everyone: isAdmin && all == true))
             {
+                var admin = isAdmin || mine.Contains(role.Key);
                 var current = await definitions.CurrentAsync(role.Key, cancellationToken);
                 agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, cancellationToken), current?.MaxIterations ?? instanceMax,
                 [
@@ -123,17 +127,19 @@ public static class AgentsModule
                         .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
                 ], role.Key, await models.GetAsync(role.Key, cancellationToken), stats.GetValueOrDefault(role.Key, new AgentStatsDto(0, 0, 0)),
                 admin ? current?.Instructions ?? role.Instructions : "", admin ? role.Instructions : "", admin ? AgentRoles.Guardrails(role) : "",
-                admin ? current?.Version ?? 0 : 0, admin ? current?.MaxIterations : null, role.Builtin));
+                admin ? current?.Version ?? 0 : 0, admin ? current?.MaxIterations : null, role.Builtin, mine.Contains(role.Key)));
             }
             return TypedResults.Ok(agents);
         });
 
         // Modifier la consigne ou la limite de tours d'un rôle (ADR 0011) : une nouvelle version, jamais un écrasement.
-        app.MapPut("/agents/{role}", async Task<Results<NoContent, NotFound, ValidationProblem>> (
+        app.MapPut("/agents/{role}", async Task<Results<NoContent, NotFound, ForbidHttpResult, ValidationProblem>> (
             string role, UpdateAgentRequest request, AgentDefinitions definitions, AgentCatalog catalog, HttpContext http, CancellationToken cancellationToken) =>
         {
             if (await catalog.FindAsync(role, cancellationToken) is not { } agentRole)
                 return TypedResults.NotFound();
+            if (!await catalog.CanEditAsync(role, cancellationToken))
+                return TypedResults.Forbid();
             var instructions = request.Instructions?.Trim();
             var errors = new Dictionary<string, string[]>();
             if (instructions is not null && instructions.Length is < 20 or > 8000)
@@ -147,7 +153,7 @@ public static class AgentsModule
                 instructions = null;
             await definitions.SaveAsync(role, instructions, request.MaxIterations, http.User.Identity?.Name ?? "?", cancellationToken);
             return TypedResults.NoContent();
-        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+        });
 
         app.MapGet("/agents/{role}/versions", async Task<Results<Ok<AgentVersionDto[]>, NotFound>> (
             string role, AgentDefinitions definitions, AgentCatalog catalog, CancellationToken cancellationToken) =>
@@ -157,23 +163,30 @@ public static class AgentsModule
                 : TypedResults.NotFound())
             .RequireAuthorization(Authentication.LlmAdminPolicy);
 
-        // Choisir le modèle d'un rôle : comme toute la gestion du LLM, réservé à llm-admin.
-        app.MapPut("/agents/{role}/model", async Task<Results<NoContent, NotFound, ValidationProblem>> (
+        // Choisir le modèle d'un rôle : llm-admin, ou le propriétaire d'un agent à soi (parmi les connexions de l'instance).
+        app.MapPut("/agents/{role}/model", async Task<Results<NoContent, NotFound, ForbidHttpResult, ValidationProblem>> (
             string role, UpdateAgentModelRequest request, ILlmAgentModels models, AgentCatalog catalog, HttpContext http, CancellationToken cancellationToken) =>
         {
             if (await catalog.FindAsync(role, cancellationToken) is null)
                 return TypedResults.NotFound();
+            if (!await catalog.CanEditAsync(role, cancellationToken))
+                return TypedResults.Forbid();
             return await models.SetAsync(role, request.Model, http.User.Identity?.Name ?? "?", cancellationToken) is { } error
                 ? TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["model"] = [error] })
                 : TypedResults.NoContent();
-        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+        });
 
         // Ajouter un agent (ADR 0013) : outils pris dans la liste existante ; l'écriture garde l'accord humain (WorkspaceTools).
+        // Tout utilisateur peut créer les siens (depuis « Nouveau collègue ») : ils ne sont visibles que de lui.
         app.MapPost(AgentsProtocol.Path, async Task<Results<Created<AgentDto>, ValidationProblem>> (
-            CreateAgentRequest request, AgentsDb db, AgentCatalog catalog, ILlmClientProvider llm, HttpContext http, CancellationToken cancellationToken) =>
+            CreateAgentRequest request, AgentsDb db, AgentCatalog catalog, AgentDefinitions definitions, ILlmClientProvider llm,
+            ILlmAgentModels models, ICurrentUser me, HttpContext http, CancellationToken cancellationToken) =>
         {
             var (name, summary, tools) = Clean(request.Name, request.Summary, request.Tools);
             var instructions = (request.Instructions ?? "").Trim();
+            // Une consigne vide reprend celle du poste de départ (sa version en vigueur), lue côté serveur : elle peut rester cachée.
+            if (instructions.Length == 0 && request.BasedOn is { } basedOn && await catalog.FindAsync(basedOn, cancellationToken) is { } baseRole)
+                instructions = (await definitions.CurrentAsync(basedOn, cancellationToken))?.Instructions ?? baseRole.Instructions;
             var errors = Validate(name, summary, tools);
             if (instructions.Length is < 20 or > 8000)
                 errors["instructions"] = ["La consigne fait entre 20 et 8 000 caractères."];
@@ -185,25 +198,35 @@ public static class AgentsModule
             var key = KeyFrom(name);
             for (var n = 2; taken.Contains(key); n++)
                 key = $"{KeyFrom(name)[..Math.Min(36, KeyFrom(name).Length)]}-{n}";
+            var personal = request.Personal || !me.IsInstanceAdmin;
             var role = new CustomRole
             {
                 Key = key, Name = name, Summary = summary, Instructions = instructions, Tools = string.Join(',', tools),
-                CreatedAt = DateTimeOffset.UtcNow, CreatedBy = http.User.Identity?.Name ?? "?",
+                CreatedAt = DateTimeOffset.UtcNow, CreatedBy = http.User.Identity?.Name ?? "?", OwnerId = personal ? me.Id : null,
             };
             db.CustomRoles.Add(role);
             await db.SaveChangesAsync(cancellationToken);
+            // Son modèle : refusé (connexion inconnue, modèle absent), l'agent n'est pas créé.
+            if (request.Model is { } model && await models.SetAsync(key, model, me.Username, cancellationToken) is { } error)
+            {
+                db.CustomRoles.Remove(role);
+                await db.SaveChangesAsync(cancellationToken);
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["model"] = [error] });
+            }
             var r = AgentCatalog.ToRole(role);
             return TypedResults.Created(AgentsProtocol.Role(key), new AgentDto(
-                r.Name, r.Summary, await llm.GetModelAsync(key, cancellationToken), 0, ToolsOf(r), key, Instructions: r.Instructions,
-                DefaultInstructions: r.Instructions, Guardrails: AgentRoles.Guardrails(r), Builtin: false));
-        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+                r.Name, r.Summary, await llm.GetModelAsync(key, cancellationToken), 0, ToolsOf(r), key, await models.GetAsync(key, cancellationToken),
+                Instructions: r.Instructions, DefaultInstructions: r.Instructions, Guardrails: AgentRoles.Guardrails(r), Builtin: false, Mine: personal));
+        });
 
-        app.MapPut("/agents/{role}/profile", async Task<Results<NoContent, NotFound, ValidationProblem>> (
-            string role, UpdateAgentProfileRequest request, AgentsDb db, CancellationToken cancellationToken) =>
+        app.MapPut("/agents/{role}/profile", async Task<Results<NoContent, NotFound, ForbidHttpResult, ValidationProblem>> (
+            string role, UpdateAgentProfileRequest request, AgentsDb db, AgentCatalog catalog, CancellationToken cancellationToken) =>
         {
             // L'Analyste et le Rédacteur gardent nom et outils du code : seule leur consigne se modifie (ADR 0011).
             if (await db.CustomRoles.FirstOrDefaultAsync(r => r.Key == role && r.Active, cancellationToken) is not { } custom)
                 return TypedResults.NotFound();
+            if (!await catalog.CanEditAsync(role, cancellationToken))
+                return TypedResults.Forbid();
             var (name, summary, tools) = Clean(request.Name, request.Summary, request.Tools);
             var errors = Validate(name, summary, tools);
             if (errors.Count > 0)
@@ -213,17 +236,20 @@ public static class AgentsModule
             custom.Tools = string.Join(',', tools);
             await db.SaveChangesAsync(cancellationToken);
             return TypedResults.NoContent();
-        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+        });
 
         // Retirer : l'agent n'est plus proposé ; ses missions passées gardent son nom, une mission en pause peut finir.
-        app.MapDelete("/agents/{role}", async Task<Results<NoContent, NotFound>> (string role, AgentsDb db, CancellationToken cancellationToken) =>
+        app.MapDelete("/agents/{role}", async Task<Results<NoContent, NotFound, ForbidHttpResult>> (
+            string role, AgentsDb db, AgentCatalog catalog, CancellationToken cancellationToken) =>
         {
             if (await db.CustomRoles.FirstOrDefaultAsync(r => r.Key == role && r.Active, cancellationToken) is not { } custom)
                 return TypedResults.NotFound();
+            if (!await catalog.CanEditAsync(role, cancellationToken))
+                return TypedResults.Forbid();
             custom.Active = false;
             await db.SaveChangesAsync(cancellationToken);
             return TypedResults.NoContent();
-        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+        });
         return app;
     }
 }

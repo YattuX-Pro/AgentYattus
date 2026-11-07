@@ -50,6 +50,9 @@ namespace AgentYattus.Api.Modules.Agents.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
 
+                    b.Property<string>("OwnerId")
+                        .HasColumnType("text");
+
                     b.Property<string>("Summary")
                         .IsRequired()
                         .HasMaxLength(200)

@@ -44,6 +44,25 @@
       <Setter Property="Padding" Value="12,0" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
+    <!-- La consigne : un champ multi-ligne, texte #D9D3C5. -->
+    <Style Selector="TextBox.consigne">
+      <Setter Property="Padding" Value="12,10" />
+      <Setter Property="Foreground" Value="#D9D3C5" />
+      <Setter Property="VerticalContentAlignment" Value="Top" />
+    </Style>
+    <Style Selector="TextBox.consigne /template/ Border#PART_BorderElement">
+      <Setter Property="CornerRadius" Value="9" />
+    </Style>
+    <!-- Le modèle : un champ de 42 px, rayon 9, comme les autres. -->
+    <Style Selector="ComboBox.field /template/ Border#Background">
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Background" Value="#16181B" />
+      <Setter Property="BorderBrush" Value="#2E3237" />
+    </Style>
+    <Style Selector="ComboBox.field">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Padding" Value="12,0" />
+    </Style>
     <!-- Un visage de la galerie : il se soulève au survol, s'entoure de vert-de-gris quand il est choisi. -->
     <Style Selector="Button.tile">
       <Setter Property="RenderTransform" Value="translateY(0px)" />
@@ -345,16 +364,12 @@
                 <TextBlock DockPanel.Dock="Top" Text="Consigne" FontSize="12.5" Foreground="{StaticResource Pierre}" Margin="0,0,0,14" />
                 <TextBlock DockPanel.Dock="Bottom" Text="Les règles de sécurité sont toujours ajoutées par Agent Yattus." FontSize="11.5"
                            Foreground="{StaticResource Cendre}" Margin="0,14,0,0" TextWrapping="Wrap" />
-                <Border CornerRadius="9" BorderBrush="#2E3237" BorderThickness="1" Background="{StaticResource Graphite}" Padding="12,10" MinHeight="80"
-                        ToolTip.Tip="La consigne du poste, réglée dans l’espace admin">
-                  <ScrollViewer>
-                    <TextBlock Text="{Binding Role.Agent.Instructions}" FontSize="13" LineHeight="19.5" Foreground="#D9D3C5" TextWrapping="Wrap" />
-                  </ScrollViewer>
-                </Border>
+                <TextBox Classes="consigne" Text="{Binding Instructions}" PlaceholderText="{Binding InstructionsHint}"
+                         AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80" FontSize="13" LineHeight="19.5" />
               </DockPanel>
             </Border>
 
-            <!-- Outils et modèle : ceux du poste -->
+            <!-- Outils et modèle : ceux du poste au départ, réglables -->
             <Border Grid.Column="1" Classes="card">
               <StackPanel Spacing="12">
                 <TextBlock Classes="h2" Text="Ce qu’il ou elle a le droit de faire" />
@@ -364,27 +379,32 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="core:ToolRow">
-                      <Border Padding="12,10" CornerRadius="10" BorderBrush="#1F2226" BorderThickness="1" Background="#141518"
-                              ToolTip.Tip="Les outils sont ceux du poste, réglés dans l’espace admin">
+                      <Border Padding="12,10" CornerRadius="10" BorderBrush="#1F2226" BorderThickness="1" Background="#141518">
                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
                           <StackPanel Spacing="2" VerticalAlignment="Center">
                             <TextBlock Text="{Binding Label}" FontSize="13" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
                             <TextBlock Classes="mono" Text="{Binding Note}" FontSize="10.5" TextTrimming="CharacterEllipsis"
                                        Foreground="{Binding Warn, Converter={x:Static views:Tone.Warn}}" />
                           </StackPanel>
-                          <Border Grid.Column="1" Classes="track" Classes.on="{Binding IsOn}" Classes.warn="{Binding Warn}" VerticalAlignment="Center">
-                            <Ellipse Width="18" Height="18" Fill="{StaticResource Parchemin}" />
-                          </Border>
+                          <Button Grid.Column="1" Classes="bare" VerticalAlignment="Center" AutomationProperties.Name="{Binding Label}"
+                                  Command="{Binding $parent[ItemsControl].((core:RecruitViewModel)DataContext).ToggleToolCommand}" CommandParameter="{Binding}">
+                            <Border Classes="track" Classes.on="{Binding IsOn}" Classes.warn="{Binding Warn}">
+                              <Ellipse Width="18" Height="18" Fill="{StaticResource Parchemin}" />
+                            </Border>
+                          </Button>
                         </Grid>
                       </Border>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock Text="Modèle" FontSize="12.5" Foreground="{StaticResource Pierre}" Margin="0,4,0,0" />
-                <Border Height="42" Padding="12,0" CornerRadius="9" BorderBrush="#2E3237" BorderThickness="1" Background="{StaticResource Graphite}"
-                        ToolTip.Tip="Le modèle du poste, réglé dans l’espace admin">
-                  <TextBlock Text="{Binding Role.Model}" FontSize="13" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                </Border>
+                <ComboBox Classes="field" ItemsSource="{Binding Models}" SelectedItem="{Binding Model}" HorizontalAlignment="Stretch" Height="42">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="core:ModelChoice">
+                      <TextBlock Text="{Binding Label}" FontSize="13" TextTrimming="CharacterEllipsis" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
               </StackPanel>
             </Border>
           </Grid>

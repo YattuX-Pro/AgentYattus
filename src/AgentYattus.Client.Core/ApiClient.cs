@@ -86,6 +86,48 @@ public sealed class ApiClient(HttpClient http)
         return (await response.Content.ReadFromJsonAsync<ColleagueDto>(cancellationToken))!;
     }
 
+    /// <summary>Un agent à soi, créé depuis « Nouveau collègue » : visible de son auteur seul.</summary>
+    public async Task<AgentDto> CreateAgentAsync(CreateAgentRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync(AgentsProtocol.Path.TrimStart('/'), request, cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
+        return (await response.Content.ReadFromJsonAsync<AgentDto>(cancellationToken))!;
+    }
+
+    /// <summary>Régler un agent à soi : nom, outils, consigne et modèle.</summary>
+    public async Task UpdateMyAgentAsync(
+        string role, UpdateAgentProfileRequest profile, string instructions, LlmSelectionDto? model, CancellationToken cancellationToken = default)
+    {
+        using (var r = await http.PutAsJsonAsync(AgentsProtocol.Profile(role).TrimStart('/'), profile, cancellationToken))
+            await EnsureOkAsync(r, cancellationToken);
+        using (var r = await http.PutAsJsonAsync(AgentsProtocol.Role(role).TrimStart('/'), new UpdateAgentRequest(instructions, null), cancellationToken))
+            await EnsureOkAsync(r, cancellationToken);
+        using (var r = await http.PutAsJsonAsync($"agents/{role}/model", new UpdateAgentModelRequest(model), cancellationToken))
+            await EnsureOkAsync(r, cancellationToken);
+    }
+
+    /// <summary>Les modèles qu'on peut donner à ses agents (connexions de l'instance).</summary>
+    public async Task<IReadOnlyList<LlmModelDto>> GetModelChoicesAsync(CancellationToken cancellationToken = default) =>
+        (await http.GetFromJsonAsync<LlmModelsDto>(LlmProtocol.Choices.TrimStart('/'), cancellationToken))?.Models ?? [];
+
+    // Un refus de validation : ses messages, lisibles, plutôt que « 400 Bad Request ».
+    private static async Task EnsureOkAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (response.IsSuccessStatusCode)
+            return;
+        var detail = "";
+        try
+        {
+            using var json = System.Text.Json.JsonDocument.Parse(await response.Content.ReadAsStringAsync(cancellationToken));
+            if (json.RootElement.TryGetProperty("errors", out var errors))
+                detail = string.Join(" ", errors.EnumerateObject().SelectMany(e => e.Value.EnumerateArray().Select(m => m.GetString())));
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+        throw new HttpRequestException(detail.Length > 0 ? detail : $"{(int)response.StatusCode} {response.ReasonPhrase}", null, response.StatusCode);
+    }
+
     public async Task<MissionDto?> GetMissionAsync(Guid id, CancellationToken cancellationToken = default)
     {
         using var response = await http.GetAsync($"missions/{id}", cancellationToken);

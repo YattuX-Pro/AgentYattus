@@ -56,6 +56,9 @@ internal sealed class CustomRole
     public DateTimeOffset CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
 
+    /// <summary>L'utilisateur à qui l'agent appartient (créé depuis « Nouveau collègue ») ; null : un agent de l'instance, pour tous.</summary>
+    public string? OwnerId { get; set; }
+
     public IReadOnlyList<string> ToolList => Tools.Split(',', StringSplitOptions.RemoveEmptyEntries);
 }
 

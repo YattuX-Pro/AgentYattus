@@ -1,3 +1,4 @@
+using AgentYattus.Api.Modules.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentYattus.Api.Modules.Agents;
@@ -72,14 +73,29 @@ public interface IAgentCatalog
     Task<IReadOnlyList<string>> RoleKeysAsync(CancellationToken cancellationToken);
 }
 
-internal sealed class AgentCatalog(AgentsDb db) : IAgentCatalog
+internal sealed class AgentCatalog(AgentsDb db, ICurrentUser me) : IAgentCatalog
 {
     public async Task<IReadOnlyList<string>> RoleKeysAsync(CancellationToken ct) => [.. (await RolesAsync(ct)).Select(r => r.Key)];
 
-    /// <summary>Les agents proposés : l'Analyste, le Rédacteur, puis les agents créés, dans l'ordre de création.</summary>
-    public async Task<List<AgentRole>> RolesAsync(CancellationToken ct, bool includeRetired = false)
+    /// <summary>L'utilisateur de la requête ; null hors requête (le worker).</summary>
+    private string? MeId
     {
-        var custom = await db.CustomRoles.AsNoTracking().Where(r => includeRetired || r.Active).ToListAsync(ct);
+        get
+        {
+            try { return me.Id; }
+            catch (InvalidOperationException) { return null; }
+        }
+    }
+
+    /// <summary>
+    /// Les agents proposés : l'Analyste, le Rédacteur, puis les agents créés, dans l'ordre de création.
+    /// Ceux de l'instance pour tous, ceux d'un utilisateur pour lui seul (<paramref name="everyone"/> : tous, pour l'administrateur).
+    /// </summary>
+    public async Task<List<AgentRole>> RolesAsync(CancellationToken ct, bool includeRetired = false, bool everyone = false)
+    {
+        var mine = MeId;
+        var custom = await db.CustomRoles.AsNoTracking()
+            .Where(r => (includeRetired || r.Active) && (everyone || r.OwnerId == null || r.OwnerId == mine)).ToListAsync(ct);
         // Trié ici : SQLite (tests) ne sait pas trier les dates avec fuseau dans une requête.
         return [.. AgentRoles.All, .. custom.OrderBy(r => r.CreatedAt).Select(ToRole)];
     }
@@ -88,6 +104,20 @@ internal sealed class AgentCatalog(AgentsDb db) : IAgentCatalog
     public async Task<AgentRole?> FindAsync(string key, CancellationToken ct) =>
         AgentRoles.All.FirstOrDefault(r => r.Key == key)
         ?? (await db.CustomRoles.AsNoTracking().FirstOrDefaultAsync(r => r.Key == key, ct) is { } c ? ToRole(c) : null);
+
+    /// <summary>Le propriétaire d'un agent créé ; null pour un agent de l'instance (ou inconnu).</summary>
+    public async Task<string?> OwnerOfAsync(string key, CancellationToken ct) =>
+        await db.CustomRoles.AsNoTracking().Where(r => r.Key == key).Select(r => r.OwnerId).FirstOrDefaultAsync(ct);
+
+    /// <summary>Modifier un agent : l'administrateur, ou son propriétaire pour un agent à soi.</summary>
+    public async Task<bool> CanEditAsync(string key, CancellationToken ct) =>
+        me.IsInstanceAdmin || (MeId is { } id && await OwnerOfAsync(key, ct) == id);
+
+    public async Task<HashSet<string>> MineAsync(CancellationToken ct)
+    {
+        var mine = MeId;
+        return mine is null ? [] : [.. await db.CustomRoles.AsNoTracking().Where(r => r.OwnerId == mine).Select(r => r.Key).ToListAsync(ct)];
+    }
 
     internal static AgentRole ToRole(CustomRole c) => new(c.Key, c.Name, c.Summary, c.Instructions, c.ToolList, Builtin: false);
 }

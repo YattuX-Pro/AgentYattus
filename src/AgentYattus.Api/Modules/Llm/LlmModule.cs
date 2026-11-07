@@ -72,6 +72,8 @@ public static class LlmModule
         llm.MapDelete("/connections/{id:guid}", RevokeAsync);
         llm.MapPut("/settings", UpdateSettingsAsync);
         llm.MapPut("/free", UpdateFreeModeAsync);
+        // Pour « Nouveau collègue » : n'importe quel utilisateur choisit le modèle de ses agents parmi ceux de l'instance.
+        app.MapGet(LlmProtocol.Choices, GetModelsAsync);
         return app;
     }
 

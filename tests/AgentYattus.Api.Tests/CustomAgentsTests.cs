@@ -47,9 +47,45 @@ public sealed class CustomAgentsTests
 
         Assert.Equal(HttpStatusCode.NoContent, (await root.DeleteAsync(AgentsProtocol.Role(agent.Key), Ct)).StatusCode);
         Assert.DoesNotContain((await root.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!, a => a.Key == agent.Key);
-        // L'Analyste et le Rédacteur ne se retirent pas, et un membre ne gère pas les agents.
+        // L'Analyste et le Rédacteur ne se retirent pas, et un membre ne touche pas aux agents de l'instance.
         Assert.Equal(HttpStatusCode.NotFound, (await root.DeleteAsync(AgentsProtocol.Role("analyste"), Ct)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await As(api, "alice").PostAsJsonAsync(AgentsProtocol.Path, Tester, Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await As(api, "alice").DeleteAsync(AgentsProtocol.Role(twin.Key), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await As(api, "alice").PutAsJsonAsync(AgentsProtocol.Role("analyste"), new UpdateAgentRequest(Tester.Instructions, null), Ct)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Each_user_recruits_agents_of_their_own_that_nobody_else_sees()
+    {
+        await using var api = new ApiFactory();
+        var alice = As(api, "alice");
+        var bob = As(api, "bob");
+
+        // Depuis « Nouveau collègue » : un Analyste avec l'écriture en plus, sa consigne vide reprend celle du poste.
+        var created = await alice.PostAsJsonAsync(AgentsProtocol.Path,
+            new CreateAgentRequest("Analyste de Nora", "Agent personnel de Nora.", "", ["list_files", "read_file", "write_file"], BasedOn: "analyste"), Ct);
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var nora = (await created.Content.ReadFromJsonAsync<AgentDto>(Ct))!;
+        Assert.True(nora.Mine);
+        Assert.Contains("Analyste", nora.Instructions);
+
+        // Alice le voit, avec sa consigne ; Bob ne le voit pas ; l'administrateur le voit dans l'espace admin.
+        var hers = (await alice.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!.Single(a => a.Key == nora.Key);
+        Assert.True(hers.Mine);
+        Assert.NotEmpty(hers.Instructions);
+        Assert.Empty((await alice.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!.Single(a => a.Key == "analyste").Instructions);
+        Assert.DoesNotContain((await bob.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!, a => a.Key == nora.Key);
+        var root = As(api, "root", instanceAdmin: true);
+        Assert.DoesNotContain((await root.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!, a => a.Key == nora.Key);
+        Assert.Contains((await root.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path + "?all=true", Ct))!, a => a.Key == nora.Key);
+
+        // Elle le règle elle-même ; Bob ne peut ni le modifier, ni lancer une mission avec.
+        Assert.Equal(HttpStatusCode.NoContent,
+            (await alice.PutAsJsonAsync(AgentsProtocol.Profile(nora.Key), new UpdateAgentProfileRequest("Analyste de Nora", "Relit tout.", ["read_file"]), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await bob.PutAsJsonAsync(AgentsProtocol.Profile(nora.Key), new UpdateAgentProfileRequest("Pirate", "Pris par Bob.", ["read_file"]), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await bob.PostAsJsonAsync("/missions", new CreateMissionRequest("But", Agent: nora.Key), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, (await alice.PostAsJsonAsync("/missions", new CreateMissionRequest("But", Agent: nora.Key), Ct)).StatusCode);
     }
 
     [Fact]

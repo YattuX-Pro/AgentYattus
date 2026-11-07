@@ -13,10 +13,15 @@ public sealed record AgentDto(
     string Name, string Role, string Model, int MaxIterations, IReadOnlyList<ToolInfoDto> Tools,
     string Key = "", LlmSelectionDto? ModelOverride = null, AgentStatsDto? Stats = null,
     string Instructions = "", string DefaultInstructions = "", string Guardrails = "", int Version = 0, int? MaxIterationsOverride = null,
-    bool Builtin = true);
+    bool Builtin = true, bool Mine = false);
 
 /// <summary>Un agent créé dans l'admin (ADR 0013) : ses outils sont pris dans la liste existante.</summary>
-public sealed record CreateAgentRequest(string Name, string Summary, string Instructions, IReadOnlyList<string> Tools);
+/// <param name="Personal">Un agent à soi (depuis « Nouveau collègue ») : visible de son auteur seul. Toujours vrai pour un non-administrateur.</param>
+/// <param name="Model">Son modèle ; null : celui de l'instance.</param>
+/// <param name="BasedOn">Une consigne vide reprend celle de ce poste (un Analyste avec d'autres outils, par exemple).</param>
+public sealed record CreateAgentRequest(
+    string Name, string Summary, string Instructions, IReadOnlyList<string> Tools,
+    bool Personal = false, LlmSelectionDto? Model = null, string? BasedOn = null);
 
 public sealed record UpdateAgentProfileRequest(string Name, string Summary, IReadOnlyList<string> Tools);
 

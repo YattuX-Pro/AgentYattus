@@ -101,7 +101,7 @@ public sealed partial class ShellViewModel : ObservableObject
             Current = office;
             _api.Faces.Forget(project);
             _ = office.ReloadTeamAsync();
-            _ = Home.LoadCrewAsync();
+            _ = Home.LoadAsync(); // un nouvel agent à soi rejoint aussi la liste des agents
         };
         Current = recruit;
         await recruit.LoadAsync();
@@ -144,7 +144,7 @@ public sealed partial class ShellViewModel : ObservableObject
         recruit.Done += () =>
         {
             _api.Faces.Forget(project);
-            _ = Home.LoadCrewAsync();
+            _ = Home.LoadAsync(); // un nouvel agent à soi rejoint aussi la liste des agents
             back();
         };
         Current = recruit;

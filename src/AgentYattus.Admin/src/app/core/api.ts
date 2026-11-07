@@ -119,7 +119,7 @@ export class AdminApi {
   setDefault(selection: LlmSelection) { return this.send('PUT', '/llm/settings', { default: selection }); }
   setFree(enabled: boolean, chain: LlmSelection[]) { return this.send('PUT', '/llm/free', { enabled, chain }); }
 
-  agents() { return this.get<Agent[]>('/agents'); }
+  agents() { return this.get<Agent[]>('/agents?all=true'); }
   updateAgent(role: string, instructions: string | null, maxIterations: number | null) {
     return this.send('PUT', `/agents/${encodeURIComponent(role)}`, { instructions, maxIterations });
   }

@@ -5,6 +5,9 @@ public static class LlmProtocol
     public const string Path = "/llm";
     public const string Connections = "/llm/connections";
     public const string Models = "/llm/models";
+
+    /// <summary>Les modèles qu'un utilisateur peut donner à ses agents : ceux des connexions de l'instance, sans rien de secret.</summary>
+    public const string Choices = "/llm/choices";
     public const string Settings = "/llm/settings";
     public const string Free = "/llm/free";
 }

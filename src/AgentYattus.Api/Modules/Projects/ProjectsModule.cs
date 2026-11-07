@@ -47,8 +47,10 @@ public static class ProjectsModule
     {
         var projects = app.MapGroup(ProjectsProtocol.Path);
 
-        projects.MapGet("/", async (ICurrentUser me, IDirectory directory, ProjectsDb db, CancellationToken ct) =>
+        projects.MapGet("/", async (ICurrentUser me, IDirectory directory, ProjectsDb db, IProjectAccess access, CancellationToken ct) =>
         {
+            // Le projet personnel existe dès la première visite : son équipe s'affiche avant toute mission.
+            await access.PersonalProjectAsync(ct);
             var orgs = await directory.MembershipsAsync(me.Id, ct);
             var list = await ProjectAccess.Readable(db, me, orgs).OrderBy(p => p.Name).ToListAsync(ct);
             return TypedResults.Ok(await ToDtosAsync(db, directory, me, orgs, list, ct));

@@ -17,8 +17,23 @@ public sealed class ProjectsTests
         return (await response.Content.ReadFromJsonAsync<ProjectDto>(Ct))!;
     }
 
+    // Les projets partagés : chacun a aussi son projet personnel, créé à sa première visite (testé à part).
     private static async Task<ProjectDto[]> ListAsync(HttpClient client) =>
-        (await client.GetFromJsonAsync<ProjectDto[]>(ProjectsProtocol.Path, Ct))!;
+        [.. (await client.GetFromJsonAsync<ProjectDto[]>(ProjectsProtocol.Path, Ct))!.Where(p => !p.IsPersonalDefault)];
+
+    [Fact]
+    public async Task Everyone_has_a_personal_project_from_the_first_visit()
+    {
+        await using var api = new ApiFactory();
+        var alice = As(api, "alice");
+
+        var first = (await alice.GetFromJsonAsync<ProjectDto[]>(ProjectsProtocol.Path, Ct))!;
+        var again = (await alice.GetFromJsonAsync<ProjectDto[]>(ProjectsProtocol.Path, Ct))!;
+
+        var personal = Assert.Single(first, p => p.IsPersonalDefault);
+        Assert.Equal(personal.Id, Assert.Single(again, p => p.IsPersonalDefault).Id);
+        Assert.Equal(ProjectRole.Owner, personal.MyAccess);
+    }
 
     [Theory]
     // propriétaire, admin d'org, invité (projet partagé), invité (projet privé : ignoré), membre d'org (projet ouvert), admin d'instance, inconnu
