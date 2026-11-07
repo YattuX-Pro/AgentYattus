@@ -13,15 +13,15 @@
       <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Exécution</h2><span class="text-muted-foreground text-xs">par mission</span></div>
       <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
         <span><span class="block font-medium">Tours maximum</span><span class="text-muted-foreground text-xs">Au-delà, la réponse est forcée (limite-de-tours)</span></span>
-        <input hlmInput type="number" min="1" max="50" class="w-28" [value]="f.maxIterations" (input)="number('maxIterations', $any($event.target).value)" />
+        <input hlmInput type="number" min="1" max="50" class="w-28" placeholder="1 à 50" [value]="f.maxIterations" (input)="number('maxIterations', $any($event.target).value)" />
       </label>
       <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
         <span><span class="block font-medium">Durée maximum (min)</span><span class="text-muted-foreground text-xs">Au-delà, la mission est arrêtée et échoue</span></span>
-        <input hlmInput type="number" min="1" max="240" class="w-28" [value]="f.maxDurationMinutes" (input)="number('maxDurationMinutes', $any($event.target).value)" />
+        <input hlmInput type="number" min="1" max="240" class="w-28" placeholder="1 à 240" [value]="f.maxDurationMinutes" (input)="number('maxDurationMinutes', $any($event.target).value)" />
       </label>
       <label class="flex items-center justify-between gap-3 px-3.5 py-2.5">
         <span><span class="block font-medium">Missions simultanées</span><span class="text-muted-foreground text-xs">Places du worker ; une mission en attente d’approbation n’en prend pas</span></span>
-        <input hlmInput type="number" min="1" max="8" class="w-28" [value]="f.maxConcurrentMissions" (input)="number('maxConcurrentMissions', $any($event.target).value)" />
+        <input hlmInput type="number" min="1" max="8" class="w-28" placeholder="1 à 8" [value]="f.maxConcurrentMissions" (input)="number('maxConcurrentMissions', $any($event.target).value)" />
       </label>
     </section>
 
@@ -34,18 +34,18 @@
             <span class="text-muted-foreground text-xs">{{ b.monthlyBudget ? 'sur ' + usd(b.monthlyBudget) + ' · ' + spentPercent() + ' %' : 'aucun plafond' }}</span>
           </div>
           <div class="bg-muted h-1.5 overflow-hidden rounded-full border">
-            <div class="h-full rounded-full" [class.bg-primary]="!b.alert" [class.bg-warning]="b.alert && !b.reached" [class.bg-destructive]="b.reached" [style.width.%]="spentPercent()"></div>
+            <div class="ay-progress h-full rounded-full" [class.bg-primary]="!b.alert" [class.bg-warning]="b.alert && !b.reached" [class.bg-destructive]="b.reached" [style.width.%]="spentPercent()"></div>
           </div>
           <span class="text-muted-foreground text-xs">Estimation au prix du catalogue : la facture du fournisseur fait foi.</span>
         </div>
       }
       <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
         <span><span class="block font-medium">Plafond mensuel ($)</span><span class="text-muted-foreground text-xs">Vide : pas de plafond</span></span>
-        <input hlmInput inputmode="decimal" class="w-28" placeholder="aucun" [value]="budgetText()" (input)="budgetText.set($any($event.target).value)" />
+        <input hlmInput inputmode="decimal" class="w-28" placeholder="ex. 20 (vide : aucun)" [value]="budgetText()" (input)="budgetText.set($any($event.target).value)" />
       </label>
       <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
         <span><span class="block font-medium">Alerte (%)</span><span class="text-muted-foreground text-xs">La barre passe en laiton au-delà</span></span>
-        <input hlmInput type="number" min="1" max="100" class="w-28" [value]="f.budgetAlertPercent" (input)="number('budgetAlertPercent', $any($event.target).value)" />
+        <input hlmInput type="number" min="1" max="100" class="w-28" placeholder="ex. 80" [value]="f.budgetAlertPercent" (input)="number('budgetAlertPercent', $any($event.target).value)" />
       </label>
       <div class="flex items-center justify-between gap-3 px-3.5 py-2.5">
         <span><span class="block font-medium">Bloquer au plafond</span><span class="text-muted-foreground text-xs">Les missions payantes échouent ; les modèles gratuits restent permis</span></span>
@@ -57,11 +57,11 @@
       <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Espace de travail</h2><span class="text-muted-foreground text-xs">ce que lisent les agents</span></div>
       <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
         <span><span class="block font-medium">Taille max d’un fichier lu (Ko)</span><span class="text-muted-foreground text-xs">Au-delà, la lecture est refusée</span></span>
-        <input hlmInput type="number" min="16" max="4096" class="w-28" [value]="f.maxFileKb" (input)="number('maxFileKb', $any($event.target).value)" />
+        <input hlmInput type="number" min="16" max="4096" class="w-28" placeholder="16 à 4096" [value]="f.maxFileKb" (input)="number('maxFileKb', $any($event.target).value)" />
       </label>
       <label class="flex flex-col gap-2 px-3.5 py-2.5">
         <span><span class="block font-medium">Fichiers exclus</span><span class="text-muted-foreground text-xs">Un nom ou un motif par ligne (* et ?). Invisibles pour les agents, en lecture comme en écriture.</span></span>
-        <textarea hlmTextarea rows="6" class="font-mono text-xs" spellcheck="false" [value]="patterns()" (input)="patterns.set($any($event.target).value)"></textarea>
+        <textarea hlmTextarea rows="6" class="font-mono text-xs" spellcheck="false" placeholder=".env&#10;*.pem&#10;secrets.json" [value]="patterns()" (input)="patterns.set($any($event.target).value)"></textarea>
       </label>
     </section>
 
@@ -69,7 +69,7 @@
       <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Sécurité et serveur</h2><span class="text-muted-foreground text-xs">configuration</span></div>
       <label class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">
         <span><span class="block font-medium">Rétention de l’audit (jours)</span><span class="text-muted-foreground text-xs">Purge chaque jour ; 0 : tout garder</span></span>
-        <input hlmInput type="number" min="0" max="3650" class="w-28" [value]="f.auditRetentionDays" (input)="number('auditRetentionDays', $any($event.target).value)" />
+        <input hlmInput type="number" min="0" max="3650" class="w-28" placeholder="0 = tout garder" [value]="f.auditRetentionDays" (input)="number('auditRetentionDays', $any($event.target).value)" />
       </label>
       @if (loaded(); as l) {
         <div class="flex items-center justify-between gap-3 border-b px-3.5 py-2.5">

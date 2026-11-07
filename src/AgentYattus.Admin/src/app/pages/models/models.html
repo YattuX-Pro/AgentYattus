@@ -258,7 +258,7 @@
         }
         <div hlmField>
           <label hlmFieldLabel for="label">Nom</label>
-          <input hlmInput id="label" [value]="label()" (input)="label.set($any($event.target).value)" maxlength="80" />
+          <input hlmInput id="label" placeholder="ex. Mon compte OpenRouter" [value]="label()" (input)="label.set($any($event.target).value)" maxlength="80" />
         </div>
         @if (hasAddress()) {
           <div hlmField>
@@ -268,7 +268,7 @@
         }
         <div hlmField>
           <label hlmFieldLabel for="apiKey">Clé d'API{{ needsKey() ? '' : ' (facultative)' }}</label>
-          <input hlmInput id="apiKey" type="password" class="font-mono" autocomplete="off" spellcheck="false" [value]="apiKey()" (input)="apiKey.set($any($event.target).value)" />
+          <input hlmInput id="apiKey" type="password" placeholder="Collez la clé du fournisseur" class="font-mono" autocomplete="off" spellcheck="false" [value]="apiKey()" (input)="apiKey.set($any($event.target).value)" />
         </div>
         @if (connectError()) {
           <p class="text-destructive text-sm" role="alert">{{ connectError() }}</p>

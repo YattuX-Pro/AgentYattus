@@ -113,3 +113,114 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/*
+  Mouvement (le principe du projet : chaque clic et chaque changement de page répond par une transition douce).
+  - Une transition de base sur tout ce qui se clique : un survol ne « claque » jamais.
+  - Changement de page : seule la zone de la page change (fondu + glissement), le menu reste immobile.
+  - Ce qui apparaît (lignes, cartes, listes) entre en fondu, légèrement décalé, un élément après l'autre.
+  - prefers-reduced-motion : tout cela se coupe.
+*/
+@layer base {
+  a, button, [role='button'], [role='tab'], [role='radio'], [role='switch'], summary, label, input, textarea, select {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 160ms;
+    transition-timing-function: cubic-bezier(.2, .8, .2, 1);
+  }
+  button:not(:disabled):active, [role='button']:not([aria-disabled='true']):active {
+    transform: scale(.98);
+  }
+}
+
+@keyframes ay-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes ay-page-out {
+  to { opacity: 0; transform: translateY(-4px); }
+}
+
+@keyframes ay-page-in {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* Changement de page : transitions de vue (withViewTransitions dans app.config.ts). */
+.ay-page { view-transition-name: page; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+::view-transition-old(page) { animation: ay-page-out 140ms ease-in both; }
+::view-transition-new(page) { animation: ay-page-in 260ms cubic-bezier(.2, .8, .2, 1) both; }
+
+/* Ce qui entre dans une page : cartes, lignes de tableau, éléments de liste. Décalés de 25 ms, jusqu'au 12e. */
+.ay-page section, .ay-page [hlmCard], .ay-page tbody tr, .ay-page ol > li, .ay-page ul > li, .ay-enter {
+  animation: ay-enter 320ms cubic-bezier(.2, .8, .2, 1) both;
+}
+.ay-page tbody tr:nth-child(2), .ay-page ol > li:nth-child(2), .ay-page ul > li:nth-child(2), .ay-page section:nth-child(2) { animation-delay: 25ms; }
+.ay-page tbody tr:nth-child(3), .ay-page ol > li:nth-child(3), .ay-page ul > li:nth-child(3), .ay-page section:nth-child(3) { animation-delay: 50ms; }
+.ay-page tbody tr:nth-child(4), .ay-page ol > li:nth-child(4), .ay-page ul > li:nth-child(4), .ay-page section:nth-child(4) { animation-delay: 75ms; }
+.ay-page tbody tr:nth-child(5), .ay-page ol > li:nth-child(5), .ay-page ul > li:nth-child(5), .ay-page section:nth-child(5) { animation-delay: 100ms; }
+.ay-page tbody tr:nth-child(6), .ay-page ol > li:nth-child(6), .ay-page ul > li:nth-child(6), .ay-page section:nth-child(6) { animation-delay: 125ms; }
+.ay-page tbody tr:nth-child(7), .ay-page ol > li:nth-child(7), .ay-page ul > li:nth-child(7) { animation-delay: 150ms; }
+.ay-page tbody tr:nth-child(8), .ay-page ol > li:nth-child(8), .ay-page ul > li:nth-child(8) { animation-delay: 175ms; }
+.ay-page tbody tr:nth-child(9), .ay-page ol > li:nth-child(9), .ay-page ul > li:nth-child(9) { animation-delay: 200ms; }
+.ay-page tbody tr:nth-child(n + 10), .ay-page ol > li:nth-child(n + 10), .ay-page ul > li:nth-child(n + 10) { animation-delay: 225ms; }
+
+/* Barres de progression : leur largeur glisse au lieu de sauter. */
+.ay-progress { transition: width 600ms cubic-bezier(.2, .8, .2, 1), background-color 300ms; }
+
+/* Fil d'Ariane : le titre de la page entre à chaque changement. */
+.ay-crumb { animation: ay-enter 260ms cubic-bezier(.2, .8, .2, 1) both; }
+
+/* ---------- Menu latéral ---------- */
+.ay-logo {
+  background: radial-gradient(circle at 30% 25%, var(--primary-soft), transparent 70%), var(--muted);
+  box-shadow: inset 0 0 0 1px var(--border), 0 6px 18px -8px color-mix(in srgb, var(--primary) 60%, transparent);
+}
+.ay-logo::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 14px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
+  opacity: 0;
+  transform: scale(.9);
+  transition: opacity 300ms, transform 300ms cubic-bezier(.2, .8, .2, 1);
+}
+.ay-logo:hover::after { opacity: 1; transform: none; }
+
+.ay-fade-label { transition: opacity 200ms, transform 300ms cubic-bezier(.2, .8, .2, 1); white-space: nowrap; }
+.ay-fade-label.ay-hidden { opacity: 0; transform: translateX(-6px); pointer-events: none; width: 0; overflow: hidden; }
+
+.ay-item {
+  color: var(--muted-foreground);
+  animation: ay-enter 300ms cubic-bezier(.2, .8, .2, 1) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+.ay-item:hover { background: var(--sidebar-accent); color: var(--foreground); }
+.ay-item .ay-icon { transition: transform 250ms cubic-bezier(.2, .8, .2, 1), color 160ms; }
+.ay-item:hover .ay-icon { transform: translateX(2px); }
+.ay-item .ay-bar {
+  position: absolute;
+  left: -10px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--primary);
+  transform: scaleY(0);
+  transition: transform 300ms cubic-bezier(.2, .8, .2, 1);
+}
+.ay-item.ay-active { background: var(--primary-soft); color: var(--foreground); }
+.ay-item.ay-active .ay-icon { color: var(--primary); }
+.ay-item.ay-active .ay-bar { transform: scaleY(1); }
+
+.ay-user:hover { background: var(--sidebar-accent); }
+
+/* Barre de défilement du menu : discrète, visible au survol. */
+.ay-scroll { scrollbar-color: transparent transparent; }
+.ay-scroll:hover { scrollbar-color: var(--input) transparent; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; }
+  ::view-transition-old(page), ::view-transition-new(page) { animation: none; }
+}

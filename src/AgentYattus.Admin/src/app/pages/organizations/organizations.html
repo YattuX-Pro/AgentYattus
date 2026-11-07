@@ -41,7 +41,7 @@
       <form class="flex flex-col gap-3 border-b p-3.5" (submit)="$event.preventDefault(); save(org)">
         <div hlmField>
           <label hlmFieldLabel for="orgName">Nom</label>
-          <input hlmInput id="orgName" maxlength="80" [value]="name()" (input)="name.set($any($event.target).value)" />
+          <input hlmInput id="orgName" maxlength="80" placeholder="Nom de l’organisation" [value]="name()" (input)="name.set($any($event.target).value)" />
         </div>
         <div hlmField>
           <span hlmFieldLabel>Visibilité par défaut des nouveaux projets</span>
@@ -102,11 +102,11 @@
     <form class="flex flex-col gap-4" (submit)="$event.preventDefault(); create()">
       <div hlmField>
         <label hlmFieldLabel for="newOrgName">Nom</label>
-        <input hlmInput id="newOrgName" maxlength="80" [value]="newName()" (input)="typeName($any($event.target).value)" />
+        <input hlmInput id="newOrgName" maxlength="80" placeholder="ex. Équipe produit" [value]="newName()" (input)="typeName($any($event.target).value)" />
       </div>
       <div hlmField>
         <label hlmFieldLabel for="newOrgSlug">Identifiant</label>
-        <input hlmInput id="newOrgSlug" class="font-mono" maxlength="40" [value]="newSlug()" (input)="newSlug.set($any($event.target).value); slugEdited.set(true)" />
+        <input hlmInput id="newOrgSlug" class="font-mono" maxlength="40" placeholder="equipe-produit" [value]="newSlug()" (input)="newSlug.set($any($event.target).value); slugEdited.set(true)" />
       </div>
       @if (createError()) {
         <p class="text-destructive text-sm" role="alert">{{ createError() }}</p>

@@ -127,7 +127,7 @@
             <span class="font-medium">Consigne</span>
             <span class="num text-xs" [class.text-destructive]="!draftValid()" [class.text-muted-foreground]="draftValid()">{{ draft().length }} / 8 000</span>
           </span>
-          <textarea hlmTextarea rows="10" class="font-mono text-xs leading-relaxed" [value]="draft()" (input)="draft.set($any($event.target).value)"></textarea>
+          <textarea hlmTextarea rows="10" class="font-mono text-xs leading-relaxed" placeholder="Décrivez le rôle, le ton et les règles de l’agent…" [value]="draft()" (input)="draft.set($any($event.target).value)"></textarea>
         </label>
 
         <div class="flex flex-col gap-1.5">
@@ -138,7 +138,7 @@
 
         <label class="flex items-center justify-between gap-3">
           <span><span class="block font-medium">Tours maximum pour ce rôle</span><span class="text-muted-foreground text-xs">Vide : la limite de l’instance</span></span>
-          <input hlmInput type="number" min="1" max="50" class="w-28" placeholder="instance" [value]="maxTurns()" (input)="maxTurns.set($any($event.target).value)" />
+          <input hlmInput type="number" min="1" max="50" class="w-28" placeholder="Limite de l’instance" [value]="maxTurns()" (input)="maxTurns.set($any($event.target).value)" />
         </label>
 
         @if (changedFromOrigin()) {

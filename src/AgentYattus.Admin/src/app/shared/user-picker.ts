@@ -13,7 +13,7 @@ import { AdminApi, UserRef } from '../core/api';
   providers: [provideIcons({ lucideUserPlus })],
   host: { class: 'relative block' },
   template: `
-    <label class="bg-muted text-muted-foreground flex h-8 items-center gap-2 rounded-md border px-2.5">
+    <label class="bg-muted text-muted-foreground focus-within:ring-ring/40 focus-within:bg-background flex h-8 items-center gap-2 rounded-md border px-2.5 focus-within:ring-[3px]">
       <ng-icon name="lucideUserPlus" />
       <input
         class="text-foreground min-w-0 flex-1 bg-transparent outline-none"
@@ -25,7 +25,7 @@ import { AdminApi, UserRef } from '../core/api';
       />
     </label>
     @if (results().length) {
-      <div class="bg-popover absolute inset-x-0 top-9 z-10 flex flex-col rounded-md border p-1 shadow-md" role="listbox">
+      <div class="bg-popover animate-in fade-in-0 zoom-in-95 slide-in-from-top-1 absolute inset-x-0 top-9 z-10 flex flex-col rounded-md border p-1 shadow-md duration-150" role="listbox">
         @for (u of results(); track u.id) {
           <button type="button" role="option" class="hover:bg-accent flex items-center justify-between gap-2 rounded px-2 py-1.5 text-left" (click)="pick(u)">
             <span class="font-medium">{{ u.displayName ?? u.username }}</span>
@@ -34,7 +34,7 @@ import { AdminApi, UserRef } from '../core/api';
         }
       </div>
     } @else if (searched() && query().length >= 2) {
-      <p class="text-muted-foreground mt-1 text-xs">Personne trouvée. Le compte doit exister dans Keycloak et s'être connecté une fois.</p>
+      <p class="text-muted-foreground animate-in fade-in-0 mt-1 text-xs">Personne trouvée. Le compte doit exister dans Keycloak et s'être connecté une fois.</p>
     }
   `,
 })

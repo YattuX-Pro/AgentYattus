@@ -22,7 +22,7 @@
         }
         <span class="text-muted-foreground truncate text-xs">{{ k.hint }}</span>
         @if (k.bar !== undefined && k.bar !== null) {
-          <div class="bg-muted h-1 overflow-hidden rounded-full"><div class="h-full rounded-full" [class.bg-primary]="!k.warn" [class.bg-warning]="k.warn" [style.width.%]="k.bar"></div></div>
+          <div class="bg-muted h-1 overflow-hidden rounded-full"><div class="ay-progress h-full rounded-full" [class.bg-primary]="!k.warn" [class.bg-warning]="k.warn" [style.width.%]="k.bar"></div></div>
         }
       </div>
     }
@@ -113,7 +113,7 @@
             <span class="num text-muted-foreground text-xs">{{ u.share }} %</span>
           </div>
           <div class="bg-muted h-1.5 overflow-hidden rounded-full border">
-            <div class="bg-primary h-full rounded-full" [style.width.%]="u.share"></div>
+            <div class="ay-progress bg-primary h-full rounded-full" [style.width.%]="u.share"></div>
           </div>
         </div>
       } @empty {

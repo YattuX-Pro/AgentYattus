@@ -56,7 +56,7 @@ const KINDS = [
                 <tr hlmTr><td hlmTd colspan="4"><hlm-skeleton class="h-4 w-full" /></td></tr>
               }
             }
-            @for (r of shown(); track $index) {
+            @for (r of shown(); track r.at + r.missionId + r.type) {
               <tr hlmTr>
                 <td hlmTd class="text-muted-foreground num">{{ when(r.at) }}</td>
                 <td hlmTd><a class="text-primary hover:underline" [routerLink]="['/missions']" [queryParams]="{ q: r.missionId }">{{ r.missionId.slice(0, 8) }}</a></td>

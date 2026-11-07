@@ -48,7 +48,7 @@
           }
         }
         @for (m of shown(); track m.id) {
-          <tr hlmTr class="cursor-pointer" tabindex="0" (click)="open(m)" (keydown.enter)="open(m)">
+          <tr hlmTr class="group cursor-pointer" tabindex="0" (click)="open(m)" (keydown.enter)="open(m)">
             <td hlmTd class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }}</td>
             <td hlmTd class="max-w-[420px] truncate">{{ m.goal }}</td>
             <td hlmTd class="text-muted-foreground">{{ m.projectName ?? '—' }}</td>
@@ -58,7 +58,7 @@
             <td hlmTd class="num text-right">{{ tokens((m.inputTokens ?? 0) + (m.outputTokens ?? 0)) }}</td>
             <td hlmTd class="num text-right">{{ usd(m.cost) }}</td>
             <td hlmTd class="text-muted-foreground num">{{ when(m.createdAt) }}</td>
-            <td hlmTd class="text-muted-foreground text-right"><ng-icon name="lucideChevronRight" /></td>
+            <td hlmTd class="text-muted-foreground text-right"><ng-icon name="lucideChevronRight" class="transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-foreground" /></td>
           </tr>
         } @empty {
           @if (missions()) {

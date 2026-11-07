@@ -135,7 +135,7 @@
     <form class="flex flex-col gap-4" (submit)="$event.preventDefault(); create()">
       <div hlmField>
         <label hlmFieldLabel for="projectName">Nom</label>
-        <input hlmInput id="projectName" maxlength="80" [value]="newName()" (input)="newName.set($any($event.target).value)" />
+        <input hlmInput id="projectName" maxlength="80" placeholder="ex. Refonte du site client" [value]="newName()" (input)="newName.set($any($event.target).value)" />
       </div>
       <div hlmField>
         <span hlmFieldLabel>Espace</span>
