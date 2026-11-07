@@ -8,10 +8,17 @@ namespace AgentYattus.Contracts;
 /// <param name="DefaultInstructions">La consigne d'origine, écrite dans le code.</param>
 /// <param name="Guardrails">Ce que le code ajoute toujours à la fin, hors de portée de l'édition (ADR 0011).</param>
 /// <param name="MaxIterationsOverride">La limite propre au rôle ; null : celle de l'instance.</param>
+/// <param name="Builtin">Vrai pour l'Analyste et le Rédacteur (écrits dans le code) ; faux pour un agent créé dans l'admin (ADR 0013).</param>
 public sealed record AgentDto(
     string Name, string Role, string Model, int MaxIterations, IReadOnlyList<ToolInfoDto> Tools,
     string Key = "", LlmSelectionDto? ModelOverride = null, AgentStatsDto? Stats = null,
-    string Instructions = "", string DefaultInstructions = "", string Guardrails = "", int Version = 0, int? MaxIterationsOverride = null);
+    string Instructions = "", string DefaultInstructions = "", string Guardrails = "", int Version = 0, int? MaxIterationsOverride = null,
+    bool Builtin = true);
+
+/// <summary>Un agent créé dans l'admin (ADR 0013) : ses outils sont pris dans la liste existante.</summary>
+public sealed record CreateAgentRequest(string Name, string Summary, string Instructions, IReadOnlyList<string> Tools);
+
+public sealed record UpdateAgentProfileRequest(string Name, string Summary, IReadOnlyList<string> Tools);
 
 /// <param name="Instructions">Null : revenir à la consigne d'origine.</param>
 /// <param name="MaxIterations">Null : la limite de l'instance.</param>
@@ -36,6 +43,8 @@ public static class AgentsProtocol
     public static string Model(string role) => $"/agents/{role}/model";
 
     public static string Role(string role) => $"/agents/{role}";
+
+    public static string Profile(string role) => $"/agents/{role}/profile";
 
     public static string Versions(string role) => $"/agents/{role}/versions";
 }

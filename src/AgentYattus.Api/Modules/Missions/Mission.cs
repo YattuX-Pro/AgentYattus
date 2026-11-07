@@ -10,6 +10,9 @@ internal sealed class Mission
     public required string Goal { get; set; }
     public MissionStatus Status { get; set; }
     public MissionKind Kind { get; set; }
+
+    /// <summary>L'agent qui fait une mission « Question » (ADR 0013) ; null : l'Analyste.</summary>
+    public string? Agent { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public string? Result { get; set; }
 
@@ -35,7 +38,7 @@ internal sealed class Mission
     public MissionDto ToDto(string? projectName = null) => new(
         Id, Goal, Status, CreatedAt, Result,
         PendingApproval is null ? null : JsonSerializer.Deserialize<ApprovalDto>(PendingApproval, JsonSerializerOptions.Web),
-        Kind, ProjectId, projectName, CreatedByName, InputTokens, OutputTokens, CostMicros / 1_000_000m, RetryOf);
+        Kind, ProjectId, projectName, CreatedByName, InputTokens, OutputTokens, CostMicros / 1_000_000m, RetryOf, Agent);
 }
 
 internal sealed class MissionsDb(DbContextOptions<MissionsDb> options) : DbContext(options)
@@ -51,6 +54,7 @@ internal sealed class MissionsDb(DbContextOptions<MissionsDb> options) : DbConte
         modelBuilder.Entity<Mission>().Property(m => m.Kind).HasConversion<string>().HasDefaultValue(MissionKind.Question);
         modelBuilder.Entity<Mission>().Property(m => m.CreatedBy).HasMaxLength(64);
         modelBuilder.Entity<Mission>().Property(m => m.CreatedByName).HasMaxLength(100);
+        modelBuilder.Entity<Mission>().Property(m => m.Agent).HasMaxLength(40);
         modelBuilder.Entity<Mission>().HasIndex(m => m.ProjectId);
     }
 }

@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Llm;
 using AgentYattus.Api.Modules.Settings;
@@ -12,9 +13,10 @@ public interface IAgentRunner
     /// <param name="resume">La conversation mise en pause et la décision humaine, ou null pour un premier passage.</param>
     /// <param name="workspace">Le dossier de travail du projet ; null pour le dossier configuré (Agents:Workspace).</param>
     /// <param name="styles">Par rôle, la présentation du collègue (prénom, traits) à ajouter à la consigne (ADR 0012).</param>
+    /// <param name="agent">L'agent qui fait une mission « Question » (ADR 0013) ; null : l'Analyste.</param>
     Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
-        IReadOnlyDictionary<string, string>? styles, CancellationToken cancellationToken);
+        IReadOnlyDictionary<string, string>? styles, string? agent, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -40,8 +42,8 @@ public sealed record AgentResume(string Conversation, bool Approved);
 public static class AgentsModule
 {
     /// <summary>Les rôles qui travaillent sur une mission de ce type : ceux dont le modèle peut coûter.</summary>
-    public static IReadOnlyList<string> RolesFor(MissionKind kind) =>
-        kind == MissionKind.Review ? [AgentRoles.Analyst.Key, AgentRoles.Writer.Key] : [AgentRoles.Analyst.Key];
+    public static IReadOnlyList<string> RolesFor(MissionKind kind, string? agent = null) =>
+        kind == MissionKind.Review ? [AgentRoles.Analyst.Key, AgentRoles.Writer.Key] : [agent ?? AgentRoles.Analyst.Key];
 
     public static IServiceCollection AddAgentsModule(this IServiceCollection services, IConfiguration configuration)
     {
@@ -50,8 +52,40 @@ public static class AgentsModule
         return services
             .AddScoped<IAgentRunner, AgentFrameworkRunner>()
             .AddScoped<AgentDefinitions>()
+            .AddScoped<AgentCatalog>()
+            .AddScoped<IAgentCatalog>(sp => sp.GetRequiredService<AgentCatalog>())
             .AddModuleDb<AgentsDb>(AgentsDb.Schema);
     }
+
+    private static (string Name, string Summary, List<string> Tools) Clean(string? name, string? summary, IReadOnlyList<string>? tools) =>
+        ((name ?? "").Trim(), (summary ?? "").Trim(), [.. (tools ?? []).Select(t => (t ?? "").Trim()).Distinct()]);
+
+    private static Dictionary<string, string[]> Validate(string name, string summary, List<string> tools)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (name.Length is < 2 or > 40 || !name.All(c => char.IsLetterOrDigit(c) || c is ' ' or '\'' or '-'))
+            errors["name"] = ["De 2 à 40 caractères : lettres, chiffres, espaces, apostrophes et tirets."];
+        if (summary.Length is < 5 or > 200)
+            errors["summary"] = ["Une phrase de 5 à 200 caractères."];
+        var known = WorkspaceTools.Catalog.Select(t => t.Name).ToHashSet();
+        if (tools.Count == 0 || tools.Any(t => !known.Contains(t)))
+            errors["tools"] = [$"Au moins un outil, parmi : {string.Join(", ", known)}."];
+        return errors;
+    }
+
+    /// <summary>« Testeur de régression » donne « testeur-de-regression » : sans accents, en minuscules, 40 caractères au plus.</summary>
+    internal static string KeyFrom(string name)
+    {
+        var flat = new string(name.Normalize(System.Text.NormalizationForm.FormD)
+            .Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+            .Select(c => char.IsAsciiLetterOrDigit(c) ? char.ToLowerInvariant(c) : '-').ToArray());
+        var key = string.Join('-', flat.Split('-', StringSplitOptions.RemoveEmptyEntries));
+        key = key.Length > 40 ? key[..40].TrimEnd('-') : key;
+        return key.Length == 0 ? "agent" : key;
+    }
+
+    private static List<ToolInfoDto> ToolsOf(AgentRole role) =>
+        [.. WorkspaceTools.Catalog.Where(t => role.Tools.Contains(t.Name)).Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval))];
 
     /// <summary>Lit les événements « usage:rôle:entrée:sortie » (leçon 52) et en fait des statistiques par rôle.</summary>
     internal static Dictionary<string, AgentStatsDto> Stats(IEnumerable<string> usageEvents)
@@ -72,7 +106,7 @@ public static class AgentsModule
     {
         app.MapGet(AgentsProtocol.Path, async (
             IOptions<AgentsOptions> options, ILlmClientProvider llm, ILlmAgentModels models, AuditLog audit, AgentDefinitions definitions,
-            IInstanceSettings instance, HttpContext http, CancellationToken cancellationToken) =>
+            AgentCatalog catalog, IInstanceSettings instance, HttpContext http, CancellationToken cancellationToken) =>
         {
             // Les consignes (qui peuvent contenir des règles internes) et leur version : administrateurs seulement,
             // comme l'historique. Les autres voient le rôle, son modèle et ses outils.
@@ -80,7 +114,7 @@ public static class AgentsModule
             var stats = Stats(await audit.TypesStartingWithAsync("usage:", cancellationToken));
             var instanceMax = (await instance.GetAsync(cancellationToken)).MaxIterations ?? options.Value.MaxIterations;
             var agents = new List<AgentDto>();
-            foreach (var role in AgentRoles.All)
+            foreach (var role in await catalog.RolesAsync(cancellationToken))
             {
                 var current = await definitions.CurrentAsync(role.Key, cancellationToken);
                 agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, cancellationToken), current?.MaxIterations ?? instanceMax,
@@ -89,16 +123,16 @@ public static class AgentsModule
                         .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
                 ], role.Key, await models.GetAsync(role.Key, cancellationToken), stats.GetValueOrDefault(role.Key, new AgentStatsDto(0, 0, 0)),
                 admin ? current?.Instructions ?? role.Instructions : "", admin ? role.Instructions : "", admin ? AgentRoles.Guardrails(role) : "",
-                admin ? current?.Version ?? 0 : 0, admin ? current?.MaxIterations : null));
+                admin ? current?.Version ?? 0 : 0, admin ? current?.MaxIterations : null, role.Builtin));
             }
             return TypedResults.Ok(agents);
         });
 
         // Modifier la consigne ou la limite de tours d'un rôle (ADR 0011) : une nouvelle version, jamais un écrasement.
         app.MapPut("/agents/{role}", async Task<Results<NoContent, NotFound, ValidationProblem>> (
-            string role, UpdateAgentRequest request, AgentDefinitions definitions, HttpContext http, CancellationToken cancellationToken) =>
+            string role, UpdateAgentRequest request, AgentDefinitions definitions, AgentCatalog catalog, HttpContext http, CancellationToken cancellationToken) =>
         {
-            if (AgentRoles.All.FirstOrDefault(r => r.Key == role) is not { } agentRole)
+            if (await catalog.FindAsync(role, cancellationToken) is not { } agentRole)
                 return TypedResults.NotFound();
             var instructions = request.Instructions?.Trim();
             var errors = new Dictionary<string, string[]>();
@@ -116,8 +150,8 @@ public static class AgentsModule
         }).RequireAuthorization(Authentication.LlmAdminPolicy);
 
         app.MapGet("/agents/{role}/versions", async Task<Results<Ok<AgentVersionDto[]>, NotFound>> (
-            string role, AgentDefinitions definitions, CancellationToken cancellationToken) =>
-            AgentRoles.All.Any(r => r.Key == role)
+            string role, AgentDefinitions definitions, AgentCatalog catalog, CancellationToken cancellationToken) =>
+            await catalog.FindAsync(role, cancellationToken) is not null
                 ? TypedResults.Ok((await definitions.HistoryAsync(role, cancellationToken))
                     .Select(v => new AgentVersionDto(v.Version, v.Instructions, v.MaxIterations, v.CreatedAt, v.CreatedBy)).ToArray())
                 : TypedResults.NotFound())
@@ -125,13 +159,70 @@ public static class AgentsModule
 
         // Choisir le modèle d'un rôle : comme toute la gestion du LLM, réservé à llm-admin.
         app.MapPut("/agents/{role}/model", async Task<Results<NoContent, NotFound, ValidationProblem>> (
-            string role, UpdateAgentModelRequest request, ILlmAgentModels models, HttpContext http, CancellationToken cancellationToken) =>
+            string role, UpdateAgentModelRequest request, ILlmAgentModels models, AgentCatalog catalog, HttpContext http, CancellationToken cancellationToken) =>
         {
-            if (AgentRoles.All.All(r => r.Key != role))
+            if (await catalog.FindAsync(role, cancellationToken) is null)
                 return TypedResults.NotFound();
             return await models.SetAsync(role, request.Model, http.User.Identity?.Name ?? "?", cancellationToken) is { } error
                 ? TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["model"] = [error] })
                 : TypedResults.NoContent();
+        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+
+        // Ajouter un agent (ADR 0013) : outils pris dans la liste existante ; l'écriture garde l'accord humain (WorkspaceTools).
+        app.MapPost(AgentsProtocol.Path, async Task<Results<Created<AgentDto>, ValidationProblem>> (
+            CreateAgentRequest request, AgentsDb db, AgentCatalog catalog, ILlmClientProvider llm, HttpContext http, CancellationToken cancellationToken) =>
+        {
+            var (name, summary, tools) = Clean(request.Name, request.Summary, request.Tools);
+            var instructions = (request.Instructions ?? "").Trim();
+            var errors = Validate(name, summary, tools);
+            if (instructions.Length is < 20 or > 8000)
+                errors["instructions"] = ["La consigne fait entre 20 et 8 000 caractères."];
+            if (errors.Count > 0)
+                return TypedResults.ValidationProblem(errors);
+
+            // L'identifiant vient du nom et ne change plus ; un nom déjà pris (même retiré) reçoit un suffixe.
+            var taken = (await catalog.RolesAsync(cancellationToken, includeRetired: true)).Select(r => r.Key).ToHashSet();
+            var key = KeyFrom(name);
+            for (var n = 2; taken.Contains(key); n++)
+                key = $"{KeyFrom(name)[..Math.Min(36, KeyFrom(name).Length)]}-{n}";
+            var role = new CustomRole
+            {
+                Key = key, Name = name, Summary = summary, Instructions = instructions, Tools = string.Join(',', tools),
+                CreatedAt = DateTimeOffset.UtcNow, CreatedBy = http.User.Identity?.Name ?? "?",
+            };
+            db.CustomRoles.Add(role);
+            await db.SaveChangesAsync(cancellationToken);
+            var r = AgentCatalog.ToRole(role);
+            return TypedResults.Created(AgentsProtocol.Role(key), new AgentDto(
+                r.Name, r.Summary, await llm.GetModelAsync(key, cancellationToken), 0, ToolsOf(r), key, Instructions: r.Instructions,
+                DefaultInstructions: r.Instructions, Guardrails: AgentRoles.Guardrails(r), Builtin: false));
+        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+
+        app.MapPut("/agents/{role}/profile", async Task<Results<NoContent, NotFound, ValidationProblem>> (
+            string role, UpdateAgentProfileRequest request, AgentsDb db, CancellationToken cancellationToken) =>
+        {
+            // L'Analyste et le Rédacteur gardent nom et outils du code : seule leur consigne se modifie (ADR 0011).
+            if (await db.CustomRoles.FirstOrDefaultAsync(r => r.Key == role && r.Active, cancellationToken) is not { } custom)
+                return TypedResults.NotFound();
+            var (name, summary, tools) = Clean(request.Name, request.Summary, request.Tools);
+            var errors = Validate(name, summary, tools);
+            if (errors.Count > 0)
+                return TypedResults.ValidationProblem(errors);
+            custom.Name = name;
+            custom.Summary = summary;
+            custom.Tools = string.Join(',', tools);
+            await db.SaveChangesAsync(cancellationToken);
+            return TypedResults.NoContent();
+        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+
+        // Retirer : l'agent n'est plus proposé ; ses missions passées gardent son nom, une mission en pause peut finir.
+        app.MapDelete("/agents/{role}", async Task<Results<NoContent, NotFound>> (string role, AgentsDb db, CancellationToken cancellationToken) =>
+        {
+            if (await db.CustomRoles.FirstOrDefaultAsync(r => r.Key == role && r.Active, cancellationToken) is not { } custom)
+                return TypedResults.NotFound();
+            custom.Active = false;
+            await db.SaveChangesAsync(cancellationToken);
+            return TypedResults.NoContent();
         }).RequireAuthorization(Authentication.LlmAdminPolicy);
         return app;
     }

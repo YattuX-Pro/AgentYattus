@@ -33,14 +33,15 @@ internal sealed class AgentFrameworkRunner(
     ILlmClientProvider llm,
     ILlmPricing pricing,
     IInstanceSettings instance,
-    AgentDefinitions definitions) : IAgentRunner
+    AgentDefinitions definitions,
+    AgentCatalog catalog) : IAgentRunner
 {
     // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
 
     public async Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
-        IReadOnlyDictionary<string, string>? styles, CancellationToken cancellationToken)
+        IReadOnlyDictionary<string, string>? styles, string? agent, CancellationToken cancellationToken)
     {
         var settings = options.Value;
         // Les réglages de l'instance (admin › Réglages) l'emportent sur la configuration de départ (ADR 0010).
@@ -64,7 +65,8 @@ internal sealed class AgentFrameworkRunner(
         }
         else if (kind == MissionKind.Question)
         {
-            stage = new Stage(AgentRoles.Analyst.Key, [new ChatMessage(ChatRole.User, goal)], Findings: null);
+            // L'agent choisi au lancement (ADR 0013), sinon l'Analyste.
+            stage = new Stage(agent ?? AgentRoles.Analyst.Key, [new ChatMessage(ChatRole.User, goal)], Findings: null);
         }
         else
         {
@@ -80,7 +82,9 @@ internal sealed class AgentFrameworkRunner(
             stage = new Stage(AgentRoles.Writer.Key, [new ChatMessage(ChatRole.User, AgentRoles.Handoff(goal, findings))], findings);
         }
 
-        var role = AgentRoles.All.Single(r => r.Key == stage.Role);
+        // Même retiré entre-temps, l'agent d'une mission en pause la termine : la décision humaine reste possible.
+        var role = await catalog.FindAsync(stage.Role, cancellationToken)
+                   ?? throw new InvalidOperationException($"L'agent « {stage.Role} » n'existe plus.");
         var (response, roleUsage) = await RunRoleAsync(missionId, role, tools, instanceMax, stage.History, styles, cancellationToken);
         usage += roleUsage;
 

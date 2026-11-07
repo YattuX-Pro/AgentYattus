@@ -1,7 +1,10 @@
+using Microsoft.EntityFrameworkCore;
+
 namespace AgentYattus.Api.Modules.Agents;
 
 /// <summary>Un rôle d'agent : qui il est (ses instructions) et ce qu'il a le droit de faire (ses outils).</summary>
-internal sealed record AgentRole(string Key, string Name, string Summary, string Instructions, IReadOnlyList<string> Tools);
+/// <param name="Builtin">Vrai pour les rôles écrits dans le code ; faux pour un agent créé dans l'admin (ADR 0013).</param>
+internal sealed record AgentRole(string Key, string Name, string Summary, string Instructions, IReadOnlyList<string> Tools, bool Builtin = true);
 
 internal static class AgentRoles
 {
@@ -62,8 +65,29 @@ internal static class AgentRoles
         $"Objectif de la mission : {goal}\n\nConstats de l'Analyste :\n{findings}";
 }
 
-/// <summary>Les rôles qui existent, pour les autres modules (l'équipe d'un projet a un siège par rôle).</summary>
-public static class AgentCatalog
+/// <summary>Les agents qui existent, pour les autres modules : ceux du code et ceux créés dans l'admin (ADR 0013).</summary>
+public interface IAgentCatalog
 {
-    public static IReadOnlyList<string> RoleKeys { get; } = [.. AgentRoles.All.Select(r => r.Key)];
+    /// <summary>Les identifiants des agents proposés (ceux qu'on a retirés n'y sont plus).</summary>
+    Task<IReadOnlyList<string>> RoleKeysAsync(CancellationToken cancellationToken);
+}
+
+internal sealed class AgentCatalog(AgentsDb db) : IAgentCatalog
+{
+    public async Task<IReadOnlyList<string>> RoleKeysAsync(CancellationToken ct) => [.. (await RolesAsync(ct)).Select(r => r.Key)];
+
+    /// <summary>Les agents proposés : l'Analyste, le Rédacteur, puis les agents créés, dans l'ordre de création.</summary>
+    public async Task<List<AgentRole>> RolesAsync(CancellationToken ct, bool includeRetired = false)
+    {
+        var custom = await db.CustomRoles.AsNoTracking().Where(r => includeRetired || r.Active).ToListAsync(ct);
+        // Trié ici : SQLite (tests) ne sait pas trier les dates avec fuseau dans une requête.
+        return [.. AgentRoles.All, .. custom.OrderBy(r => r.CreatedAt).Select(ToRole)];
+    }
+
+    /// <summary>Un agent, même retiré : une mission en pause doit pouvoir reprendre avec le sien.</summary>
+    public async Task<AgentRole?> FindAsync(string key, CancellationToken ct) =>
+        AgentRoles.All.FirstOrDefault(r => r.Key == key)
+        ?? (await db.CustomRoles.AsNoTracking().FirstOrDefaultAsync(r => r.Key == key, ct) is { } c ? ToRole(c) : null);
+
+    internal static AgentRole ToRole(CustomRole c) => new(c.Key, c.Name, c.Summary, c.Instructions, c.ToolList, Builtin: false);
 }

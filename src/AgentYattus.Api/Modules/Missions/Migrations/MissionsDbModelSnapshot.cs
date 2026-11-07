@@ -29,6 +29,10 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Agent")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<Guid?>("ApprovalId")
                         .HasColumnType("uuid");
 

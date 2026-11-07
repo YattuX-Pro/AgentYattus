@@ -39,11 +39,32 @@ internal sealed class RoleVersion
     public required string CreatedBy { get; set; }
 }
 
+/// <summary>Un agent créé dans l'admin (ADR 0013). Retiré, il reste là : ses missions passées gardent son nom.</summary>
+internal sealed class CustomRole
+{
+    public required string Key { get; set; }
+    public required string Name { get; set; }
+    public required string Summary { get; set; }
+
+    /// <summary>La consigne d'origine ; ses versions suivantes vont dans RoleVersions, comme pour les rôles du code.</summary>
+    public required string Instructions { get; set; }
+
+    /// <summary>Les outils, séparés par des virgules, pris dans WorkspaceTools.Catalog.</summary>
+    public required string Tools { get; set; }
+
+    public bool Active { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public required string CreatedBy { get; set; }
+
+    public IReadOnlyList<string> ToolList => Tools.Split(',', StringSplitOptions.RemoveEmptyEntries);
+}
+
 internal sealed class AgentsDb(DbContextOptions<AgentsDb> options) : DbContext(options)
 {
     public const string Schema = "agents";
 
     public DbSet<RoleVersion> Versions => Set<RoleVersion>();
+    public DbSet<CustomRole> CustomRoles => Set<CustomRole>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -55,6 +76,16 @@ internal sealed class AgentsDb(DbContextOptions<AgentsDb> options) : DbContext(o
             e.Property(v => v.Instructions).HasMaxLength(8000);
             e.Property(v => v.CreatedBy).HasMaxLength(100);
             e.HasIndex(v => new { v.Role, v.Version }).IsUnique();
+        });
+        modelBuilder.Entity<CustomRole>(e =>
+        {
+            e.HasKey(r => r.Key);
+            e.Property(r => r.Key).HasMaxLength(40);
+            e.Property(r => r.Name).HasMaxLength(40);
+            e.Property(r => r.Summary).HasMaxLength(200);
+            e.Property(r => r.Instructions).HasMaxLength(8000);
+            e.Property(r => r.Tools).HasMaxLength(200);
+            e.Property(r => r.CreatedBy).HasMaxLength(100);
         });
     }
 }

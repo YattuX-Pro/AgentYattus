@@ -158,7 +158,7 @@ internal sealed class MissionRunner(
         var tuning = await instance.GetAsync(cancellationToken);
         if (tuning is { BlockAtBudget: true, MonthlyBudget: { } budget }
             && await MissionsModule.SpentThisMonthMicrosAsync(db, cancellationToken) >= budget * 1_000_000m
-            && await UsesPaidModelAsync(mission.Kind))
+            && await UsesPaidModelAsync(mission.Kind, mission.Agent))
         {
             await audit.AppendAsync(missionId, "budget:atteint", cancellationToken);
             mission.Result = $"Budget du mois atteint ({budget:0.##} $) : les modèles payants sont suspendus jusqu'au mois prochain. " +
@@ -181,7 +181,7 @@ internal sealed class MissionRunner(
         {
             // Le prénom et les traits de chaque collègue du projet entrent dans sa consigne (ADR 0012).
             var styles = mission.ProjectId is { } project ? await team.StylesAsync(project, limit.Token) : null;
-            var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, workspace, styles, limit.Token);
+            var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, workspace, styles, mission.Agent, limit.Token);
             if (outcome.Usage is { } usage)
             {
                 mission.InputTokens += usage.InputTokens;
@@ -220,9 +220,9 @@ internal sealed class MissionRunner(
         await SetStatusAsync(status);
 
         // « gratuit : … » : la chaîne gratuite ; sinon le prix du catalogue du modèle de chaque rôle.
-        async Task<bool> UsesPaidModelAsync(MissionKind kind)
+        async Task<bool> UsesPaidModelAsync(MissionKind kind, string? agentKey)
         {
-            foreach (var role in AgentsModule.RolesFor(kind))
+            foreach (var role in AgentsModule.RolesFor(kind, agentKey))
             {
                 var model = await llm.GetModelAsync(role, cancellationToken);
                 if (!model.StartsWith("gratuit", StringComparison.Ordinal) && pricing.IsPaid(model))

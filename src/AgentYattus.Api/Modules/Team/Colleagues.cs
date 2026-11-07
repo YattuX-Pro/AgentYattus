@@ -39,11 +39,11 @@ public static partial class TeamModule
     {
         // L'équipe d'un projet, telle que le bureau la joue. La première lecture installe l'équipe de départ.
         app.MapGet("/projects/{projectId:guid}/team", async Task<Results<Ok<ProjectTeamDto>, NotFound>> (
-            Guid projectId, TeamDb db, IProjectAccess access, IDirectory directory, CancellationToken ct) =>
+            Guid projectId, TeamDb db, IProjectAccess access, IDirectory directory, IAgentCatalog catalog, CancellationToken ct) =>
         {
             if (await access.AccessAsync(projectId, ct) is not { } role)
                 return TypedResults.NotFound();
-            await EnsureDefaultTeamAsync(db, projectId, ct);
+            await EnsureDefaultTeamAsync(db, projectId, await catalog.RoleKeysAsync(ct), ct);
             var settings = await SettingsAsync(db, ct);
             var colleagues = await db.Colleagues.AsNoTracking().Where(c => c.ProjectId == projectId && c.Active).ToListAsync(ct);
             return TypedResults.Ok(new ProjectTeamDto(
@@ -54,7 +54,8 @@ public static partial class TeamModule
 
         // Recruter : le droit de lancer des missions dans le projet. Le siège du rôle change de titulaire.
         app.MapPost("/projects/{projectId:guid}/colleagues", async Task<Results<Created<ColleagueDto>, NotFound, ForbidHttpResult, ValidationProblem>> (
-            Guid projectId, RecruitRequest request, TeamDb db, IProjectAccess access, ICurrentUser me, IDirectory directory, CancellationToken ct) =>
+            Guid projectId, RecruitRequest request, TeamDb db, IProjectAccess access, ICurrentUser me, IDirectory directory, IAgentCatalog catalog,
+            CancellationToken ct) =>
         {
             switch (await access.AccessAsync(projectId, ct))
             {
@@ -66,8 +67,9 @@ public static partial class TeamModule
             var traitKeys = (request.Traits ?? []).Select(t => (t ?? "").Trim()).Distinct().ToList();
             var knownTraits = (await TraitsAsync(db, ct)).Select(t => t.Key).ToHashSet();
             var errors = new Dictionary<string, string[]>();
-            if (request.Role is null || !AgentCatalog.RoleKeys.Contains(request.Role))
-                errors["role"] = [$"Rôle inconnu. Rôles : {string.Join(", ", AgentCatalog.RoleKeys)}."];
+            var roles = await catalog.RoleKeysAsync(ct);
+            if (request.Role is null || !roles.Contains(request.Role))
+                errors["role"] = [$"Rôle inconnu. Rôles : {string.Join(", ", roles)}."];
             if (!ValidName(name))
                 errors["name"] = ["De 1 à 24 caractères : lettres, espaces, apostrophes et tirets."];
             if (traitKeys.Count > 5 || traitKeys.Any(k => !knownTraits.Contains(k)))
@@ -77,7 +79,7 @@ public static partial class TeamModule
             if (errors.Count > 0)
                 return TypedResults.ValidationProblem(errors);
 
-            await EnsureDefaultTeamAsync(db, projectId, ct);
+            await EnsureDefaultTeamAsync(db, projectId, roles, ct);
             var now = DateTimeOffset.UtcNow;
             foreach (var previous in await db.Colleagues.Where(c => c.ProjectId == projectId && c.Role == request.Role && c.Active).ToListAsync(ct))
             {
@@ -136,14 +138,14 @@ public static partial class TeamModule
     /// Un projet qui n'a jamais eu d'équipe reçoit l'équipe de départ (réglée dans l'admin). Un projet dont on a
     /// retiré tous les collègues n'en reçoit pas une nouvelle : il a déjà eu une équipe.
     /// </summary>
-    private static async Task EnsureDefaultTeamAsync(TeamDb db, Guid projectId, CancellationToken ct)
+    private static async Task EnsureDefaultTeamAsync(TeamDb db, Guid projectId, IReadOnlyList<string> roles, CancellationToken ct)
     {
         if (await db.Colleagues.AnyAsync(c => c.ProjectId == projectId, ct))
             return;
         var seats = (await SettingsAsync(db, ct)).DefaultTeam;
         var active = await db.Portraits.Where(p => p.Active).Select(p => p.Id).ToListAsync(ct);
         var now = DateTimeOffset.UtcNow;
-        foreach (var seat in seats.Where(s => active.Contains(s.PortraitId) && AgentCatalog.RoleKeys.Contains(s.Role)))
+        foreach (var seat in seats.Where(s => active.Contains(s.PortraitId) && roles.Contains(s.Role)))
             db.Colleagues.Add(new Colleague
             {
                 Id = Guid.CreateVersion7(), ProjectId = projectId, Role = seat.Role, PortraitId = seat.PortraitId, Name = seat.Name,

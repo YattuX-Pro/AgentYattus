@@ -118,7 +118,7 @@ public static partial class TeamModule
         app.MapGet(TeamProtocol.Settings, async (TeamDb db, CancellationToken ct) => TypedResults.Ok(await SettingsAsync(db, ct)));
 
         app.MapPut(TeamProtocol.Settings, async Task<Results<NoContent, ValidationProblem>> (
-            TeamSettingsDto request, TeamDb db, ICurrentUser me, CancellationToken ct) =>
+            TeamSettingsDto request, TeamDb db, ICurrentUser me, IAgentCatalog catalog, CancellationToken ct) =>
         {
             var errors = new Dictionary<string, string[]>();
             var leaderName = (request.LeaderName ?? "").Trim();
@@ -129,7 +129,7 @@ public static partial class TeamModule
                 errors["typingMs"] = ["Entre 5 et 200 ms par lettre."];
             if (request.PauseMs is < 300 or > 10_000)
                 errors["pauseMs"] = ["Entre 300 et 10 000 ms."];
-            var roles = AgentCatalog.RoleKeys;
+            var roles = await catalog.RoleKeysAsync(ct);
             var portraitIds = new[] { request.LeaderPortraitId, request.ManagerPortraitId }.OfType<Guid>()
                 .Concat(defaultTeam.Select(s => s.PortraitId)).Distinct().ToList();
             var known = await db.Portraits.Where(p => portraitIds.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct);

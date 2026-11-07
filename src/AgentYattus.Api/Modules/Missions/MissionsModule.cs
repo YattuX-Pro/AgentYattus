@@ -1,3 +1,4 @@
+using AgentYattus.Api.Modules.Agents;
 using AgentYattus.Api.Modules.Audit;
 using AgentYattus.Api.Modules.Identity;
 using AgentYattus.Api.Modules.Settings;
@@ -44,12 +45,19 @@ public static class MissionsModule
 
     private static async Task<Results<Accepted<MissionDto>, ValidationProblem, NotFound, ForbidHttpResult>> CreateAsync(
         CreateMissionRequest request, MissionsDb db, MissionQueue queue, ICurrentUser me, IProjectAccess projects,
-        IProjectDirectory directory, CancellationToken cancellationToken)
+        IProjectDirectory directory, IAgentCatalog agents, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Goal) || request.Goal.Length > MaxGoalLength)
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
                 ["goal"] = [$"Le but est obligatoire et fait au plus {MaxGoalLength} caractères."],
+            });
+        // L'agent choisi (ADR 0013) : pour une Question seulement, et parmi ceux qui sont proposés.
+        var agent = string.IsNullOrWhiteSpace(request.Agent) ? null : request.Agent.Trim();
+        if (agent is not null && (request.Kind != MissionKind.Question || !(await agents.RoleKeysAsync(cancellationToken)).Contains(agent)))
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["agent"] = ["Un agent se choisit pour une mission Question, parmi ceux proposés."],
             });
 
         // Sans projet précisé (le bureau d'aujourd'hui) : le projet personnel de l'auteur.
@@ -68,6 +76,7 @@ public static class MissionsModule
             Goal = request.Goal.Trim(),
             Status = MissionStatus.Pending,
             Kind = request.Kind,
+            Agent = agent,
             CreatedAt = DateTimeOffset.UtcNow,
             ProjectId = projectId,
             CreatedBy = me.Id,
@@ -231,6 +240,7 @@ public static class MissionsModule
             Id = Guid.CreateVersion7(),
             Goal = original.Goal,
             Kind = original.Kind,
+            Agent = original.Agent,
             Status = MissionStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow,
             ProjectId = projectId,
