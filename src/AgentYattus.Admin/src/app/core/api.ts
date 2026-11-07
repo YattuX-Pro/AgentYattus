@@ -69,6 +69,18 @@ export interface Project {
   members: ProjectMember[]; createdAt: string;
 }
 export interface AuditEntry { type: string; at: string }
+
+// Les collègues (ADR 0012) : galerie, traits, répliques, réglages de la scène, équipes des projets.
+export interface Portrait { id: string; slug: string; suggestedName: string; active: boolean; hasTalk: boolean; workUrl: string; talkUrl: string }
+export interface Trait { key: string; label: string; style: string }
+export interface SceneLine { event: string; description: string; speaker: string; template: string; variables: string[]; isDefault: boolean }
+export interface DefaultSeat { role: string; portraitId: string; name: string }
+export interface TeamSettings { leaderPortraitId: string | null; leaderName: string; managerPortraitId: string | null; defaultTeam: DefaultSeat[]; typingMs: number; pauseMs: number }
+export interface Colleague {
+  id: string; projectId: string; role: string; portraitId: string; name: string; traits: string[];
+  recruitedBy: UserRef | null; recruitedAt: string; active: boolean; removedAt: string | null;
+}
+export interface ColleagueEntry { colleague: Colleague; projectName: string }
 export interface AuditFeedEntry { missionId: string; type: string; at: string }
 
 /** Un modèle choisi s'identifie par sa connexion et son nom. */
@@ -141,6 +153,27 @@ export class AdminApi {
   setProjectMember(id: string, userId: string, role: ProjectRole) { return this.send('PUT', `/projects/${id}/members/${encodeURIComponent(userId)}`, { role }); }
   removeProjectMember(id: string, userId: string) { return this.send('DELETE', `/projects/${id}/members/${encodeURIComponent(userId)}`); }
   setWorkspace(id: string, path: string | null) { return this.send('PUT', `/projects/${id}/workspace`, { path }); }
+
+  portraits(all = false) { return this.get<Portrait[]>(`/team/portraits${all ? '?all=true' : ''}`); }
+  /** Un portrait : deux poses envoyées en multipart (le serveur vérifie la signature des fichiers). */
+  addPortrait(slug: string, name: string, work: File, talk: File | null) {
+    const form = new FormData();
+    form.append('slug', slug);
+    form.append('name', name);
+    form.append('travail', work);
+    if (talk) form.append('parle', talk);
+    return firstValueFrom(this.http.post<Portrait>('/api/team/portraits', form));
+  }
+  updatePortrait(id: string, suggestedName: string, active: boolean) { return this.send('PUT', `/team/portraits/${id}`, { suggestedName, active }); }
+  deletePortrait(id: string) { return this.send('DELETE', `/team/portraits/${id}`); }
+  traits() { return this.get<Trait[]>('/team/traits'); }
+  saveTraits(traits: Trait[]) { return this.send('PUT', '/team/traits', { traits }); }
+  lines() { return this.get<SceneLine[]>('/team/lines'); }
+  saveLines(templates: Record<string, string | null>) { return this.send('PUT', '/team/lines', { templates }); }
+  teamSettings() { return this.get<TeamSettings>('/team/settings'); }
+  saveTeamSettings(settings: TeamSettings) { return this.send('PUT', '/team/settings', settings); }
+  colleagues() { return this.get<ColleagueEntry[]>('/team/colleagues'); }
+  removeColleague(projectId: string, id: string) { return this.send('DELETE', `/projects/${projectId}/colleagues/${id}`); }
 }
 
 export const VISIBILITY: Record<ProjectVisibility, { label: string; hint: string }> = {

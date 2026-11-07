@@ -24,6 +24,7 @@ export const NAV: NavGroup[] = [
     items: [
       { path: '/agents', label: 'Agents', icon: 'lucideBot' },
       { path: '/modeles', label: 'Modèles', icon: 'lucideCpu' },
+      { path: '/portraits', label: 'Portraits', icon: 'lucideImages' },
     ],
   },
   {

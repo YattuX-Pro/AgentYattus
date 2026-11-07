@@ -19,6 +19,7 @@ export const routes: Routes = [
       { path: 'organisations', loadComponent: () => import('./pages/organizations/organizations').then((m) => m.Organizations) },
       { path: 'utilisateurs', loadComponent: () => import('./pages/users/users').then((m) => m.Users) },
       { path: 'reglages', loadComponent: () => import('./pages/settings/settings').then((m) => m.Settings) },
+      { path: 'portraits', loadComponent: () => import('./pages/portraits/portraits').then((m) => m.Portraits) },
       { path: 'modeles', loadComponent: () => import('./pages/models/models').then((m) => m.Models) },
     ],
   },

@@ -1,0 +1,93 @@
+<app-page-header title="Portraits" description="Les visages proposés quand on recrute un collègue. Chacun a une pose « travaille » et une pose « parle ».">
+  <label class="bg-muted text-muted-foreground focus-within:ring-ring/40 focus-within:bg-background flex h-9 w-56 items-center gap-2 rounded-lg border px-2.5 focus-within:ring-[3px]">
+    <ng-icon name="lucideSearch" />
+    <input class="text-foreground min-w-0 flex-1 bg-transparent outline-none" placeholder="Chercher un prénom…" aria-label="Chercher un portrait" [value]="query()" (input)="query.set($any($event.target).value)" />
+  </label>
+  <button hlmBtn (click)="openAdd()"><ng-icon name="lucideImagePlus" /> Ajouter un portrait</button>
+</app-page-header>
+
+@if (portraits(); as list) {
+  <p class="text-muted-foreground mb-3 text-xs">{{ activeCount() }} proposés au recrutement sur {{ list.length }}. Survolez un visage pour voir sa pose « parle ».</p>
+  <ul class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+    @for (p of shown(); track p.id) {
+      <li class="bg-card group overflow-hidden rounded-2xl border transition-[box-shadow,transform,opacity] duration-300 hover:-translate-y-0.5 hover:shadow-lg" [class.opacity-55]="!p.active">
+        <div class="bg-muted relative aspect-square overflow-hidden">
+          <img [src]="url(p.workUrl)" [alt]="'Portrait de ' + p.suggestedName" loading="lazy" class="absolute inset-0 size-full object-cover transition-[opacity,transform] duration-500 group-hover:scale-[1.04]" [class.group-hover:opacity-0]="p.hasTalk" />
+          @if (p.hasTalk) {
+            <img [src]="url(p.talkUrl)" alt="" loading="lazy" class="absolute inset-0 size-full scale-[1.04] object-cover opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
+          }
+          <span class="bg-background/80 text-muted-foreground absolute top-2 left-2 rounded-md px-1.5 py-0.5 font-mono text-[10px] backdrop-blur">{{ p.slug }}</span>
+        </div>
+        <div class="flex flex-col gap-2 p-2.5">
+          <input
+            hlmInput
+            class="h-8"
+            maxlength="24"
+            placeholder="Prénom suggéré"
+            [attr.aria-label]="'Prénom suggéré pour ' + p.slug"
+            [value]="p.suggestedName"
+            (change)="rename(p, $any($event.target).value)"
+          />
+          <div class="flex items-center justify-between gap-2">
+            <label class="text-muted-foreground flex items-center gap-2 text-xs">
+              <hlm-switch [checked]="p.active" (checkedChange)="update(p, p.suggestedName, $event)" [attr.aria-label]="'Proposer ' + p.suggestedName" />
+              {{ p.active ? 'Proposé' : 'Masqué' }}
+            </label>
+            <button hlmBtn variant="ghost" size="icon-sm" (click)="remove(p)" [attr.aria-label]="'Retirer ' + p.suggestedName">
+              <ng-icon name="lucideTrash2" />
+            </button>
+          </div>
+        </div>
+      </li>
+    } @empty {
+      <li class="text-muted-foreground col-span-full py-10 text-center">Aucun portrait ne correspond.</li>
+    }
+  </ul>
+} @else {
+  <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+    @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+      <hlm-skeleton class="aspect-[3/4] w-full rounded-2xl" />
+    }
+  </div>
+}
+
+<hlm-dialog [state]="addState()" (closed)="addState.set('closed')">
+  <hlm-dialog-content *hlmDialogPortal="let ctx" class="sm:max-w-lg">
+    <hlm-dialog-header>
+      <h3 hlmDialogTitle>Nouveau portrait</h3>
+      <p hlmDialogDescription>PNG ou WebP, 2 Mo au plus par pose, fond transparent de préférence.</p>
+    </hlm-dialog-header>
+    <form class="flex flex-col gap-4" (submit)="$event.preventDefault(); add()">
+      <div class="grid grid-cols-2 gap-3">
+        <div hlmField>
+          <label hlmFieldLabel for="portraitName">Prénom suggéré</label>
+          <input hlmInput id="portraitName" maxlength="24" placeholder="ex. Nora" [value]="newName()" (input)="typeName($any($event.target).value)" />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="portraitSlug">Identifiant</label>
+          <input hlmInput id="portraitSlug" class="font-mono" maxlength="40" placeholder="nora" [value]="newSlug()" (input)="newSlug.set($any($event.target).value); slugEdited.set(true)" />
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        @for (pose of ['travail', 'parle']; track pose) {
+          @let preview = pose === 'travail' ? workPreview() : talkPreview();
+          <label class="hover:border-primary/60 bg-muted/40 relative grid aspect-square cursor-pointer place-items-center overflow-hidden rounded-xl border border-dashed text-center">
+            @if (preview) {
+              <img [src]="preview" alt="" class="animate-in fade-in-0 zoom-in-95 absolute inset-0 size-full object-cover duration-300" />
+            } @else {
+              <span class="text-muted-foreground flex flex-col items-center gap-1.5 px-3 text-xs">
+                <ng-icon name="lucideImagePlus" class="text-lg" />
+                Pose « {{ pose === 'travail' ? 'travaille' : 'parle' }} »{{ pose === 'parle' ? ' (facultative)' : '' }}
+              </span>
+            }
+            <input type="file" accept="image/png,image/webp" class="sr-only" (change)="pick($any(pose), $any($event.target).files?.[0] ?? null)" />
+          </label>
+        }
+      </div>
+      <hlm-dialog-footer>
+        <button hlmBtn type="button" variant="outline" (click)="addState.set('closed')">Annuler</button>
+        <button hlmBtn type="submit" [disabled]="!work() || newName().trim().length < 1 || newSlug().trim().length < 1 || busy()">Ajouter</button>
+      </hlm-dialog-footer>
+    </form>
+  </hlm-dialog-content>
+</hlm-dialog>
