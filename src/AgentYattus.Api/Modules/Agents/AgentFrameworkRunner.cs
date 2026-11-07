@@ -136,7 +136,11 @@ internal sealed class AgentFrameworkRunner(
             if (calls.Count > 0)
                 toolTurns++;
             foreach (var call in calls)
+            {
                 await audit.AppendAsync(missionId, $"outil:{call.Name}", cancellationToken);
+                // Qui a fait quoi, sur quel fichier : de quoi faire parler le bon collègue dans le bureau (ADR 0012).
+                await audit.AppendAsync(missionId, ActionEvent(role.Key, call), cancellationToken);
+            }
         }
 
         // Le framework ne signale pas la limite : il rappelle le modèle sans outils pour forcer une réponse.
@@ -150,6 +154,21 @@ internal sealed class AgentFrameworkRunner(
         var output = response.Usage?.OutputTokenCount ?? 0;
         await audit.AppendAsync(missionId, $"usage:{role.Key}:{input}:{output}", cancellationToken);
         return (response, new AgentUsage(input, output, pricing.CostMicros(client.Model, input, output)));
+    }
+
+    /// <summary>
+    /// « action:analyste:read_file:src/Api.cs » : le rôle, l'outil et le chemin visé. Seulement le chemin, jamais le
+    /// contenu (celui de write_file reste dans la mission) ; les caractères invisibles sont retirés et la longueur bornée.
+    /// </summary>
+    internal static string ActionEvent(string role, FunctionCallContent call)
+    {
+        var target = call.Arguments?.TryGetValue("path", out var value) == true ? value?.ToString() ?? "" : "";
+        var clean = new string(target.Where(c => !char.IsControl(c) && char.GetUnicodeCategory(c) is not System.Globalization.UnicodeCategory.Format).ToArray()).Trim();
+        if (clean.Length == 0)
+            clean = ".";
+        if (clean.Length > 120)
+            clean = "…" + clean[^119..];
+        return $"action:{role}:{call.Name}:{clean}";
     }
 
     // On ajoute la décision humaine à chaque demande encore sans réponse.

@@ -11,7 +11,7 @@ import { HlmSheetImports } from '@spartan-ng/helm/sheet';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { AdminApi, AuditEntry, Mission, errorMessage } from '../../core/api';
-import { STATUS, argumentsOf, describe } from '../../core/events';
+import { STATUS, argumentsOf, describe, timeline } from '../../core/events';
 import { LiveService } from '../../core/live';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime } from 'rxjs';
@@ -93,7 +93,7 @@ export class Missions {
     try {
       const [fresh, events] = await Promise.all([this.api.mission(mission.id), this.api.events(mission.id)]);
       this.selected.set(fresh);
-      this.events.set(events);
+      this.events.set(timeline(events));
       setTimeout(() => this.checkRead(), 0);
     } catch (e) {
       toast.error(errorMessage(e));
@@ -140,7 +140,7 @@ export class Missions {
       if (this.selected()?.id !== id) return;
       if (fresh.pendingApproval?.id !== this.selected()?.pendingApproval?.id) this.readAll.set(false);
       this.selected.set(fresh);
-      this.events.set(events);
+      this.events.set(timeline(events));
       setTimeout(() => this.checkRead(), 0);
     } catch {
       // Le prochain événement réessaiera.

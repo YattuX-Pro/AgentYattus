@@ -35,7 +35,7 @@ public sealed class AgentRunnerTests
 
         Assert.Equal(MissionStatus.Completed, await client.WaitForFinalStatusAsync(mission.Id));
         Assert.Equal("Un fichier : a.txt.", (await client.GetFromJsonAsync<MissionDto>($"/missions/{mission.Id}", TestContext.Current.CancellationToken))!.Result);
-        Assert.Equal(["Running", "modele:claude-haiku-5-5", "outil:list_files", "usage:analyste:0:0", "Completed"], await api.AuditOfAsync(mission.Id));
+        Assert.Equal(["Running", "modele:claude-haiku-5-5", "outil:list_files", "action:analyste:list_files:.", "usage:analyste:0:0", "Completed"], await api.AuditOfAsync(mission.Id));
         Assert.Equal("Que contient le workspace ?", model.Requests[0].Last().Text);
         Assert.Contains("a.txt", model.Requests[1].SelectMany(m => m.Contents).OfType<Microsoft.Extensions.AI.FunctionResultContent>()
             .Single().Result?.ToString());
@@ -51,7 +51,7 @@ public sealed class AgentRunnerTests
         var mission = await client.CreateMissionAsync("Explore tout");
 
         Assert.Equal(MissionStatus.Completed, await client.WaitForFinalStatusAsync(mission.Id));
-        Assert.Equal(["Running", "modele:claude-haiku-5-5", "outil:list_files", "limite-de-tours", "usage:analyste:0:0", "Completed"], await api.AuditOfAsync(mission.Id));
+        Assert.Equal(["Running", "modele:claude-haiku-5-5", "outil:list_files", "action:analyste:list_files:.", "limite-de-tours", "usage:analyste:0:0", "Completed"], await api.AuditOfAsync(mission.Id));
     }
 
     [Fact]
@@ -76,5 +76,18 @@ public sealed class AgentRunnerTests
 
         Assert.Equal(MissionStatus.Failed, await client.WaitForFinalStatusAsync(mission.Id));
         Assert.Empty(model.Requests);
+    }
+
+    [Fact]
+    public void The_action_event_keeps_only_a_clean_bounded_path()
+    {
+        string Event(object? path) => AgentYattus.Api.Modules.Agents.AgentFrameworkRunner.ActionEvent("analyste",
+            new Microsoft.Extensions.AI.FunctionCallContent("c", "read_file", path is null ? null : new Dictionary<string, object?> { ["path"] = path }));
+
+        Assert.Equal("action:analyste:read_file:src/Api.cs", Event("src/Api.cs"));
+        // Un retour à la ligne ou un caractère invisible ne peut pas fabriquer une seconde ligne de journal.
+        Assert.Equal("action:analyste:read_file:a.txtfaux", Event("a.txt\n\u200Bfaux"));
+        Assert.Equal("action:analyste:read_file:.", Event(null));
+        Assert.Equal(120, Event(new string('x', 500))["action:analyste:read_file:".Length..].Length);
     }
 }

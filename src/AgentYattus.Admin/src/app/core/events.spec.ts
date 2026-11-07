@@ -1,4 +1,4 @@
-import { argumentsOf, describe as describeEvent, reveal } from './events';
+import { timeline, argumentsOf, describe as describeEvent, reveal } from './events';
 
 describe('événements du journal', () => {
   it('traduit les événements connus', () => {
@@ -24,3 +24,13 @@ describe('événements du journal', () => {
     expect(argumentsOf('pas du json')).toEqual([{ name: 'arguments', value: 'pas du json' }]);
   });
 });
+
+describe('déroulé', () => {
+  it('décrit qui a utilisé quel outil, et cache la ligne « outil » redondante', () => {
+    expect(describeEvent('action:analyste:read_file:src/a:b.cs').detail).toBe('read_file · src/a:b.cs · analyste');
+    const events = [{ type: 'outil:read_file' }, { type: 'action:analyste:read_file:a.cs' }, { type: 'Completed' }];
+    expect(timeline(events).map((e) => e.type)).toEqual(['action:analyste:read_file:a.cs', 'Completed']);
+    expect(timeline([{ type: 'outil:read_file' }]).map((e) => e.type)).toEqual(['outil:read_file']);
+  });
+});
+

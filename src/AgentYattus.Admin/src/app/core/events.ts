@@ -26,6 +26,11 @@ export function describe(type: string): EventView {
   switch (kind) {
     case 'modele': return { kind, label: 'Modèle', detail, tone: 'secondary' };
     case 'outil': return { kind, label: 'Outil', detail, tone: 'success' };
+    case 'action': {
+      // « action:analyste:read_file:src/Api.cs » : qui a utilisé quel outil, sur quel chemin (ADR 0012).
+      const [role, tool, ...path] = detail.split(':');
+      return { kind: 'outil', label: 'Outil', detail: `${tool} · ${path.join(':')} · ${role}`, tone: 'success' };
+    }
     case 'bascule': return { kind, label: 'Quota épuisé, bascule', detail, tone: 'warning' };
     case 'decision':
       return detail === 'approuvee'
@@ -44,6 +49,14 @@ export function describe(type: string): EventView {
     return { kind: 'statut', label: s.label, detail: '', tone: s.tone };
   }
   return { kind, label: type, detail: '', tone: 'secondary' };
+}
+
+/**
+ * Le déroulé d'une mission : quand le journal dit qui a fait quoi (« action:… »), la ligne « outil:… » du même appel
+ * est redondante ; on ne garde que la plus précise. Les missions plus anciennes n'ont que « outil:… ».
+ */
+export function timeline<T extends { type: string }>(events: T[]): T[] {
+  return events.some((e) => e.type.startsWith('action:')) ? events.filter((e) => !e.type.startsWith('outil:')) : events;
 }
 
 // Même règle que le bureau (MissionViewModel.Visible) : catégories Unicode qui ne s'affichent pas ou trompent l'œil,

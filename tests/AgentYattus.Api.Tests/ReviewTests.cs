@@ -33,7 +33,7 @@ public sealed class ReviewTests
         Assert.Equal("write_file", Assert.Single(paused.PendingApproval!.ToolCalls).Tool);
         Assert.Equal(MissionKind.Review, paused.Kind);
         Assert.Equal(
-            ["Running", "agent:analyste", "modele:claude-haiku-5-5", "outil:read_file", "usage:analyste:0:0", "agent:redacteur", "modele:claude-haiku-5-5", "usage:redacteur:0:0", "approbation-demandee:write_file", "AwaitingApproval"],
+            ["Running", "agent:analyste", "modele:claude-haiku-5-5", "outil:read_file", "action:analyste:read_file:a.txt", "usage:analyste:0:0", "agent:redacteur", "modele:claude-haiku-5-5", "usage:redacteur:0:0", "approbation-demandee:write_file", "AwaitingApproval"],
             await api.AuditOfAsync(mission.Id));
     }
 
