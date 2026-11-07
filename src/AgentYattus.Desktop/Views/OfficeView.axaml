@@ -101,6 +101,16 @@
       <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
     </Style>
     <!-- /region -->
+    <!-- region:feed -->
+    <Style Selector="Border.message">
+      <Style.Animations>
+        <Animation Duration="0:0:0.35" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /><Setter Property="TranslateTransform.Y" Value="8" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <!-- /region -->
   </UserControl.Styles>
 
   <UserControl.Resources>
@@ -386,5 +396,58 @@
       <!-- /region -->
     </Grid>
 
+    <!-- region:feed -->
+    <!-- Le fil de l'équipe : l'historique des répliques, comme une messagerie d'entreprise. -->
+    <Border Grid.Column="1" CornerRadius="16" Background="#121316" BorderBrush="#1F2226" BorderThickness="1">
+      <Grid RowDefinitions="58,*,Auto">
+        <Border BorderBrush="#1F2226" BorderThickness="0,0,0,1" Padding="16,0">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel VerticalAlignment="Center" Spacing="2">
+              <TextBlock Text="Fil de l'équipe" FontSize="13.5" FontWeight="SemiBold" />
+              <TextBlock Classes="mono" Text="{Binding Feed.Count, StringFormat='{}{0} messages'}" FontSize="10.5" Foreground="#8A857B" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
+              <Ellipse Classes="pulse" Width="6" Height="6" Fill="{StaticResource VertDeGris}" VerticalAlignment="Center" />
+              <TextBlock Classes="label" Text="EN DIRECT" Foreground="{StaticResource VertDeGris}" />
+            </StackPanel>
+          </Grid>
+        </Border>
+        <ScrollViewer Grid.Row="1" x:Name="FeedScroll" Padding="16,12">
+          <ItemsControl ItemsSource="{Binding Feed}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate><StackPanel Spacing="14" /></ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="core:ChatLine">
+                <Border Classes="message">
+                  <Grid ColumnDefinitions="32,*" ColumnSpacing="10">
+                    <Border Width="32" Height="32" CornerRadius="16" ClipToBounds="True" Background="#1D2024" VerticalAlignment="Top">
+                      <Canvas Width="32" Height="32">
+                        <Image Canvas.Left="-16" Canvas.Top="-4" Width="64" Height="64"
+                               Source="{Binding Avatar, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" />
+                      </Canvas>
+                    </Border>
+                    <StackPanel Grid.Column="1" Spacing="4">
+                      <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
+                        <TextBlock Classes="mono" Text="{Binding Time}" FontSize="10" Foreground="#8A857B" VerticalAlignment="Center" />
+                      </StackPanel>
+                      <TextBlock Text="{Binding Text}" FontSize="13" LineHeight="19" Foreground="#D9D3C5" TextWrapping="Wrap" />
+                      <Border IsVisible="{Binding File, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" HorizontalAlignment="Left"
+                              Padding="10,5" CornerRadius="7" Background="#16181B" BorderBrush="#2A2D31" BorderThickness="1">
+                        <TextBlock Classes="mono" Text="{Binding File}" FontSize="11" Foreground="{StaticResource VertDeGris}" />
+                      </Border>
+                    </StackPanel>
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </ScrollViewer>
+        <TextBlock Grid.Row="2" Margin="16,0,16,14" FontSize="12" Foreground="#8A857B"
+                   Text="{Binding Typing, StringFormat='{}{0} écrit…'}" IsVisible="{Binding Typing, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+      </Grid>
+    </Border>
+    <!-- /region -->
   </Grid>
 </UserControl>
