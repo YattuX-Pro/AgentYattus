@@ -132,7 +132,9 @@ public sealed class ProjectsTests
         // Bob ne prend ni le dossier d'Alice, ni un dossier qui le contient ou qu'il contient.
         var his = await CreateAsync(bob, "Le sien");
         var inside = Directory.CreateDirectory(Path.Combine(repo, "src")).FullName;
-        foreach (var taken in new[] { repo, inside })
+        // Sur un disque insensible à la casse (macOS), « MON-DEPOT » est le même dossier : refusé aussi.
+        var other = OperatingSystem.IsLinux() ? repo : Path.Combine(allowed, "MON-DEPOT");
+        foreach (var taken in new[] { repo, inside, other })
             Assert.Equal(HttpStatusCode.BadRequest, (await bob.PutAsJsonAsync(ProjectsProtocol.Workspace(his.Id), new SetWorkspaceRequest(taken), Ct)).StatusCode);
         var own = Directory.CreateDirectory(Path.Combine(allowed, "depot-de-bob")).FullName;
         Assert.Equal(HttpStatusCode.NoContent, (await bob.PutAsJsonAsync(ProjectsProtocol.Workspace(his.Id), new SetWorkspaceRequest(own), Ct)).StatusCode);

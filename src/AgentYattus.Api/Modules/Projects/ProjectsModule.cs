@@ -174,21 +174,35 @@ public static class ProjectsModule
             var path = string.IsNullOrWhiteSpace(request.Path) ? null : request.Path.Trim();
             if (path is not null && (path.Length > 500 || !Path.IsPathFullyQualified(path) || !System.IO.Directory.Exists(path)))
                 return Invalid("path", "Le chemin doit être absolu et désigner un dossier existant sur le serveur.");
-            if (path is not null && !me.IsInstanceAdmin)
+            if (path is null || me.IsInstanceAdmin)
             {
-                var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
-                var roots = AllowedRoots(configuration);
-                // Un sous-dossier d'une racine autorisée, jamais la racine elle-même (elle contient les dossiers de tous).
-                if (roots.Contains(full) || !InsideAllowedRoot(full, roots))
-                    return Invalid("path", "Choisis un sous-dossier d'un des dossiers autorisés par l'administrateur.");
+                project.Workspace = path is null ? null : Canonical(Path.GetFullPath(path));
+                await db.SaveChangesAsync(ct);
+                return TypedResults.NoContent();
+            }
+
+            var full = Canonical(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)));
+            var roots = AllowedRoots(configuration).Select(Canonical).ToList();
+            // Un sous-dossier d'une racine autorisée, jamais la racine elle-même (elle contient les dossiers de tous).
+            if (roots.Contains(full) || !InsideAllowedRoot(full, roots))
+                return Invalid("path", "Choisis un sous-dossier d'un des dossiers autorisés par l'administrateur.");
+            // La vérification et l'enregistrement sous le même verrou : deux demandes simultanées ne prennent pas le même dossier.
+            // ponytail: verrou du processus ; plusieurs instances de l'API demanderaient un verrou PostgreSQL (advisory lock).
+            await WorkspaceLock.WaitAsync(ct);
+            try
+            {
                 // Ni le dossier d'un autre projet, ni un dossier qui le contient ou qu'il contient : on lirait ses fichiers.
                 var others = await db.Projects.Where(p => p.Id != id && p.Workspace != null).Select(p => p.Workspace!).ToListAsync(ct);
-                if (others.Any(other => Overlaps(full, Path.TrimEndingDirectorySeparator(other))))
+                if (others.Any(other => Overlaps(full, Canonical(Path.TrimEndingDirectorySeparator(other)))))
                     return Invalid("path", "Ce dossier est déjà celui d'un autre projet, ou le contient.");
+                project.Workspace = full;
+                await db.SaveChangesAsync(ct);
+                return TypedResults.NoContent();
             }
-            project.Workspace = path is null ? null : Path.GetFullPath(path);
-            await db.SaveChangesAsync(ct);
-            return TypedResults.NoContent();
+            finally
+            {
+                WorkspaceLock.Release();
+            }
         });
 
         return app;
@@ -219,6 +233,31 @@ public static class ProjectsModule
                 return true;
         }
         return false;
+    }
+
+    private static readonly SemaphoreSlim WorkspaceLock = new(1, 1);
+
+    /// <summary>
+    /// Le chemin avec les noms tels qu'ils sont sur le disque. Sur macOS ou Windows, « Bob » et « bob » (ou un « é »
+    /// composé autrement) désignent le même dossier : comparer les chaînes telles quelles laisserait passer l'un pour l'autre.
+    /// </summary>
+    internal static string Canonical(string fullPath)
+    {
+        if (Path.GetPathRoot(fullPath) is not { Length: > 0 } root)
+            return fullPath;
+        var current = root;
+        foreach (var part in fullPath[root.Length..].Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var key = part.Normalize(System.Text.NormalizationForm.FormC);
+            var actual = Directory.Exists(current)
+                ? Directory.EnumerateFileSystemEntries(current).Select(Path.GetFileName)
+                    .FirstOrDefault(name => string.Equals(name, part, StringComparison.Ordinal))
+                  ?? Directory.EnumerateFileSystemEntries(current).Select(Path.GetFileName)
+                    .FirstOrDefault(name => string.Equals(name!.Normalize(System.Text.NormalizationForm.FormC), key, StringComparison.OrdinalIgnoreCase))
+                : null;
+            current = Path.Combine(current, actual ?? part);
+        }
+        return current;
     }
 
     private static bool Overlaps(string a, string b) =>

@@ -28,6 +28,11 @@ Une revue de sécurité automatique a relevé un cas : sous la même racine, Ali
 - **la racine elle-même**, qui contient les dossiers de tous ;
 - **le dossier d'un autre projet**, un dossier qui le contient, ou un dossier qu'il contient (`Overlaps`).
 
+Une deuxième revue a affiné ce correctif :
+
+- **La casse et les accents.** Sur macOS, « Bob » et « bob » désignent le même dossier, comme un « é » composé de deux façons. `Canonical` remplace chaque nom du chemin par son nom réel sur le disque avant de comparer.
+- **Deux demandes en même temps.** Elles pourraient passer la vérification toutes les deux avant d'enregistrer. La vérification et l'enregistrement se font donc sous un même verrou (`WorkspaceLock`). C'est un verrou du processus (`ponytail`) : plusieurs instances de l'API demanderaient un verrou PostgreSQL.
+
 ## 3. Vérifie toi-même
 
 `dotnet test --filter Owners_choose_a_workspace` :
