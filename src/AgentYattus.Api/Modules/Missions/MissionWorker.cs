@@ -8,11 +8,10 @@ using AgentYattus.Api.Modules.Settings;
 using AgentYattus.Api.Modules.Team;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 
 namespace AgentYattus.Api.Modules.Missions;
 
-// ponytail: file en mémoire ; au redémarrage, une mission en attente est perdue et une mission
-// en cours reste « Running ». La reprise après redémarrage est prévue après le MVP.
 /// <summary>
 /// Les missions en cours d'exécution et de quoi les arrêter. Un arrêt demandé par un humain est noté,
 /// pour que le runner termine la mission en « Arrêtée » plutôt qu'en échec.
@@ -54,10 +53,19 @@ internal sealed class MissionsHub : Hub;
 internal sealed class MissionWorker(
     MissionQueue queue,
     IServiceScopeFactory scopes,
+    IHostApplicationLifetime lifetime,
     ILogger<MissionWorker> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // La file est en mémoire : au démarrage, on y remet ce qu'un arrêt a interrompu (leçon 121).
+        // Après le démarrage complet : les tables existent (SchemaUpdater) quel que soit l'ordre des services.
+        var started = new TaskCompletionSource();
+        await using (lifetime.ApplicationStarted.Register(() => started.TrySetResult()))
+        await using (stoppingToken.Register(() => started.TrySetCanceled()))
+            await started.Task;
+        await RequeueInterruptedAsync(stoppingToken);
+
         var running = new List<Task>();
         await foreach (var missionId in queue.Reader.ReadAllAsync(stoppingToken))
         {
@@ -71,6 +79,34 @@ internal sealed class MissionWorker(
             running.Add(RunOneAsync(missionId, stoppingToken));
         }
         await Task.WhenAll(running);
+    }
+
+    /// <summary>
+    /// En file (« Pending ») : remise en file. En cours (« Running ») : l'exécution a été coupée ; elle repart du dernier
+    /// état enregistré (le but, la décision ou la réponse en attente), notée « reprise » dans le journal.
+    /// Une décision prise mais pas encore traitée (pause avec Decision) repart aussi.
+    /// </summary>
+    private async Task RequeueInterruptedAsync(CancellationToken stoppingToken)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<MissionsDb>();
+        var audit = scope.ServiceProvider.GetRequiredService<AuditLog>();
+        var missions = await db.Missions
+            .Where(m => m.Status == MissionStatus.Pending || m.Status == MissionStatus.Running
+                        || (m.Status == MissionStatus.AwaitingApproval && m.Decision != null))
+            .ToListAsync(stoppingToken);
+        foreach (var mission in missions.OrderBy(m => m.CreatedAt.UtcTicks))
+        {
+            if (mission.Status == MissionStatus.Running)
+            {
+                mission.Status = MissionStatus.Pending;
+                await db.SaveChangesAsync(stoppingToken);
+                await audit.AppendAsync(mission.Id, "reprise", stoppingToken);
+            }
+            await queue.Writer.WriteAsync(mission.Id, stoppingToken);
+        }
+        if (missions.Count > 0)
+            logger.LogInformation("{Count} missions remises en file après le redémarrage", missions.Count);
     }
 
     private async Task<int> MaxConcurrentAsync(CancellationToken stoppingToken)
@@ -138,11 +174,13 @@ internal sealed partial class MissionRunner(
             return;
 
         AgentResume? resume = null;
-        if (mission.Status == MissionStatus.AwaitingApproval)
+        if (mission.Status == MissionStatus.AwaitingApproval && mission.Decision is null)
+            return; // en pause, sans décision : rien à faire tant qu'un humain n'a pas décidé
+        // L'état de reprise reste en base jusqu'à la fin de l'exécution (leçon 121) : coupée par un redémarrage,
+        // elle repart exactement d'ici, avec la même décision ou la même réponse.
+        if (mission.Decision is { } approved && mission.PendingApproval is not null && mission.Conversation is not null)
         {
             // Remise en file par une décision : on reprend là où l'agent s'était arrêté.
-            if (mission.Decision is not { } approved || mission.Conversation is null)
-                return;
             resume = new AgentResume(mission.Conversation, approved);
         }
         else if (mission.FollowUp is { } followUp && mission.Conversation is { } conversation)
@@ -178,11 +216,6 @@ internal sealed partial class MissionRunner(
             return;
         }
 
-        mission.Conversation = null;
-        mission.FollowUp = null;
-        mission.PendingApproval = null;
-        mission.ApprovalId = null;
-        mission.Decision = null;
         await SetStatusAsync(MissionStatus.Running);
         var status = MissionStatus.Completed;
         // La durée maximum (admin › Réglages) : au-delà, l'exécution est annulée et la mission échoue.
@@ -224,6 +257,8 @@ internal sealed partial class MissionRunner(
                 mission.OutputTokens += usage.OutputTokens;
                 mission.CostMicros += usage.CostMicros;
             }
+            // L'exécution est allée au bout : l'ancien état de reprise ne sert plus.
+            (mission.Conversation, mission.FollowUp, mission.PendingApproval, mission.ApprovalId, mission.Decision) = (null, null, null, null, null);
             if (outcome.Approval is { } approval)
             {
                 // Pause : on enregistre de quoi reprendre, et le worker passe à la mission suivante.
@@ -256,6 +291,9 @@ internal sealed partial class MissionRunner(
             if (limit.IsCancellationRequested)
                 mission.Result = $"Durée maximum dépassée ({maxDuration.TotalMinutes:0} min) : la mission a été arrêtée.";
         }
+        // Échouée ou arrêtée : plus rien à reprendre (on la relance, ce qui crée une nouvelle mission).
+        if (status is MissionStatus.Failed or MissionStatus.Cancelled)
+            (mission.Conversation, mission.FollowUp, mission.PendingApproval, mission.ApprovalId, mission.Decision) = (null, null, null, null, null);
         await SetStatusAsync(status);
 
         // « gratuit : … » : la chaîne gratuite ; sinon le prix du catalogue du modèle de chaque rôle.

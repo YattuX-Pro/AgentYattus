@@ -24,7 +24,11 @@ namespace AgentYattus.Api.Tests;
 // SQLite sur fichier temporaire à la place de PostgreSQL : les tests tournent sans Docker.
 public class ApiFactory : WebApplicationFactory<Program>
 {
-    private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"agentyattus-{Guid.NewGuid():N}.db");
+    /// <summary>La base SQLite ; une base déjà remplie simule un redémarrage (leçon 121).</summary>
+    public string DatabasePath { get; init; } = Path.Combine(Path.GetTempPath(), $"agentyattus-{Guid.NewGuid():N}.db");
+
+    /// <summary>Vrai : la base reste après Dispose (pour la rouvrir avec une autre fabrique).</summary>
+    public bool KeepDatabase { get; init; }
 
     public FakeAgentRunner Runner { get; } = new();
 
@@ -82,14 +86,15 @@ public class ApiFactory : WebApplicationFactory<Program>
     private void UseSqlite<TDb>(IServiceCollection services) where TDb : DbContext
     {
         services.RemoveAll<IDbContextOptionsConfiguration<TDb>>();
-        services.AddDbContext<TDb>(o => o.UseSqlite($"Data Source={_dbPath}"));
+        services.AddDbContext<TDb>(o => o.UseSqlite($"Data Source={DatabasePath}"));
     }
 
     public override async ValueTask DisposeAsync()
     {
         await base.DisposeAsync();
         SqliteConnection.ClearAllPools();
-        File.Delete(_dbPath);
+        if (!KeepDatabase)
+            File.Delete(DatabasePath);
     }
 }
 
