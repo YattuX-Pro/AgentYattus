@@ -73,6 +73,8 @@ public sealed class CustomAgentsTests
         Assert.Equal(HttpStatusCode.BadRequest, (await root.PostAsJsonAsync("/missions", new CreateMissionRequest("But", Agent: "inconnu"), Ct)).StatusCode);
         await root.DeleteAsync(AgentsProtocol.Role(key), Ct);
         Assert.Equal(HttpStatusCode.BadRequest, (await root.PostAsJsonAsync("/missions", new CreateMissionRequest("But", Agent: key), Ct)).StatusCode);
+        // La relance ne contourne pas ce contrôle : un agent retiré ne repart pas.
+        Assert.Equal(HttpStatusCode.BadRequest, (await root.PostAsync($"/missions/{mission.Id}/retry", null, Ct)).StatusCode);
     }
 
     [Fact]

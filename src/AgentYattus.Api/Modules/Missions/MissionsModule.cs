@@ -218,9 +218,9 @@ public static class MissionsModule
     /// Relancer une mission échouée ou arrêtée : une NOUVELLE mission, même but, même type, même projet, liée à l'originale.
     /// L'originale reste telle quelle, avec son journal : on ne réécrit pas l'histoire.
     /// </summary>
-    private static async Task<Results<Accepted<MissionDto>, NotFound, Conflict, ForbidHttpResult>> RetryAsync(
+    private static async Task<Results<Accepted<MissionDto>, NotFound, Conflict, ForbidHttpResult, ValidationProblem>> RetryAsync(
         Guid id, MissionsDb db, MissionQueue queue, ICurrentUser me, IProjectAccess projects, IProjectDirectory directory,
-        CancellationToken cancellationToken)
+        IAgentCatalog agents, CancellationToken cancellationToken)
     {
         if (await db.Missions.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, cancellationToken) is not { } original)
             return TypedResults.NotFound();
@@ -234,6 +234,13 @@ public static class MissionsModule
         // Une mission antérieure aux projets n'a pas de projet où relancer : seul un admin la voit, et il la relance à la main.
         if (original.Status is not (MissionStatus.Failed or MissionStatus.Cancelled) || original.ProjectId is not { } projectId)
             return TypedResults.Conflict();
+
+        // Une relance est un nouveau départ : son agent doit être encore proposé (seule une mission en pause finit avec un agent retiré).
+        if (original.Agent is { } agent && !(await agents.RoleKeysAsync(cancellationToken)).Contains(agent))
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["agent"] = [$"L'agent « {agent} » a été retiré : lancez une nouvelle mission avec un autre agent."],
+            });
 
         var retry = new Mission
         {
