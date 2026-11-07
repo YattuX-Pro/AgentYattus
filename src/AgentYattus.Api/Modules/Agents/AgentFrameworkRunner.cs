@@ -20,6 +20,13 @@ internal sealed class AgentsOptions
     public string? Workspace { get; set; }
 
     public int MaxIterations { get; set; } = 10;
+
+    // Le bac à sable des commandes (ADR 0015).
+    public string SandboxImage { get; set; } = "mcr.microsoft.com/dotnet/sdk:10.0";
+    public int SandboxTimeoutSeconds { get; set; } = 120;
+
+    /// <summary>« none » (par défaut) : rien ne sort du conteneur ; « bridge » : réseau ouvert, décidé par l'administrateur.</summary>
+    public string SandboxNetwork { get; set; } = "none";
 }
 
 /// <summary>
@@ -36,7 +43,8 @@ internal sealed class AgentFrameworkRunner(
     IInstanceSettings instance,
     AgentDefinitions definitions,
     AgentCatalog catalog,
-    AgentsDb db) : IAgentRunner
+    AgentsDb db,
+    ICommandSandbox sandbox) : IAgentRunner
 {
     // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
@@ -60,7 +68,7 @@ internal sealed class AgentFrameworkRunner(
         if (string.IsNullOrWhiteSpace(workspace))
             throw new InvalidOperationException(
                 "Workspace absent. Lance : dotnet user-secrets set \"Agents:Workspace\" \"<dossier>\" --project src/AgentYattus.Api");
-        var tools = new WorkspaceTools(workspace, tuning.MaxFileKb * 1024L, tuning.ExcludedFiles).AsAIFunctions();
+        var tools = new WorkspaceTools(workspace, tuning.MaxFileKb * 1024L, tuning.ExcludedFiles, sandbox).AsAIFunctions();
 
         var usage = new AgentUsage(0, 0, 0);
         Stage stage;
@@ -243,6 +251,7 @@ internal sealed class AgentFrameworkRunner(
     {
         // Le texte cherché (search), le chemin visé, ou le nom de la compétence (use_skill, propose_skill).
         var target = call.Name == "search" && call.Arguments?.TryGetValue("text", out var searched) == true ? searched?.ToString() ?? ""
+            : call.Name == "run_command" && call.Arguments?.TryGetValue("command", out var command) == true ? command?.ToString() ?? ""
             : call.Arguments?.TryGetValue("path", out var value) == true || call.Arguments?.TryGetValue("name", out value) == true
                 ? value?.ToString() ?? "" : "";
         // Par caractère Unicode complet (Rune) : une moitié de paire isolée devient U+FFFD (sinon PostgreSQL refuse le texte),

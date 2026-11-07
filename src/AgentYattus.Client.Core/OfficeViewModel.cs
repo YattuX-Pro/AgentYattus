@@ -164,11 +164,21 @@ public sealed partial class OfficeViewModel : ObservableObject
 
     public string KnockTitle => $"{Asker.Name} frappe à votre porte";
 
-    public string KnockText => IsLearning
-        ? "Il veut retenir une compétence pour la prochaine fois. Relisez-la avant de décider."
-        : "Il veut écrire dans le workspace. Relisez tout avant de décider.";
+    private string? PendingTool => Mission.PendingApproval.FirstOrDefault()?.Tool;
 
-    public string ReviewTitle => IsLearning ? $"{Asker.Name} veut retenir ceci" : $"{Asker.Name} veut écrire ceci";
+    public string KnockText => PendingTool switch
+    {
+        "propose_skill" => "Il veut retenir une compétence pour la prochaine fois. Relisez-la avant de décider.",
+        "run_command" => "Il veut lancer une commande dans le bac à sable. Relisez-la avant de décider.",
+        _ => "Il veut écrire dans le workspace. Relisez tout avant de décider.",
+    };
+
+    public string ReviewTitle => PendingTool switch
+    {
+        "propose_skill" => $"{Asker.Name} veut retenir ceci",
+        "run_command" => $"{Asker.Name} veut lancer ceci",
+        _ => $"{Asker.Name} veut écrire ceci",
+    };
 
     /// <summary>La relecture est ouverte : exactement ce qui sera écrit, avant d'approuver ou de refuser.</summary>
     [ObservableProperty]

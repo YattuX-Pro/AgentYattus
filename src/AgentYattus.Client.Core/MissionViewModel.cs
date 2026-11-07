@@ -196,6 +196,14 @@ public sealed record ApprovalItem(
                 [.. lines.Take(PreviewLines)], lines, SensitiveLocation(edited));
         }
 
+        // Une commande (ADR 0015) : exactement ce qui sera lancé dans le conteneur, ligne par ligne.
+        if (call.Tool == "run_command" && Text("command") is { } command)
+        {
+            var lines = command.Split('\n').Select(Visible).ToList();
+            return new ApprovalItem(call.Tool, "Lancer cette commande ?", null, [.. lines.Take(PreviewLines)], lines,
+                "Dans un conteneur isolé, sans réseau. Elle peut modifier les fichiers du projet.");
+        }
+
         // Une compétence à retenir (leçon 106) : son nom, quand s'en servir, puis toute la procédure, comme un fichier.
         if (call.Tool == "propose_skill" && Text("name") is { } name)
         {

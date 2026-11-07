@@ -66,6 +66,7 @@ public static class AgentsModule
         // Le modèle et sa clé viennent du module Llm (choisis dans l'application) ; voir ILlmClientProvider.
         return services
             .AddScoped<IAgentRunner, AgentFrameworkRunner>()
+            .AddSingleton<ICommandSandbox, DockerSandbox>()
             .AddScoped<AgentDefinitions>()
             .AddScoped<AgentCatalog>()
             .AddScoped<IAgentCatalog>(sp => sp.GetRequiredService<AgentCatalog>())

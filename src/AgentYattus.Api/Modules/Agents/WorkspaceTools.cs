@@ -13,10 +13,12 @@ internal sealed class WorkspaceTools
     private readonly string _root;
     private readonly long _maxFileBytes;
     private readonly IReadOnlyList<string> _excluded;
+    private readonly ICommandSandbox? _sandbox;
 
     /// <param name="excluded">Motifs de noms (« .env », « *.pfx ») : ces fichiers et dossiers n'existent pas pour l'agent (ADR 0010).</param>
-    public WorkspaceTools(string rootPath, long maxFileBytes = 256 * 1024, IReadOnlyList<string>? excluded = null)
+    public WorkspaceTools(string rootPath, long maxFileBytes = 256 * 1024, IReadOnlyList<string>? excluded = null, ICommandSandbox? sandbox = null)
     {
+        _sandbox = sandbox;
         // Les motifs sous une seule forme Unicode (NFC), comme les noms auxquels on les compare.
         _excluded = (excluded ?? []).Select(p => p.Normalize(System.Text.NormalizationForm.FormC)).ToList();
         var root = Path.GetFullPath(rootPath);
@@ -37,6 +39,7 @@ internal sealed class WorkspaceTools
         ("write_file", "Crée ou remplace un fichier texte du workspace. Un humain doit approuver chaque écriture.", true),
         ("search", "Cherche un texte dans les fichiers du workspace et rend les lignes trouvées (fichier:ligne: texte).", false),
         ("edit_file", "Remplace un passage exact d'un fichier par un autre ; le passage doit apparaître une seule fois. Un humain doit approuver.", true),
+        ("run_command", "Lance une commande (tests, compilation) dans un conteneur isolé, sans réseau, dans le dossier du projet. Un humain doit approuver chaque commande.", true),
         ("write_document", "Crée ou remplace un document Word (.docx) du workspace, à partir d'un texte : « # » pour un titre, « - » pour une puce. Un humain doit approuver.", true),
     ];
 
@@ -49,8 +52,25 @@ internal sealed class WorkspaceTools
         AIFunctionFactory.Create(Search, Catalog[3].Name, Catalog[3].Description),
         // Modifier, c'est écrire : la même règle que write_file.
         new ApprovalRequiredAIFunction(AIFunctionFactory.Create(EditFile, Catalog[4].Name, Catalog[4].Description)),
-        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteDocument, Catalog[5].Name, Catalog[5].Description)),
+        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(RunCommand, Catalog[5].Name, Catalog[5].Description)),
+        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteDocument, Catalog[6].Name, Catalog[6].Description)),
     ];
+
+    /// <summary>
+    /// Une commande (ADR 0015), toujours dans le bac à sable, jamais sur la machine. Sa sortie est une donnée :
+    /// le modèle la lit comme le contenu d'un fichier.
+    /// </summary>
+    public async Task<string> RunCommand(
+        [Description("La commande, lancée par sh -c dans /work (le dossier du projet). Exemple : dotnet test")] string command,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(command) || command.Length > 2000)
+            throw new InvalidOperationException("Une commande de 1 à 2 000 caractères.");
+        if (_sandbox is null || await _sandbox.RunAsync(_root, command, cancellationToken) is not { } result)
+            throw new InvalidOperationException("Bac à sable indisponible : Docker n'est pas installé ou pas démarré sur le serveur.");
+        var status = result.TimedOut ? "arrêtée : durée maximum dépassée" : $"code de sortie {result.ExitCode}";
+        return $"Commande {status}.\n{result.Output}";
+    }
 
     // Dossiers sans intérêt pour une recherche (dépendances, sorties de compilation, historique git).
     private static readonly HashSet<string> SkippedFolders = new(StringComparer.OrdinalIgnoreCase)
