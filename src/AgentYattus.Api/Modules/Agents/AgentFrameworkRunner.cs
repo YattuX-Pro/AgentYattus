@@ -241,9 +241,10 @@ internal sealed class AgentFrameworkRunner(
     /// </summary>
     internal static string ActionEvent(string role, FunctionCallContent call)
     {
-        // Le chemin visé, ou le nom de la compétence (use_skill, propose_skill).
-        var target = call.Arguments?.TryGetValue("path", out var value) == true || call.Arguments?.TryGetValue("name", out value) == true
-            ? value?.ToString() ?? "" : "";
+        // Le texte cherché (search), le chemin visé, ou le nom de la compétence (use_skill, propose_skill).
+        var target = call.Name == "search" && call.Arguments?.TryGetValue("text", out var searched) == true ? searched?.ToString() ?? ""
+            : call.Arguments?.TryGetValue("path", out var value) == true || call.Arguments?.TryGetValue("name", out value) == true
+                ? value?.ToString() ?? "" : "";
         // Par caractère Unicode complet (Rune) : une moitié de paire isolée devient U+FFFD (sinon PostgreSQL refuse le texte),
         // et l'on coupe sans jamais séparer une paire. On retire contrôle, format et séparateurs de ligne ou de paragraphe.
         var runes = target.EnumerateRunes()

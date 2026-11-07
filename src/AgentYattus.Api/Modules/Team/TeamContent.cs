@@ -25,6 +25,7 @@ public static partial class TeamModule
         new("agent:analyste", "L'analyste prend la main", "chef", "{analyste}, à toi : explore le dossier.", People),
         new("outil:list_files", "Un agent parcourt un dossier", "analyste", "Je parcours {fichier}.", ["fichier", .. People]),
         new("outil:read_file", "Un agent lit un fichier", "analyste", "Je lis {fichier}.", ["fichier", .. People]),
+        new("outil:search", "Un agent cherche dans le code", "analyste", "Je cherche « {fichier} » dans le code.", ["fichier", .. People]),
         new("outil:use_skill", "Un agent ouvre une de ses compétences", "analyste", "J'ouvre ma fiche « {fichier} ».", ["fichier", .. People]),
         new("passage", "L'analyste passe le relais au rédacteur", "analyste", "{redacteur}, je t'envoie mes constats.", People),
         new("approbation", "Le rédacteur demande l'accord pour écrire", "redacteur", "Je peux écrire {fichier} ? Il me faut ton accord, {vous}.", ["fichier", .. People]),

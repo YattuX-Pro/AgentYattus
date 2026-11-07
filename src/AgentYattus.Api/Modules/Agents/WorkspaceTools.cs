@@ -35,6 +35,8 @@ internal sealed class WorkspaceTools
         ("list_files", "Liste les fichiers et dossiers d'un dossier du workspace.", false),
         ("read_file", "Lit le contenu texte d'un fichier du workspace ; un PDF, un Word (.docx) ou un Excel (.xlsx) est converti en texte.", false),
         ("write_file", "Crée ou remplace un fichier texte du workspace. Un humain doit approuver chaque écriture.", true),
+        ("search", "Cherche un texte dans les fichiers du workspace et rend les lignes trouvées (fichier:ligne: texte).", false),
+        ("edit_file", "Remplace un passage exact d'un fichier par un autre ; le passage doit apparaître une seule fois. Un humain doit approuver.", true),
         ("write_document", "Crée ou remplace un document Word (.docx) du workspace, à partir d'un texte : « # » pour un titre, « - » pour une puce. Un humain doit approuver.", true),
     ];
 
@@ -44,8 +46,99 @@ internal sealed class WorkspaceTools
         AIFunctionFactory.Create(ReadFile, Catalog[1].Name, Catalog[1].Description),
         // Écrire modifie le disque de l'utilisateur : la boucle s'arrête et demande son accord avant chaque appel.
         new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteFile, Catalog[2].Name, Catalog[2].Description)),
-        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteDocument, Catalog[3].Name, Catalog[3].Description)),
+        AIFunctionFactory.Create(Search, Catalog[3].Name, Catalog[3].Description),
+        // Modifier, c'est écrire : la même règle que write_file.
+        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(EditFile, Catalog[4].Name, Catalog[4].Description)),
+        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteDocument, Catalog[5].Name, Catalog[5].Description)),
     ];
+
+    // Dossiers sans intérêt pour une recherche (dépendances, sorties de compilation, historique git).
+    private static readonly HashSet<string> SkippedFolders = new(StringComparer.OrdinalIgnoreCase)
+        { ".git", "node_modules", "bin", "obj", ".vs", ".idea", "dist", "build", "target", "packages" };
+
+    /// <summary>
+    /// Chercher dans le code (leçon 122) : un texte, sans tenir compte de la casse. Mêmes règles que list_files et read_file :
+    /// pas de lien symbolique, pas de fichier exclu, pas de gros fichier. 100 lignes au plus, chacune coupée à 200 caractères.
+    /// </summary>
+    public string Search(
+        [Description("Le texte cherché (pas une expression régulière).")] string text,
+        [Description("Le dossier où chercher, relatif à la racine du workspace.")] string path = ".",
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Length > 200)
+            throw new InvalidOperationException("Le texte cherché fait de 1 à 200 caractères.");
+        var start = Resolve(path);
+        if (!Directory.Exists(start))
+            throw new DirectoryNotFoundException($"Dossier introuvable : {path}");
+        var results = new List<string>();
+        var visited = 0;
+        var pending = new Stack<string>([start]);
+        while (pending.Count > 0 && results.Count < 100)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var entry in Directory.EnumerateFileSystemEntries(pending.Pop()).Order(StringComparer.Ordinal))
+            {
+                var name = Path.GetFileName(entry);
+                if (IsLink(entry) || MatchesExcluded(name))
+                    continue;
+                if (Directory.Exists(entry))
+                {
+                    if (!SkippedFolders.Contains(name))
+                        pending.Push(entry);
+                    continue;
+                }
+                // 5 000 fichiers au plus : une recherche ne parcourt pas tout un disque.
+                if (++visited > 5000 || new FileInfo(entry).Length > _maxFileBytes)
+                    continue;
+                var number = 0;
+                foreach (var line in File.ReadLines(entry))
+                {
+                    number++;
+                    if (line.Contains('\0'))
+                        break; // un fichier binaire
+                    if (!line.Contains(text, StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    var shown = line.Trim();
+                    results.Add($"{Path.GetRelativePath(_root, entry)}:{number}: {(shown.Length > 200 ? shown[..200] + "…" : shown)}");
+                    if (results.Count >= 100)
+                        break;
+                }
+                if (results.Count >= 100)
+                    break;
+            }
+        }
+        return results.Count == 0 ? "Aucun résultat." : string.Join('\n', results) + (results.Count >= 100 ? "\n[… 100 résultats au plus]" : "");
+    }
+
+    /// <summary>
+    /// Modifier un passage (leçon 123) : plus sûr qu'une réécriture complète. L'humain relit seulement ce qui change,
+    /// et un passage absent ou ambigu (plusieurs fois présent) est refusé plutôt que deviné.
+    /// </summary>
+    public async Task<string> EditFile(
+        [Description("Chemin du fichier, relatif à la racine du workspace.")] string path,
+        [Description("Le passage exact à remplacer, espaces et retours à la ligne compris.")] string oldText,
+        [Description("Le nouveau passage.")] string newText,
+        CancellationToken cancellationToken = default)
+    {
+        var file = new FileInfo(Resolve(path));
+        if (!file.Exists)
+            throw new FileNotFoundException($"Fichier introuvable : {path}");
+        if (file.Length > _maxFileBytes)
+            throw new InvalidOperationException($"Fichier trop volumineux : {file.Length} octets (maximum {_maxFileBytes}).");
+        if (string.IsNullOrEmpty(oldText))
+            throw new InvalidOperationException("Le passage à remplacer est vide.");
+        var content = await File.ReadAllTextAsync(file.FullName, cancellationToken);
+        var first = content.IndexOf(oldText, StringComparison.Ordinal);
+        if (first < 0)
+            throw new InvalidOperationException("Passage introuvable : relis le fichier et recopie le passage exactement.");
+        if (content.IndexOf(oldText, first + oldText.Length, StringComparison.Ordinal) >= 0)
+            throw new InvalidOperationException("Passage présent plusieurs fois : ajoute des lignes autour pour qu'il soit unique.");
+        var updated = string.Concat(content.AsSpan(0, first), newText, content.AsSpan(first + oldText.Length));
+        if (System.Text.Encoding.UTF8.GetByteCount(updated) > _maxFileBytes)
+            throw new InvalidOperationException($"Contenu trop volumineux (maximum {_maxFileBytes} octets).");
+        await File.WriteAllTextAsync(file.FullName, updated, cancellationToken);
+        return $"Fichier modifié : {path}";
+    }
 
     /// <summary>Un document Word (leçon 116) : l'humain approuve le texte, le code le met en page.</summary>
     public string WriteDocument(

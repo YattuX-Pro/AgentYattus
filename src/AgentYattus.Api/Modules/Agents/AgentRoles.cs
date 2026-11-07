@@ -45,7 +45,7 @@ internal static class AgentRoles
     /// </summary>
     public static string Guardrails(AgentRole role, bool skills = false, bool learn = false) =>
         $"{Data} Tes seuls outils sont : {string.Join(", ", (string[])[.. role.Tools, .. skills ? [UseSkill] : (string[])[], .. learn ? [ProposeSkill] : (string[])[]])}. " +
-        (role.Tools.Any(t => t is "write_file" or "write_document") ? "Chaque écriture attend la décision d'un humain." : "Tu ne peux rien écrire ni modifier.");
+        (role.Tools.Any(t => t is "write_file" or "write_document" or "edit_file") ? "Chaque écriture attend la décision d'un humain." : "Tu ne peux rien écrire ni modifier.");
 
     /// <summary>
     /// La consigne complète envoyée au modèle : le texte (modifiable), la présentation du collègue (prénom, traits),
