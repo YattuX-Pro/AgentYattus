@@ -125,15 +125,24 @@ public sealed class ProjectsTests
         Assert.Equal(HttpStatusCode.BadRequest, (await alice.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(outside), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await alice.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(link), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await bob.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(repo), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(allowed), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await alice.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(repo), Ct)).StatusCode);
         Assert.Equal(repo, Assert.Single(await ListAsync(alice)).Workspace);
+
+        // Bob ne prend ni le dossier d'Alice, ni un dossier qui le contient ou qu'il contient.
+        var his = await CreateAsync(bob, "Le sien");
+        var inside = Directory.CreateDirectory(Path.Combine(repo, "src")).FullName;
+        foreach (var taken in new[] { repo, inside })
+            Assert.Equal(HttpStatusCode.BadRequest, (await bob.PutAsJsonAsync(ProjectsProtocol.Workspace(his.Id), new SetWorkspaceRequest(taken), Ct)).StatusCode);
+        var own = Directory.CreateDirectory(Path.Combine(allowed, "depot-de-bob")).FullName;
+        Assert.Equal(HttpStatusCode.NoContent, (await bob.PutAsJsonAsync(ProjectsProtocol.Workspace(his.Id), new SetWorkspaceRequest(own), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest("relatif/dossier"), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(Path.Combine(folder, "absent")), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(folder), Ct)).StatusCode);
 
         var seen = Assert.Single(await ListAsync(alice));
         Assert.Equal(folder, seen.Workspace);
-        var asRoot = Assert.Single(await ListAsync(root));
+        var asRoot = (await ListAsync(root)).Single(p => p.Id == project.Id);
         Assert.Equal((ProjectRole.Reader, false), (asRoot.MyAccess, asRoot.CanManage));
     }
 

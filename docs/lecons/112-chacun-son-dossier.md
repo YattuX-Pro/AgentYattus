@@ -21,13 +21,21 @@
 
 La racine elle-même vient de l'administrateur. On lui fait confiance, même si c'est un lien.
 
+## 2 bis. Le dossier d'un autre (correctif après revue)
+
+Une revue de sécurité automatique a relevé un cas : sous la même racine, Alice pouvait choisir **le dossier du projet de Bob**, et ses agents liraient les fichiers de Bob. Pour un non-administrateur, on refuse donc maintenant :
+
+- **la racine elle-même**, qui contient les dossiers de tous ;
+- **le dossier d'un autre projet**, un dossier qui le contient, ou un dossier qu'il contient (`Overlaps`).
+
 ## 3. Vérifie toi-même
 
 `dotnet test --filter Owners_choose_a_workspace` :
 
 - Alice choisit `autorise/mon-depot` ;
 - un dossier hors des racines, ou `autorise/raccourci` (lien vers dehors), donne 400 ;
-- Bob, sans accès, reçoit 404.
+- Bob, sans accès, reçoit 404 ;
+- la racine elle-même, le dossier d'Alice ou un de ses sous-dossiers, choisis par Bob pour son projet : 400.
 
 ## 4. Quiz
 

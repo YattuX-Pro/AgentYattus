@@ -174,8 +174,18 @@ public static class ProjectsModule
             var path = string.IsNullOrWhiteSpace(request.Path) ? null : request.Path.Trim();
             if (path is not null && (path.Length > 500 || !Path.IsPathFullyQualified(path) || !System.IO.Directory.Exists(path)))
                 return Invalid("path", "Le chemin doit être absolu et désigner un dossier existant sur le serveur.");
-            if (path is not null && !me.IsInstanceAdmin && !InsideAllowedRoot(Path.GetFullPath(path), AllowedRoots(configuration)))
-                return Invalid("path", "Ce dossier n'est pas dans un des dossiers autorisés par l'administrateur.");
+            if (path is not null && !me.IsInstanceAdmin)
+            {
+                var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+                var roots = AllowedRoots(configuration);
+                // Un sous-dossier d'une racine autorisée, jamais la racine elle-même (elle contient les dossiers de tous).
+                if (roots.Contains(full) || !InsideAllowedRoot(full, roots))
+                    return Invalid("path", "Choisis un sous-dossier d'un des dossiers autorisés par l'administrateur.");
+                // Ni le dossier d'un autre projet, ni un dossier qui le contient ou qu'il contient : on lirait ses fichiers.
+                var others = await db.Projects.Where(p => p.Id != id && p.Workspace != null).Select(p => p.Workspace!).ToListAsync(ct);
+                if (others.Any(other => Overlaps(full, Path.TrimEndingDirectorySeparator(other))))
+                    return Invalid("path", "Ce dossier est déjà celui d'un autre projet, ou le contient.");
+            }
             project.Workspace = path is null ? null : Path.GetFullPath(path);
             await db.SaveChangesAsync(ct);
             return TypedResults.NoContent();
@@ -210,6 +220,9 @@ public static class ProjectsModule
         }
         return false;
     }
+
+    private static bool Overlaps(string a, string b) =>
+        a == b || a.StartsWith(b + Path.DirectorySeparatorChar, StringComparison.Ordinal) || b.StartsWith(a + Path.DirectorySeparatorChar, StringComparison.Ordinal);
 
     private static ValidationProblem Invalid(string field, string message) =>
         TypedResults.ValidationProblem(new Dictionary<string, string[]> { [field] = [message] });
