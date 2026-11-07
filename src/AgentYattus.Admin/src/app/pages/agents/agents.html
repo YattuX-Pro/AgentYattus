@@ -33,21 +33,29 @@
         }
       </div>
 
-      <!-- Performance : combien il a travaillé, ce qu'il consomme en moyenne (son efficacité) et au total. -->
+      <!-- Performance : réussite et coût des missions (efficacité), puis la consommation en tokens. -->
+      @let p = perf(agent);
       <div class="bg-muted/50 grid grid-cols-3 divide-x rounded-xl border text-center">
         <div class="flex flex-col gap-0.5 px-2 py-2" title="Nombre d’exécutions de cet agent">
           <b class="num text-[15px]">{{ agent.stats?.runs ?? 0 }}</b>
           <span class="text-muted-foreground text-[10.5px]">exécutions</span>
         </div>
-        <div class="flex flex-col gap-0.5 px-2 py-2" title="Tokens moyens par exécution : plus c’est bas, plus l’agent est économe">
-          <b class="num text-[15px]">{{ tokens(agent.stats?.averageTokens) }}</b>
-          <span class="text-muted-foreground text-[10.5px]">tokens / exécution</span>
+        <div class="flex flex-col items-center gap-1 px-2 py-2" [title]="p ? p.finished + ' missions terminées : réussies, échouées ou arrêtées' : 'Aucune mission terminée'">
+          <b class="num text-[15px]" [class.text-primary]="p?.tone === 'good'" [class.text-warning]="p?.tone === 'mid'" [class.text-destructive]="p?.tone === 'low'">{{ p ? p.rate + ' %' : '—' }}</b>
+          <span class="bg-border h-1 w-12 overflow-hidden rounded-full">
+            <span class="ay-progress block h-full rounded-full" [style.width.%]="p?.rate ?? 0"
+              [class.bg-primary]="p?.tone === 'good'" [class.bg-warning]="p?.tone === 'mid'" [class.bg-destructive]="p?.tone === 'low'"></span>
+          </span>
+          <span class="text-muted-foreground text-[10.5px]">réussite</span>
         </div>
-        <div class="flex flex-col gap-0.5 px-2 py-2" title="Tokens consommés au total">
-          <b class="num text-[15px]">{{ tokens(agent.stats?.totalTokens) }}</b>
-          <span class="text-muted-foreground text-[10.5px]">au total</span>
+        <div class="flex flex-col gap-0.5 px-2 py-2" title="Coût moyen d’une mission où il travaille (une revue compte la mission entière)">
+          <b class="num text-[15px]">{{ p ? usd(p.cost) : '—' }}</b>
+          <span class="text-muted-foreground text-[10.5px]">par mission</span>
         </div>
       </div>
+      <p class="text-muted-foreground num -mt-1 text-[11.5px]" title="Plus le nombre de tokens par exécution est bas, plus l’agent est économe">
+        {{ tokens(agent.stats?.averageTokens) }} tokens par exécution · {{ tokens(agent.stats?.totalTokens) }} au total
+      </p>
 
       <div class="text-muted-foreground flex items-center justify-between gap-2 text-xs">
         <button type="button" class="hover:text-foreground min-w-0 truncate text-left font-mono" (click)="change(agent)" [disabled]="busy() || !models().length" [title]="'Modèle : ' + agent.model + ' (' + source(agent) + ') — cliquer pour changer'">

@@ -5,6 +5,11 @@ export const TOOLS = [
   { name: 'write_file', label: 'Écrire, avec votre accord', icon: 'lucidePenLine' },
 ] as const;
 
+/** Le taux de réussite, en pourcentage arrondi ; null tant qu'aucune mission n'est terminée. */
+export function successRate(finished: number, completed: number): number | null {
+  return finished > 0 ? Math.round((completed / finished) * 100) : null;
+}
+
 export interface AgentForm { name: string; summary: string; instructions: string; tools: string[] }
 
 /** Les mêmes règles que le serveur, pour griser « Créer » avant l'aller-retour. */

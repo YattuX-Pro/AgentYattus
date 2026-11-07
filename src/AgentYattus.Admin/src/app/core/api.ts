@@ -31,6 +31,7 @@ export interface Agent {
   builtin?: boolean;
 }
 export interface AgentProfile { name: string; summary: string; tools: string[] }
+export interface AgentPerformance { role: string; finished: number; completed: number; averageCost: number }
 export interface AgentVersion { version: number; instructions: string | null; maxIterations: number | null; at: string; by: string }
 
 export type MissionStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'AwaitingApproval' | 'Cancelled';
@@ -125,6 +126,7 @@ export class AdminApi {
   createAgent(profile: AgentProfile & { instructions: string }) { return this.send<Agent>('POST', '/agents', profile); }
   updateAgentProfile(role: string, profile: AgentProfile) { return this.send('PUT', `/agents/${encodeURIComponent(role)}/profile`, profile); }
   retireAgent(role: string) { return this.send('DELETE', `/agents/${encodeURIComponent(role)}`); }
+  agentPerformance() { return this.get<AgentPerformance[]>('/agents/performance'); }
   agentVersions(role: string) { return this.get<AgentVersion[]>(`/agents/${encodeURIComponent(role)}/versions`); }
   setAgentModel(role: string, model: LlmSelection | null) { return this.send('PUT', `/agents/${encodeURIComponent(role)}/model`, { model }); }
 

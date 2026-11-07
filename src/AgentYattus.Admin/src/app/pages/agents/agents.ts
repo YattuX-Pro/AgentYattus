@@ -9,13 +9,13 @@ import { HlmSheetImports } from '@spartan-ng/helm/sheet';
 import { HlmTextareaImports } from '@spartan-ng/helm/textarea';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
-import { AdminApi, Agent, AgentVersion, LlmModel, LlmStatus, errorMessage, selectionKey } from '../../core/api';
+import { AdminApi, Agent, AgentPerformance, AgentVersion, LlmModel, LlmStatus, errorMessage, selectionKey } from '../../core/api';
 import { when } from '../../core/format';
 import { diffLines } from './diff';
-import { tokens } from '../../core/format';
+import { tokens, usd } from '../../core/format';
 import { PageHeader } from '../../shell/page-header';
 import { ModelPicker } from '../models/model-picker';
-import { AgentForm, TOOLS, formErrors } from './tools';
+import { AgentForm, TOOLS, formErrors, successRate } from './tools';
 
 @Component({
   selector: 'app-agents',
@@ -37,6 +37,15 @@ export class Agents {
   protected readonly pickerOpen = signal(false);
 
   protected readonly toolChoices = TOOLS;
+  protected readonly usd = usd;
+  protected readonly performance = signal<Map<string, AgentPerformance>>(new Map());
+
+  /** Réussite et coût moyen d'un agent ; null tant qu'aucune de ses missions n'est terminée. */
+  protected perf(agent: Agent) {
+    const p = this.performance().get(agent.key);
+    const rate = p ? successRate(p.finished, p.completed) : null;
+    return rate === null ? null : { rate, cost: p!.averageCost, finished: p!.finished, tone: rate >= 80 ? 'good' : rate >= 50 ? 'mid' : 'low' };
+  }
 
   // Nouvel agent (ADR 0013) et profil d'un agent créé
   protected readonly createOpen = signal(false);
@@ -170,8 +179,9 @@ export class Agents {
 
   protected async load() {
     try {
-      const [agents, models, status] = await Promise.all([this.api.agents(), this.api.models(), this.api.llm()]);
+      const [agents, models, status, performance] = await Promise.all([this.api.agents(), this.api.models(), this.api.llm(), this.api.agentPerformance()]);
       this.agents.set(agents);
+      this.performance.set(new Map(performance.map((p) => [p.role, p])));
       this.models.set(models.models);
       this.status.set(status);
     } catch (e) {

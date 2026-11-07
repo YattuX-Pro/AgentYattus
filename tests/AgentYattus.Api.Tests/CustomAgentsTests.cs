@@ -94,4 +94,26 @@ public sealed class CustomAgentsTests
         Assert.EndsWith("Chaque écriture attend la décision d'un humain.", model.Options[0]!.Instructions);
         Assert.Equal("write_file", Assert.Single(paused.PendingApproval!.ToolCalls).Tool);
     }
+
+    [Fact]
+    public async Task Each_agent_shows_its_success_rate_and_average_cost_per_mission()
+    {
+        await using var api = new ApiFactory();
+        var root = As(api, "root", instanceAdmin: true);
+        var key = (await (await root.PostAsJsonAsync(AgentsProtocol.Path, Tester, Ct)).Content.ReadFromJsonAsync<AgentDto>(Ct))!.Key;
+
+        var paid = await root.CreateMissionAsync(FakeAgentRunner.PaidGoal);
+        var failed = await root.CreateMissionAsync(FakeAgentRunner.TimeoutGoal);
+        var byTester = (await (await root.PostAsJsonAsync("/missions", new CreateMissionRequest("Vérifie les tests", Agent: key), Ct))
+            .Content.ReadFromJsonAsync<MissionDto>(Ct))!;
+        await root.WaitForStatusAsync(paid.Id, MissionStatus.Completed);
+        await root.WaitForStatusAsync(failed.Id, MissionStatus.Failed);
+        await root.WaitForStatusAsync(byTester.Id, MissionStatus.Completed);
+
+        var stats = (await root.GetFromJsonAsync<AgentPerformanceDto[]>(AgentsProtocol.Performance, Ct))!.ToDictionary(s => s.Role);
+        // L'Analyste : deux missions terminées, une réussie ; 0,0025 $ sur deux missions.
+        Assert.Equal((2, 1, 0.00125m), (stats["analyste"].Finished, stats["analyste"].Completed, stats["analyste"].AverageCost));
+        Assert.Equal((1, 1), (stats[key].Finished, stats[key].Completed));
+        Assert.Equal(HttpStatusCode.Forbidden, (await As(api, "alice").GetAsync(AgentsProtocol.Performance, Ct)).StatusCode);
+    }
 }

@@ -33,12 +33,22 @@ public sealed record AgentStatsDto(int Runs, long TotalTokens, long AverageToken
 /// <param name="Model">Null pour revenir au modèle par défaut.</param>
 public sealed record UpdateAgentModelRequest(LlmSelectionDto? Model);
 
+/// <summary>Ce que les missions disent d'un agent : combien ont abouti, et ce qu'elles coûtent en moyenne.</summary>
+/// <param name="Finished">Missions terminées où l'agent a travaillé : réussies, échouées ou arrêtées.</param>
+/// <param name="Completed">Celles qui ont abouti.</param>
+/// <param name="AverageCost">Coût moyen d'une de ces missions, en dollars, au prix du catalogue.
+/// Une revue compte pour l'Analyste et pour le Rédacteur : c'est le coût de la mission entière.</param>
+public sealed record AgentPerformanceDto(string Role, int Finished, int Completed, decimal AverageCost);
+
 /// <param name="RequiresApproval">Vrai si chaque appel attend une décision humaine.</param>
 public sealed record ToolInfoDto(string Name, string Description, bool RequiresApproval);
 
 public static class AgentsProtocol
 {
     public const string Path = "/agents";
+
+    /// <summary>Réussite et coût des missions de chaque agent (calculés par le module Missions).</summary>
+    public const string Performance = "/agents/performance";
 
     public static string Model(string role) => $"/agents/{role}/model";
 

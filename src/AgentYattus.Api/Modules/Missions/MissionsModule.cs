@@ -37,6 +37,8 @@ public static class MissionsModule
         missions.MapPost("/{id:guid}/retry", RetryAsync);
         missions.MapGet("/{id:guid}/events", GetEventsAsync);
         app.MapHub<MissionsHub>(MissionsHubProtocol.Path);
+        app.MapGet(AgentsProtocol.Performance, async (MissionsDb db, CancellationToken ct) => TypedResults.Ok(await PerformanceAsync(db, ct)))
+            .RequireAuthorization(Authentication.LlmAdminPolicy);
         app.MapGet(SettingsProtocol.Budget, async (MissionsDb db, IInstanceSettings instance, CancellationToken ct) =>
             TypedResults.Ok(await BudgetAsync(db, await instance.GetAsync(ct), ct)))
             .RequireAuthorization(Authentication.LlmAdminPolicy);
@@ -123,6 +125,31 @@ public static class MissionsModule
         var start = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
         var costs = await db.Missions.Where(m => m.CostMicros > 0).Select(m => new { m.CreatedAt, m.CostMicros }).ToListAsync(ct);
         return costs.Where(c => c.CreatedAt >= start).Sum(c => c.CostMicros);
+    }
+
+    /// <summary>
+    /// Par agent, les missions terminées où il a travaillé : une question compte pour son agent (l'Analyste par défaut),
+    /// une revue pour l'Analyste et pour le Rédacteur. Regroupé en SQL (type, agent, statut), puis réparti ici.
+    /// </summary>
+    internal static async Task<List<AgentPerformanceDto>> PerformanceAsync(MissionsDb db, CancellationToken ct)
+    {
+        MissionStatus[] finished = [MissionStatus.Completed, MissionStatus.Failed, MissionStatus.Cancelled];
+        var groups = await db.Missions.AsNoTracking().Where(m => finished.Contains(m.Status))
+            .GroupBy(m => new { m.Kind, m.Agent, m.Status })
+            .Select(g => new { g.Key.Kind, g.Key.Agent, g.Key.Status, Count = g.Count(), Cost = g.Sum(m => m.CostMicros) })
+            .ToListAsync(ct);
+        var totals = new Dictionary<string, (int Finished, int Completed, long Cost)>();
+        foreach (var g in groups)
+        {
+            IEnumerable<string> roles = g.Kind == MissionKind.Review ? AgentsModule.RolesFor(MissionKind.Review) : [g.Agent ?? AgentsModule.RolesFor(MissionKind.Question)[0]];
+            foreach (var role in roles)
+            {
+                var (f, c, cost) = totals.GetValueOrDefault(role);
+                totals[role] = (f + g.Count, c + (g.Status == MissionStatus.Completed ? g.Count : 0), cost + g.Cost);
+            }
+        }
+
+        return [.. totals.Select(t => new AgentPerformanceDto(t.Key, t.Value.Finished, t.Value.Completed, t.Value.Cost / 1_000_000m / t.Value.Finished))];
     }
 
     internal static async Task<BudgetDto> BudgetAsync(MissionsDb db, InstanceSettings settings, CancellationToken ct)

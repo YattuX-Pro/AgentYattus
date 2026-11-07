@@ -117,6 +117,9 @@ public sealed class FakeAgentRunner : IAgentRunner
     public const string TimeoutGoal = "simule un délai HTTP dépassé";
     public const string LongGoal = "mission longue";
 
+    /// <summary>Une mission qui réussit et coûte 0,0025 $ (2 500 micro-dollars).</summary>
+    public const string PaidGoal = "mission payante";
+
     private static async Task<AgentOutcome> WaitForCancellationAsync(CancellationToken cancellationToken)
     {
         await Task.Delay(Timeout.Infinite, cancellationToken);
@@ -148,7 +151,8 @@ public sealed class FakeAgentRunner : IAgentRunner
         // Ce que lèvera un HttpClient en délai dépassé dans le vrai runner.
         return goal == TimeoutGoal
             ? Task.FromException<AgentOutcome>(new TaskCanceledException())
-            : Task.FromResult(new AgentOutcome($"Réponse à : {goal}"));
+            : Task.FromResult(new AgentOutcome($"Réponse à : {goal}",
+                Usage: goal.StartsWith(PaidGoal, StringComparison.Ordinal) ? new AgentUsage(100, 50, 2_500) : null));
     }
 }
 
