@@ -43,7 +43,42 @@ internal static class LocalMode
                 "Mode local : AGENTYATTUS_LOCAL_TOKEN (Local__Token) doit contenir au moins 32 caractères, tirés au hasard par le logiciel.");
         services.AddAuthentication(SchemeName)
             .AddScheme<LocalTokenOptions, LocalTokenHandler>(SchemeName, options => options.Token = token);
+        if (int.TryParse(configuration["Local:ParentPid"], out var parent))
+            services.AddHostedService(sp => new ParentWatcher(parent, sp.GetRequiredService<IHostApplicationLifetime>()));
         return services;
+    }
+}
+
+/// <summary>
+/// Si le logiciel s'arrête sans prévenir (plantage, fin forcée), l'API locale le remarque et s'arrête aussi :
+/// pas d'API orpheline qui tourne en arrière-plan.
+/// </summary>
+internal sealed class ParentWatcher(int parentPid, IHostApplicationLifetime lifetime) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            if (!IsAlive(parentPid))
+            {
+                lifetime.StopApplication();
+                return;
+            }
+            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+        }
+    }
+
+    private static bool IsAlive(int pid)
+    {
+        try
+        {
+            using var process = System.Diagnostics.Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
     }
 }
 

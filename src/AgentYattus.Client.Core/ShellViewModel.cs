@@ -34,6 +34,9 @@ public sealed partial class ShellViewModel : ObservableObject
 
     public LoginViewModel? Login { get; }
 
+    /// <summary>Faux en mode local (ADR 0014) : personne ne se connecte, donc personne ne se déconnecte.</summary>
+    public bool CanLogout => Login is not null;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowNav))]
     public partial bool IsAuthenticated { get; set; }

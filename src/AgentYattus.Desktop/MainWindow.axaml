@@ -69,7 +69,7 @@
                 <Button Classes="bare menu" Command="{Binding OpenAdminCommand}" IsVisible="{Binding IsLlmAdmin}">
                   <TextBlock Text="Ouvrir l’espace admin" FontSize="13" />
                 </Button>
-                <Button Classes="bare menu" Command="{Binding LogoutCommand}">
+                <Button Classes="bare menu" Command="{Binding LogoutCommand}" IsVisible="{Binding CanLogout}">
                   <TextBlock Text="Se déconnecter" FontSize="13" />
                 </Button>
               </StackPanel>
