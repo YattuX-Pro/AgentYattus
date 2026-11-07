@@ -88,6 +88,6 @@ internal sealed class PortraitSeeder(
         if (!File.Exists(path) || new FileInfo(path).Length > TeamModule.MaxImageBytes)
             return null;
         var bytes = await File.ReadAllBytesAsync(path, ct);
-        return TeamModule.ImageType(bytes) is { } type ? (bytes, type) : null;
+        return TeamModule.Check(bytes) is ({ } type, null) ? (bytes, type) : null;
     }
 }

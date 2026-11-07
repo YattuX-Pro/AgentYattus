@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AgentYattus.Api.Modules.Audit;
@@ -137,7 +139,7 @@ internal sealed class AgentFrameworkRunner(
                 toolTurns++;
             foreach (var call in calls)
             {
-                await audit.AppendAsync(missionId, $"outil:{call.Name}", cancellationToken);
+                await audit.AppendAsync(missionId, $"outil:{ToolName(call.Name)}", cancellationToken);
                 // Qui a fait quoi, sur quel fichier : de quoi faire parler le bon collègue dans le bureau (ADR 0012).
                 await audit.AppendAsync(missionId, ActionEvent(role.Key, call), cancellationToken);
             }
@@ -163,13 +165,21 @@ internal sealed class AgentFrameworkRunner(
     internal static string ActionEvent(string role, FunctionCallContent call)
     {
         var target = call.Arguments?.TryGetValue("path", out var value) == true ? value?.ToString() ?? "" : "";
-        var clean = new string(target.Where(c => !char.IsControl(c) && char.GetUnicodeCategory(c) is not System.Globalization.UnicodeCategory.Format).ToArray()).Trim();
-        if (clean.Length == 0)
-            clean = ".";
-        if (clean.Length > 120)
-            clean = "…" + clean[^119..];
-        return $"action:{role}:{call.Name}:{clean}";
+        // Par caractère Unicode complet (Rune) : une moitié de paire isolée devient U+FFFD (sinon PostgreSQL refuse le texte),
+        // et l'on coupe sans jamais séparer une paire. On retire contrôle, format et séparateurs de ligne ou de paragraphe.
+        var runes = target.EnumerateRunes()
+            .Where(r => Rune.GetUnicodeCategory(r) is not (UnicodeCategory.Control or UnicodeCategory.Format
+                or UnicodeCategory.LineSeparator or UnicodeCategory.ParagraphSeparator))
+            .ToList();
+        if (runes.Count > 120)
+            runes = [new Rune('…'), .. runes[^119..]];
+        var clean = string.Concat(runes.Select(r => r.ToString())).Trim();
+        return $"action:{role}:{ToolName(call.Name)}:{(clean.Length == 0 ? "." : clean)}";
     }
+
+    /// <summary>Le nom d'outil vient du modèle, qui peut en inventer un : seulement des minuscules et des « _ », sinon « ? ».</summary>
+    internal static string ToolName(string name) =>
+        name.Length is > 0 and <= 40 && name.All(c => c is (>= 'a' and <= 'z') or '_') ? name : "?";
 
     // On ajoute la décision humaine à chaque demande encore sans réponse.
     // ponytail: une seule décision pour toutes les demandes d'un même tour ; le client les affiche toutes avant.

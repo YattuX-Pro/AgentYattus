@@ -76,8 +76,19 @@ public sealed class AuditLog
 
     public async Task AppendAsync(Guid missionId, string type, CancellationToken cancellationToken)
     {
-        _db.Events.Add(new AuditEvent { MissionId = missionId, Type = type, At = DateTimeOffset.UtcNow });
-        await _db.SaveChangesAsync(cancellationToken);
+        var e = new AuditEvent { MissionId = missionId, Type = type, At = DateTimeOffset.UtcNow };
+        _db.Events.Add(e);
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            // Un événement refusé ne doit pas rester suivi : sinon chaque ajout suivant le renverrait et échouerait
+            // à son tour, y compris le statut final de la mission.
+            _db.Entry(e).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+            throw;
+        }
     }
 
     /// <summary>

@@ -62,11 +62,11 @@ public static partial class TeamModule
                 case ProjectRole.Reader: return TypedResults.Forbid();
             }
 
-            var name = request.Name.Trim();
-            var traitKeys = request.Traits.Select(t => t.Trim()).Distinct().ToList();
+            var name = (request.Name ?? "").Trim();
+            var traitKeys = (request.Traits ?? []).Select(t => (t ?? "").Trim()).Distinct().ToList();
             var knownTraits = (await TraitsAsync(db, ct)).Select(t => t.Key).ToHashSet();
             var errors = new Dictionary<string, string[]>();
-            if (!AgentCatalog.RoleKeys.Contains(request.Role))
+            if (request.Role is null || !AgentCatalog.RoleKeys.Contains(request.Role))
                 errors["role"] = [$"Rôle inconnu. Rôles : {string.Join(", ", AgentCatalog.RoleKeys)}."];
             if (!ValidName(name))
                 errors["name"] = ["De 1 à 24 caractères : lettres, espaces, apostrophes et tirets."];
@@ -90,7 +90,7 @@ public static partial class TeamModule
             await db.SaveChangesAsync(ct);
             var colleague = new Colleague
             {
-                Id = Guid.CreateVersion7(), ProjectId = projectId, Role = request.Role, PortraitId = request.PortraitId, Name = name,
+                Id = Guid.CreateVersion7(), ProjectId = projectId, Role = request.Role!, PortraitId = request.PortraitId, Name = name,
                 Traits = string.Join(',', traitKeys), CreatedAt = now, CreatedBy = me.Id,
             };
             db.Colleagues.Add(colleague);

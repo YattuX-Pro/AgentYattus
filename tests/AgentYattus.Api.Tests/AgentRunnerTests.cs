@@ -89,5 +89,11 @@ public sealed class AgentRunnerTests
         Assert.Equal("action:analyste:read_file:a.txtfaux", Event("a.txt\n\u200Bfaux"));
         Assert.Equal("action:analyste:read_file:.", Event(null));
         Assert.Equal(120, Event(new string('x', 500))["action:analyste:read_file:".Length..].Length);
+        // Une moitié de paire isolée (que PostgreSQL refuserait) devient U+FFFD ; une coupe ne sépare jamais une paire.
+        Assert.Equal("action:analyste:read_file:\uFFFDx", Event("\uD800x"));
+        var cut = Event(new string('x', 119) + "😀")["action:analyste:read_file:".Length..];
+        Assert.True(cut.EnumerateRunes().All(r => r.Value != 0xFFFD) && cut.EndsWith("😀"));
+        // Un nom d'outil inventé par le modèle ne passe pas tel quel.
+        Assert.Equal("?", AgentYattus.Api.Modules.Agents.AgentFrameworkRunner.ToolName("read_file:faux\nCompleted"));
     }
 }

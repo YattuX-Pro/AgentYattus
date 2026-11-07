@@ -56,7 +56,7 @@ public static partial class TeamModule
         app.MapPut(TeamProtocol.Traits, async Task<Results<NoContent, ValidationProblem>> (
             UpdateTraitsRequest request, TeamDb db, CancellationToken ct) =>
         {
-            var traits = request.Traits.Select(t => new TraitDto(t.Key.Trim().ToLowerInvariant(), t.Label.Trim(), t.Style.Trim())).ToList();
+            var traits = (request.Traits ?? []).Select(t => new TraitDto((t.Key ?? "").Trim().ToLowerInvariant(), (t.Label ?? "").Trim(), (t.Style ?? "").Trim())).ToList();
             var ok = traits.Count is >= 1 and <= 20
                      && traits.Select(t => t.Key).Distinct().Count() == traits.Count
                      && traits.All(t => TraitKeyPattern().IsMatch(t.Key) && t.Label.Length is >= 1 and <= 30 && t.Style.Length is >= 10 and <= 300);
@@ -83,7 +83,8 @@ public static partial class TeamModule
             UpdateSceneLinesRequest request, TeamDb db, ICurrentUser me, CancellationToken ct) =>
         {
             var errors = new Dictionary<string, string[]>();
-            foreach (var (key, template) in request.Templates)
+            var templates = request.Templates ?? new Dictionary<string, string?>();
+            foreach (var (key, template) in templates)
             {
                 if (SceneEvents.FirstOrDefault(e => e.Event == key) is not { } known)
                     errors[key] = ["Événement inconnu."];
@@ -93,7 +94,7 @@ public static partial class TeamModule
 
             if (errors.Count > 0)
                 return TypedResults.ValidationProblem(errors);
-            foreach (var (key, template) in request.Templates)
+            foreach (var (key, template) in templates)
             {
                 var row = await db.Lines.FindAsync([key], ct);
                 if (string.IsNullOrWhiteSpace(template))
@@ -120,7 +121,8 @@ public static partial class TeamModule
             TeamSettingsDto request, TeamDb db, ICurrentUser me, CancellationToken ct) =>
         {
             var errors = new Dictionary<string, string[]>();
-            var leaderName = request.LeaderName.Trim();
+            var leaderName = (request.LeaderName ?? "").Trim();
+            var defaultTeam = request.DefaultTeam ?? [];
             if (!ValidName(leaderName))
                 errors["leaderName"] = ["De 1 à 24 caractères : lettres, espaces, apostrophes et tirets."];
             if (request.TypingMs is < 5 or > 200)
@@ -129,13 +131,13 @@ public static partial class TeamModule
                 errors["pauseMs"] = ["Entre 300 et 10 000 ms."];
             var roles = AgentCatalog.RoleKeys;
             var portraitIds = new[] { request.LeaderPortraitId, request.ManagerPortraitId }.OfType<Guid>()
-                .Concat(request.DefaultTeam.Select(s => s.PortraitId)).Distinct().ToList();
+                .Concat(defaultTeam.Select(s => s.PortraitId)).Distinct().ToList();
             var known = await db.Portraits.Where(p => portraitIds.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct);
             if (known.Count != portraitIds.Count)
                 errors["portraits"] = ["Un portrait choisi n'existe pas."];
-            if (request.DefaultTeam.Count > roles.Count
-                || request.DefaultTeam.Select(s => s.Role).Distinct().Count() != request.DefaultTeam.Count
-                || request.DefaultTeam.Any(s => !roles.Contains(s.Role) || !ValidName(s.Name.Trim())))
+            if (defaultTeam.Count > roles.Count
+                || defaultTeam.Select(s => s.Role).Distinct().Count() != defaultTeam.Count
+                || defaultTeam.Any(s => s.Role is null || !roles.Contains(s.Role) || !ValidName((s.Name ?? "").Trim())))
                 errors["defaultTeam"] = ["Un siège par rôle existant, avec un prénom valide."];
             if (errors.Count > 0)
                 return TypedResults.ValidationProblem(errors);
@@ -146,7 +148,7 @@ public static partial class TeamModule
             row.LeaderPortraitId = request.LeaderPortraitId;
             row.LeaderName = leaderName;
             row.ManagerPortraitId = request.ManagerPortraitId;
-            row.DefaultTeam = JsonSerializer.Serialize(request.DefaultTeam.Select(s => s with { Name = s.Name.Trim() }), JsonSerializerOptions.Web);
+            row.DefaultTeam = JsonSerializer.Serialize(defaultTeam.Select(s => s with { Name = s.Name.Trim() }), JsonSerializerOptions.Web);
             row.TypingMs = request.TypingMs;
             row.PauseMs = request.PauseMs;
             row.UpdatedAt = DateTimeOffset.UtcNow;

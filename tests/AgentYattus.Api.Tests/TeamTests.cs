@@ -12,9 +12,15 @@ public sealed class TeamTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    // Le strict minimum pour passer le contrôle de signature : l'en-tête d'un PNG, puis un RIFF/WEBP.
-    internal static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4];
-    internal static readonly byte[] Webp = [.. "RIFF"u8, 0, 0, 0, 0, .. "WEBP"u8, 1, 2];
+    // Le strict minimum pour passer les contrôles : une signature, et un en-tête qui donne la taille (512 × 512).
+    internal static byte[] PngOf(int side) =>
+        [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, .. "IHDR"u8,
+         (byte)(side >> 24), (byte)(side >> 16), (byte)(side >> 8), (byte)side, (byte)(side >> 24), (byte)(side >> 16), (byte)(side >> 8), (byte)side, 8, 6, 0, 0, 0];
+
+    internal static readonly byte[] Png = PngOf(512);
+
+    // Un WebP étendu (VP8X) : largeur et hauteur moins un, sur trois octets.
+    internal static readonly byte[] Webp = [.. "RIFF"u8, 0, 0, 0, 0, .. "WEBP"u8, .. "VP8X"u8, 10, 0, 0, 0, 0x10, 0, 0, 0, 0xFF, 0x01, 0, 0xFF, 0x01, 0];
 
     internal static async Task<HttpResponseMessage> UploadAsync(HttpClient client, string slug, string name, byte[] work, byte[]? talk = null)
     {
@@ -52,6 +58,11 @@ public sealed class TeamTests
         Assert.Contains("travail", problem);
         Assert.Equal(HttpStatusCode.Conflict, (await UploadAsync(root, "ines", "Inès", Png)).StatusCode);
 
+        // Une image qui annonce 30 000 px de côté : des gigaoctets une fois décodée. Refusée sans la décoder.
+        var huge = await UploadAsync(root, "geant", "Géant", PngOf(30_000));
+        Assert.Equal(HttpStatusCode.BadRequest, huge.StatusCode);
+        Assert.Contains("2048 px", await huge.Content.ReadAsStringAsync(Ct));
+
         // Les images se lisent sans jeton ; la pose « parle » est bien la seconde image.
         var anonymous = api.CreateClient();
         anonymous.DefaultRequestHeaders.Add(TestAuthHandler.AnonymousHeader, "1");
@@ -59,6 +70,7 @@ public sealed class TeamTests
         Assert.Equal(HttpStatusCode.OK, talk.StatusCode);
         Assert.Equal("image/webp", talk.Content.Headers.ContentType?.MediaType);
         Assert.Equal(Webp, await talk.Content.ReadAsByteArrayAsync(Ct));
+        Assert.Equal("nosniff", talk.Headers.GetValues("X-Content-Type-Options").Single());
 
         // Un membre voit la galerie active, ne la modifie pas ; un portrait désactivé disparaît pour lui.
         var alice = As(api, "alice");
