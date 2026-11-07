@@ -33,7 +33,7 @@ internal sealed class WorkspaceTools
     public static IReadOnlyList<(string Name, string Description, bool RequiresApproval)> Catalog { get; } =
     [
         ("list_files", "Liste les fichiers et dossiers d'un dossier du workspace.", false),
-        ("read_file", "Lit le contenu texte d'un fichier du workspace.", false),
+        ("read_file", "Lit le contenu texte d'un fichier du workspace ; un PDF, un Word (.docx) ou un Excel (.xlsx) est converti en texte.", false),
         ("write_file", "Crée ou remplace un fichier texte du workspace. Un humain doit approuver chaque écriture.", true),
     ];
 
@@ -69,6 +69,21 @@ internal sealed class WorkspaceTools
         if (!file.Exists)
         {
             throw new FileNotFoundException($"Fichier introuvable : {path}");
+        }
+
+        // Un document (leçon 114) : sa taille sur le disque peut dépasser la limite, c'est son texte qui est borné.
+        if (Documents.IsDocument(file.Name))
+        {
+            if (file.Length > Documents.MaxDocumentBytes)
+                throw new InvalidOperationException($"Document trop volumineux : {file.Length} octets (maximum {Documents.MaxDocumentBytes}).");
+            try
+            {
+                return Documents.ExtractText(file.FullName, (int)Math.Min(_maxFileBytes, int.MaxValue));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                throw new InvalidOperationException($"Document illisible : {path} ({ex.GetType().Name}).");
+            }
         }
 
         if (file.Length > _maxFileBytes)
