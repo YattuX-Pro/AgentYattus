@@ -16,6 +16,7 @@
 - **Évaluation** : coût par mission réussie, par modèle.
 - **Plusieurs utilisateurs** : organisations (Administrateur, Opérateur, Observateur), projets privés, partagés à des personnes ou ouverts à l'organisation ; chaque mission appartient à un projet, et l'on ne voit que ce qu'on a le droit de voir (ADR 0009).
 - **Espace admin web** (Angular + spartan/ui) : vue d'ensemble avec le coût du mois, projets, missions en direct (approuver, arrêter, relancer), audit exportable en CSV, agents (consignes versionnées), modèles, organisations, utilisateurs, réglages (budget, durée, missions simultanées, fichiers exclus, rétention). Le bureau et le mobile servent à travailler ; la gestion se fait sur le web (ADR 0008).
+- **Le bureau des agents** (ADR 0012) : une mission se suit comme un **open space**. Les agents sont des collègues au visage réaliste, avec un prénom et une personnalité ; ils se parlent dans des bulles qui s'écrivent, se passent des dossiers, et frappent à ta porte quand ils ont besoin de ton accord. On recrute un collègue depuis le bureau (galerie de 22 portraits). Visages, équipe de départ, traits, répliques et rythme de la scène se gèrent dans l'admin : rien n'est en dur.
 - **Connexion et gestion du LLM** : connexion Keycloak (OIDC + PKCE) ; comme dans opencode, n'importe quel fournisseur (Anthropic, OpenAI, Gemini, Mistral, Groq, OpenRouter, Ollama en local…) et un sélecteur unique de modèles, tiré de models.dev ; clés chiffrées et révocables ; un modèle par agent ; un **mode Gratuit** qui enchaîne les modèles gratuits (Ollama, OpenRouter, NVIDIA, OpenCode Zen) et bascule tout seul quand un quota est épuisé, sans jamais passer à un modèle payant.
 
 Projet open source (licence MIT), construit en .NET 10 comme support d'apprentissage : chaque commit est accompagné d'une leçon dans [`docs/lecons/`](docs/lecons/).
@@ -78,12 +79,13 @@ Aucun test n'appelle le vrai modèle : ils utilisent un faux modèle scripté. L
 
 | Partie | Rôle |
 |---|---|
-| `src/AgentYattus.Api` | Monolithe modulaire ASP.NET Core : modules Identity, Projects, Missions, Agents, Audit, Llm, Settings ; PostgreSQL ; exécution en arrière-plan ; SignalR ; OpenTelemetry ; jetons Keycloak |
+| `src/AgentYattus.Api` | Monolithe modulaire ASP.NET Core : modules Identity, Projects, Missions, Agents, Audit, Llm, Settings, Team ; PostgreSQL ; exécution en arrière-plan ; SignalR ; OpenTelemetry ; jetons Keycloak |
 | `src/AgentYattus.Contracts` | Objets échangés entre l'API et les clients |
 | `src/AgentYattus.Client.Core` | Client HTTP et SignalR, ViewModels partagés (sans dépendance d'interface) |
-| `src/AgentYattus.Desktop` | Application Avalonia pour travailler : Connexion, Accueil (avec le choix du projet), Mission en direct, Agents, Rapports ; la gestion s'ouvre dans l'espace admin |
-| `src/AgentYattus.Admin` | Espace admin web Angular 21 + spartan/ui : Vue d'ensemble, Projets, Missions, Audit, Agents, Modèles, Organisations, Utilisateurs, Réglages |
-| `deploy/keycloak` | Realm Keycloak de développement (comptes de test) |
+| `src/AgentYattus.Desktop` | Application Avalonia pour travailler : Connexion, Accueil (avec le choix du projet), l'open space d'une mission, Nouveau collègue, Agents, Rapports ; la gestion s'ouvre dans l'espace admin |
+| `src/AgentYattus.Admin` | Espace admin web Angular 21 + spartan/ui : Vue d'ensemble, Projets, Missions, Audit, Agents, Modèles, Portraits, Traits et répliques, Organisations, Utilisateurs, Équipes, Réglages |
+| `deploy/keycloak` | Realm Keycloak de développement (comptes de test, thème de connexion, Google et GitHub) |
+| `deploy/portraits` | Galerie de portraits importée au premier démarrage |
 | `spikes/AgentLoop` | La boucle d'agent écrite à la main, puis avec Agent Framework |
 | `evals/` | Banc d'évaluation : cas, workspace à défauts plantés, coût par mission réussie |
 

@@ -107,7 +107,31 @@ Calendrier indicatif (4 à 5 mois depuis le 24/10/2026) : MVP démontrable mi-f�
 - [x] 68 `refactor(desktop): retirer la gestion des modèles du bureau`
 - [x] 69 `feat(desktop): choisir le projet d'une mission`
 
+## Le bureau des agents
+
+Préalable : `feat(auth): page de connexion aux couleurs d'Agent Yattus, avec Google et GitHub`.
+
+- [x] 71 `docs(adr): ADR 0012, les collègues`
+- [x] 72 `feat(team): module Équipe et galerie de portraits`
+- [x] 73 `feat(team): équipes des projets, traits, répliques et réglages`
+- [x] 74 `feat(team): import de la galerie au premier démarrage`
+- [x] 75 `feat(agents): le prénom et les traits du collègue dans sa consigne`
+- [x] 76 `feat(missions): le rôle et le fichier visé dans le journal`
+- [x] 77 `feat(client): traduire le journal d'une mission en répliques`
+- [x] 78 `feat(client): OfficeViewModel, la scène qui se joue`
+- [x] 79 `feat(admin): transitions sur chaque clic et chaque page, placeholders partout`
+- [x] 80 `feat(admin): menu latéral refait et animé`
+- [x] 81 `feat(admin): page Portraits`
+- [x] 82 `feat(admin): page Équipes`
+- [x] 83 `feat(admin): page Traits et répliques`
+- [x] 84 à 89 `feat(desktop)`: l'open space, les collègues, la bulle, ce qui circule, on frappe à votre porte, le fil de l'équipe
+- [x] 90 `feat(client): RecruitViewModel` · 91 `feat(desktop): l'écran Nouveau collègue`
+- [x] `fix(evals)` · 92 `fix(security)` (revue de la phase)
+
 ## Ensuite
+
+- [ ] Poste « personnalisé » : rôles d'agents sur mesure (outils, consigne), avec leur propre décision.
+- [ ] Statuts des bureaux (« lit le code », « rédige »…) réglables dans l'admin, comme les répliques.
 
 - [ ] Rôles d'agents personnalisés (choix des outils) : une décision à part.
 - [ ] Clés de modèle personnelles (une clé ne sert qu'aux projets de son propriétaire), modèle par projet, budget par organisation et par projet (ADR 0009, reporté).

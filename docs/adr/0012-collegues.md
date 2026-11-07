@@ -41,4 +41,4 @@ Contrainte posée : **rien en dur**. Les visages, les prénoms, l'équipe de dé
 - Un module de plus (Équipe) et quatre pages dans l'admin web.
 - Les événements de mission disent désormais **quel rôle** a utilisé **quel outil sur quel fichier** (événement `action:…`), pour que la scène sache qui parle.
 - L'écran Mission du bureau (le graphe) est remplacé par l'open space ; la logique de décision (relire tout avant d'approuver) est conservée telle quelle.
-- La galerie générée pour la maquette (22 personnes, deux poses) est livrée dans `deploy/portraits/` et s'importe avec `--seed-portraits`.
+- La galerie générée pour la maquette (22 personnes, deux poses) est livrée dans `deploy/portraits/` et s'importe au premier démarrage, si la galerie est vide (`Team:SeedFolder`).

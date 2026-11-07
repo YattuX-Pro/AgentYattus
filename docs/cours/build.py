@@ -27,6 +27,7 @@ PHASES = [  # (première leçon, numéro, titre, objectif)
     (37, "7", "Espace admin web", "Séparer gérer et travailler : un espace d'administration en Angular et spartan/ui."),
     (45, "8", "Plusieurs utilisateurs", "Organisations, projets privés ou partagés, et des missions qui suivent les droits."),
     (51, "9", "Compléter l'admin", "Coût et budget, réglages, arrêter et relancer, consignes versionnées, direct, export."),
+    (71, "10", "Le bureau des agents", "Des collègues au visage humain, des bulles qui s'écrivent, un admin qui bouge à chaque clic."),
 ]
 
 
