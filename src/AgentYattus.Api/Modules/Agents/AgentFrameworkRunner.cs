@@ -66,7 +66,10 @@ internal sealed class AgentFrameworkRunner(
         if (resume is not null)
         {
             stage = Stage.Parse(resume.Conversation);
-            stage.History.Add(new ChatMessage(ChatRole.User, AnswerPendingRequests(stage.History, resume.Approved)));
+            // Une réponse de l'humain à une mission terminée, ou sa décision sur la demande en attente.
+            stage.History.Add(resume.FollowUp is { } followUp
+                ? new ChatMessage(ChatRole.User, followUp)
+                : new ChatMessage(ChatRole.User, AnswerPendingRequests(stage.History, resume.Approved)));
         }
         else if (kind == MissionKind.Question)
         {
@@ -110,9 +113,13 @@ internal sealed class AgentFrameworkRunner(
         logger.LogInformation(
             "Mission {MissionId} ({Role}) : {Tokens} tokens, réponse de {Length} caractères",
             missionId, role.Key, response.Usage?.TotalTokenCount, response.Text.Length);
-        return new AgentOutcome(stage.Findings is null
+        // La conversation complète est gardée : on pourra répondre à l'agent (leçon 117). Les constats ne sont
+        // ajoutés qu'à la première réponse d'une revue.
+        stage.History.AddRange(response.Messages);
+        var answer = stage.Findings is null || resume?.FollowUp is not null
             ? response.Text
-            : $"{response.Text}\n\n---\nConstats de l'Analyste :\n{stage.Findings}", Usage: usage, Learned: _learned);
+            : $"{response.Text}\n\n---\nConstats de l'Analyste :\n{stage.Findings}";
+        return new AgentOutcome(answer, Conversation: stage.Serialize(), Usage: usage, Learned: _learned);
     }
 
     private async Task<(AgentResponse Response, AgentUsage Usage)> RunRoleAsync(

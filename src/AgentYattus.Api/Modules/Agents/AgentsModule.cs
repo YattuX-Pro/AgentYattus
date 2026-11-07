@@ -26,7 +26,8 @@ public sealed record AgentSeat(string Style, IReadOnlyList<string> Skills);
 
 /// <summary>
 /// Soit l'agent a fini (<see cref="Answer"/>), soit il attend une décision humaine (<see cref="Approval"/>).
-/// Dans ce cas, <see cref="Conversation"/> est l'état à conserver tel quel pour reprendre plus tard.
+/// <see cref="Conversation"/> est l'état à conserver tel quel pour reprendre plus tard : après une pause, ou pour répondre
+/// à l'agent une fois la mission terminée (leçon 117).
 /// </summary>
 /// <param name="Learned">Les compétences approuvées pendant cette exécution, à ranger sur le collègue (leçon 106).</param>
 public sealed record AgentOutcome(
@@ -48,7 +49,8 @@ public sealed record AgentApproval(IReadOnlyList<AgentToolCall> ToolCalls);
 
 public sealed record AgentToolCall(string Tool, string Arguments);
 
-public sealed record AgentResume(string Conversation, bool Approved);
+/// <param name="FollowUp">Une réponse de l'humain à une mission terminée (leçon 117) ; sinon, c'est une décision.</param>
+public sealed record AgentResume(string Conversation, bool Approved, string? FollowUp = null);
 
 public static class AgentsModule
 {

@@ -33,6 +33,8 @@ public static class MissionsModule
         missions.MapPost("/", CreateAsync);
         missions.MapGet("/{id:guid}", GetAsync);
         missions.MapPost("/{id:guid}/decision", DecideAsync);
+        missions.MapPost("/{id:guid}/messages", ReplyAsync);
+        missions.MapGet("/{id:guid}/turns", GetTurnsAsync);
         missions.MapPost("/{id:guid}/cancel", CancelAsync);
         missions.MapPost("/{id:guid}/retry", RetryAsync);
         missions.MapGet("/{id:guid}/events", GetEventsAsync);
@@ -219,6 +221,50 @@ public static class MissionsModule
         await audit.AppendAsync(id, request.Approved ? "decision:approuvee" : "decision:refusee", cancellationToken);
         await queue.Writer.WriteAsync(id, cancellationToken);
         return TypedResults.Accepted($"/missions/{id}");
+    }
+
+    /// <summary>
+    /// Répondre à l'agent (leçon 117) : seulement sur une mission terminée qui a gardé sa conversation, par un éditeur du projet.
+    /// Une seule requête vérifie et écrit : deux réponses simultanées ne relancent pas deux fois la mission.
+    /// </summary>
+    private static async Task<Results<Accepted, NotFound, Conflict<string>, ForbidHttpResult, ValidationProblem>> ReplyAsync(
+        Guid id, ReplyRequest request, MissionsDb db, AuditLog audit, MissionQueue queue, ICurrentUser me, IProjectAccess projects,
+        IHubContext<MissionsHub> hub, IProjectDirectory directory, CancellationToken cancellationToken)
+    {
+        var text = (request.Text ?? "").Trim();
+        if (text.Length is 0 or > MaxGoalLength)
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["text"] = [$"De 1 à {MaxGoalLength} caractères."] });
+        if (await db.Missions.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, cancellationToken) is not { } mission)
+            return TypedResults.NotFound();
+        switch (await AccessAsync(mission, me, projects, cancellationToken))
+        {
+            case null: return TypedResults.NotFound();
+            case ProjectRole.Reader: return TypedResults.Forbid();
+        }
+        var updated = await db.Missions
+            .Where(m => m.Id == id && m.Status == MissionStatus.Completed && m.Conversation != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, MissionStatus.Pending).SetProperty(m => m.FollowUp, text), cancellationToken);
+        if (updated == 0)
+            return TypedResults.Conflict("On répond à une mission terminée qui a gardé sa conversation : sinon, lance une nouvelle mission.");
+        db.Turns.Add(new MissionTurn { MissionId = id, FromUser = true, Text = text, At = DateTimeOffset.UtcNow });
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.AppendAsync(id, "reponse", cancellationToken);
+        var readers = await directory.ReadersAsync(mission.ProjectId ?? Guid.Empty, cancellationToken);
+        await hub.Clients.Users(readers).SendAsync(MissionsHubProtocol.MissionEvent,
+            new MissionEventDto(id, MissionStatus.Pending, DateTimeOffset.UtcNow), cancellationToken);
+        await queue.Writer.WriteAsync(id, cancellationToken);
+        return TypedResults.Accepted($"/missions/{id}");
+    }
+
+    private static async Task<Results<Ok<MissionTurnDto[]>, NotFound>> GetTurnsAsync(
+        Guid id, MissionsDb db, ICurrentUser me, IProjectAccess projects, CancellationToken cancellationToken)
+    {
+        if (await db.Missions.AsNoTracking().FirstOrDefaultAsync(m => m.Id == id, cancellationToken) is not { } mission
+            || await AccessAsync(mission, me, projects, cancellationToken) is null)
+            return TypedResults.NotFound();
+        // Les identifiants croissent : leur ordre est celui de la conversation (SQLite ne trie pas les dates avec fuseau).
+        return TypedResults.Ok(await db.Turns.AsNoTracking().Where(t => t.MissionId == id).OrderBy(t => t.Id)
+            .Select(t => new MissionTurnDto(t.FromUser, t.Text, t.At)).ToArrayAsync(cancellationToken));
     }
 
     /// <summary>

@@ -61,6 +61,12 @@ public sealed record ToolCallDto(string Tool, string Arguments);
 /// <param name="ApprovalId">La demande affichée au moment de décider (<see cref="ApprovalDto.Id"/>).</param>
 public sealed record DecisionRequest(bool Approved, Guid ApprovalId);
 
+/// <summary>Répondre à l'agent après sa réponse (leçon 117) : la mission reprend, avec toute sa conversation.</summary>
+public sealed record ReplyRequest(string Text);
+
+/// <summary>Un tour de la conversation, après le but : une réponse de l'agent, ou un message de toi.</summary>
+public sealed record MissionTurnDto(bool FromUser, string Text, DateTimeOffset At);
+
 public sealed record MissionEventDto(Guid MissionId, MissionStatus Status, DateTimeOffset At);
 
 /// <param name="Type">Ce qui s'est passé : un statut (« Running »), un outil (« outil:read_file »), une décision…</param>

@@ -56,6 +56,9 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.Property<bool?>("Decision")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("FollowUp")
+                        .HasColumnType("text");
+
                     b.Property<string>("Goal")
                         .IsRequired()
                         .HasColumnType("text");
@@ -93,6 +96,34 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("Missions", "missions");
+                });
+
+            modelBuilder.Entity("AgentYattus.Api.Modules.Missions.MissionTurn", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("FromUser")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("MissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MissionId");
+
+                    b.ToTable("Turns", "missions");
                 });
 #pragma warning restore 612, 618
         }

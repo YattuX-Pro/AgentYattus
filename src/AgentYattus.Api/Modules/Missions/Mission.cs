@@ -35,10 +35,23 @@ internal sealed class Mission
     public Guid? ApprovalId { get; set; }
     public bool? Decision { get; set; }
 
+    /// <summary>Ta réponse, en attente d'être donnée à l'agent (leçon 117) ; la conversation terminée reste dans Conversation.</summary>
+    public string? FollowUp { get; set; }
+
     public MissionDto ToDto(string? projectName = null) => new(
         Id, Goal, Status, CreatedAt, Result,
         PendingApproval is null ? null : JsonSerializer.Deserialize<ApprovalDto>(PendingApproval, JsonSerializerOptions.Web),
         Kind, ProjectId, projectName, CreatedByName, InputTokens, OutputTokens, CostMicros / 1_000_000m, RetryOf, Agent);
+}
+
+/// <summary>Un tour de la conversation après le but : chaque réponse de l'agent, chaque message de l'humain.</summary>
+internal sealed class MissionTurn
+{
+    public long Id { get; set; }
+    public Guid MissionId { get; set; }
+    public bool FromUser { get; set; }
+    public required string Text { get; set; }
+    public DateTimeOffset At { get; set; }
 }
 
 internal sealed class MissionsDb(DbContextOptions<MissionsDb> options) : DbContext(options)
@@ -46,6 +59,7 @@ internal sealed class MissionsDb(DbContextOptions<MissionsDb> options) : DbConte
     public const string Schema = "missions";
 
     public DbSet<Mission> Missions => Set<Mission>();
+    public DbSet<MissionTurn> Turns => Set<MissionTurn>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -56,5 +70,6 @@ internal sealed class MissionsDb(DbContextOptions<MissionsDb> options) : DbConte
         modelBuilder.Entity<Mission>().Property(m => m.CreatedByName).HasMaxLength(100);
         modelBuilder.Entity<Mission>().Property(m => m.Agent).HasMaxLength(40);
         modelBuilder.Entity<Mission>().HasIndex(m => m.ProjectId);
+        modelBuilder.Entity<MissionTurn>().HasIndex(t => t.MissionId);
     }
 }

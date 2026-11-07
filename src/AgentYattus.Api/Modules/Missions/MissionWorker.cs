@@ -96,7 +96,13 @@ internal sealed class MissionWorker(
 }
 
 // Dépendances inter-modules en paramètres du constructeur : le test d'architecture les voit.
-internal sealed class MissionRunner(
+internal sealed partial class MissionRunner
+{
+    /// <summary>Au-delà (environ 250 000 tokens), une mission terminée ne garde pas sa conversation : on n'y répond plus.</summary>
+    public const int MaxConversationChars = 1_000_000;
+}
+
+internal sealed partial class MissionRunner(
     MissionsDb db,
     AuditLog audit,
     IAgentRunner agent,
@@ -139,6 +145,11 @@ internal sealed class MissionRunner(
                 return;
             resume = new AgentResume(mission.Conversation, approved);
         }
+        else if (mission.FollowUp is { } followUp && mission.Conversation is { } conversation)
+        {
+            // Remise en file par une réponse de l'humain (leçon 117) : la conversation continue.
+            resume = new AgentResume(conversation, false, followUp);
+        }
 
         // Le dossier du projet ; une mission sans projet (antérieure) garde le dossier configuré.
         string? workspace = null;
@@ -147,7 +158,7 @@ internal sealed class MissionRunner(
             var folder = await projects.WorkspaceAsync(projectId, cancellationToken);
             if (!folder.Allowed)
             {
-                mission.Result = "Ce projet n'a pas encore de dossier de travail : un administrateur de l'instance doit en choisir un (espace admin › Projets).";
+                mission.Result = "Ce projet n'a pas encore de dossier de travail : choisis-en un depuis l'accueil (bouton dossier), ou demande-le à l'administrateur.";
                 await SetStatusAsync(MissionStatus.Failed);
                 return;
             }
@@ -168,6 +179,7 @@ internal sealed class MissionRunner(
         }
 
         mission.Conversation = null;
+        mission.FollowUp = null;
         mission.PendingApproval = null;
         mission.ApprovalId = null;
         mission.Decision = null;
@@ -206,6 +218,9 @@ internal sealed class MissionRunner(
             else
             {
                 mission.Result = outcome.Answer;
+                // Gardée pour qu'on puisse répondre à l'agent ; trop longue, on ne la garde pas (une nouvelle mission repart à zéro).
+                mission.Conversation = outcome.Conversation is { Length: <= MaxConversationChars } kept ? kept : null;
+                db.Turns.Add(new MissionTurn { MissionId = mission.Id, FromUser = false, Text = outcome.Answer ?? "", At = DateTimeOffset.UtcNow });
             }
         }
         // Filtre sur le jeton, pas sur le type : un délai HTTP dépassé dans le runner est un échec.
