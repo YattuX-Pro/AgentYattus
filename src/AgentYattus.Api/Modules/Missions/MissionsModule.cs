@@ -39,6 +39,9 @@ public static class MissionsModule
         app.MapHub<MissionsHub>(MissionsHubProtocol.Path);
         app.MapGet(AgentsProtocol.Performance, async (MissionsDb db, CancellationToken ct) => TypedResults.Ok(await PerformanceAsync(db, ct)))
             .RequireAuthorization(Authentication.LlmAdminPolicy);
+        // Pour tous : les compétences que l'on voit, et ses propres missions (toutes pour l'administrateur).
+        app.MapGet(SkillsProtocol.Performance, async (MissionsDb db, AuditLog audit, IAgentCatalog agents, ICurrentUser me, CancellationToken ct) =>
+            TypedResults.Ok(await SkillPerformanceAsync(db, audit, await agents.SkillKeysAsync(ct), me.IsInstanceAdmin ? null : me.Id, ct)));
         app.MapGet(SettingsProtocol.Budget, async (MissionsDb db, IInstanceSettings instance, CancellationToken ct) =>
             TypedResults.Ok(await BudgetAsync(db, await instance.GetAsync(ct), ct)))
             .RequireAuthorization(Authentication.LlmAdminPolicy);
@@ -150,6 +153,25 @@ public static class MissionsModule
         }
 
         return [.. totals.Select(t => new AgentPerformanceDto(t.Key, t.Value.Finished, t.Value.Completed, t.Value.Cost / 1_000_000m / t.Value.Finished))];
+    }
+
+    /// <summary>
+    /// Par compétence : les missions terminées où un agent l'a chargée (« competence:rôle:clé » dans le journal),
+    /// et combien ont abouti. Une mission qui l'a chargée trois fois compte une fois.
+    /// </summary>
+    internal static async Task<List<SkillPerformanceDto>> SkillPerformanceAsync(
+        MissionsDb db, AuditLog audit, IReadOnlySet<string> visible, string? onlyBy, CancellationToken ct)
+    {
+        var loads = (await audit.EventsStartingWithAsync("competence:", ct))
+            .Select(e => (e.MissionId, Skill: e.Type.Split(':', 3) is [_, _, var key] ? key : ""))
+            .Where(e => visible.Contains(e.Skill)).Distinct().ToList();
+        var ids = loads.Select(l => l.MissionId).Distinct().ToList();
+        MissionStatus[] finished = [MissionStatus.Completed, MissionStatus.Failed, MissionStatus.Cancelled];
+        var statuses = await db.Missions.AsNoTracking()
+            .Where(m => ids.Contains(m.Id) && finished.Contains(m.Status) && (onlyBy == null || m.CreatedBy == onlyBy))
+            .ToDictionaryAsync(m => m.Id, m => m.Status, ct);
+        return [.. loads.Where(l => statuses.ContainsKey(l.MissionId)).GroupBy(l => l.Skill)
+            .Select(g => new SkillPerformanceDto(g.Key, g.Count(), g.Count(l => statuses[l.MissionId] == MissionStatus.Completed)))];
     }
 
     internal static async Task<BudgetDto> BudgetAsync(MissionsDb db, InstanceSettings settings, CancellationToken ct)

@@ -113,6 +113,10 @@ public sealed class SkillsTests
         // La mesure : le chargement est compté et entre dans le journal.
         Assert.Contains("competence:analyste:rapport-client", await api.AuditOfAsync(mission.Id));
         Assert.Equal(1, (await root.GetFromJsonAsync<SkillDto[]>(SkillsProtocol.Path, Ct))!.Single().Uses);
+        // La réussite des missions qui l'ont chargée ; un autre utilisateur ne compte que ses missions à lui (aucune ici).
+        Assert.Equal(new SkillPerformanceDto("rapport-client", 1, 1),
+            Assert.Single((await root.GetFromJsonAsync<SkillPerformanceDto[]>(SkillsProtocol.Performance, Ct))!));
+        Assert.Empty((await As(api, "alice").GetFromJsonAsync<SkillPerformanceDto[]>(SkillsProtocol.Performance, Ct))!);
     }
 
     [Fact]

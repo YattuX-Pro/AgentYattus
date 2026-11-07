@@ -114,6 +114,11 @@ public sealed class AuditLog
     public async Task<List<string>> TypesStartingWithAsync(string prefix, CancellationToken cancellationToken) =>
         await _db.Events.Where(e => e.Type.StartsWith(prefix)).Select(e => e.Type).ToListAsync(cancellationToken);
 
+    /// <summary>Les événements qui commencent par ce préfixe, avec leur mission (mesure des compétences, leçon 107).</summary>
+    public async Task<List<(Guid MissionId, string Type)>> EventsStartingWithAsync(string prefix, CancellationToken cancellationToken) =>
+        [.. (await _db.Events.Where(e => e.Type.StartsWith(prefix)).Select(e => new { e.MissionId, e.Type }).ToListAsync(cancellationToken))
+            .Select(e => (e.MissionId, e.Type))];
+
     /// <summary>Le journal d'une mission, dans l'ordre où les événements ont été inscrits.</summary>
     public async Task<AuditEntryDto[]> ReadAsync(Guid missionId, CancellationToken cancellationToken) =>
         await _db.Events.Where(e => e.MissionId == missionId).OrderBy(e => e.Id)

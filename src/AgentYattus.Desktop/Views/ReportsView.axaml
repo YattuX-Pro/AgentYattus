@@ -179,6 +179,18 @@
                       <TextBlock Classes="mono" Text="{Binding File, StringFormat='{}{0} · écrit avec votre accord'}" FontSize="11.5" Foreground="{StaticResource Laiton}" />
                     </StackPanel>
                   </Border>
+                  <!-- Les compétences ouvertes pendant la mission (leçon 107) : même pastille, en vert-de-gris. -->
+                  <Panel IsVisible="{Binding !IsYou}" HorizontalAlignment="Left">
+                    <Border Height="30" Padding="12,0" CornerRadius="8" Background="#145E9E92" BorderBrush="#665E9E92" BorderThickness="1"
+                            IsVisible="{Binding $parent[UserControl].((core:ReportsViewModel)DataContext).Stats.HasSkills, FallbackValue=False}">
+                      <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Path Data="M5 4.5h10a2 2 0 0 1 2 2v13H7a2 2 0 0 1-2-2zM9 9h5M9 12.5h5" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.8"
+                              StrokeLineCap="Round" StrokeJoin="Round" Width="13" Height="13" Stretch="Uniform" />
+                        <TextBlock Classes="mono" FontSize="11.5" Foreground="{StaticResource VertDeGris}"
+                                   Text="{Binding $parent[UserControl].((core:ReportsViewModel)DataContext).Stats.SkillsLabel}" />
+                      </StackPanel>
+                    </Border>
+                  </Panel>
                 </StackPanel>
               </Grid>
             </DataTemplate>

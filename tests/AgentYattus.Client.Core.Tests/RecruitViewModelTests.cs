@@ -52,7 +52,8 @@ public sealed class RecruitViewModelTests
 
             if (path.EndsWith("/travail"))
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1]) };
-            object body = path.EndsWith("/portraits") ? portraits : path.EndsWith("/traits") ? traits : path == "/skills" ? skills : agents;
+            object body = path.EndsWith("/portraits") ? portraits : path.EndsWith("/traits") ? traits : path == "/skills" ? skills
+                : path == "/skills/performance" ? Array.Empty<SkillPerformanceDto>() : agents;
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(body, body.GetType()) };
         });
         var api = new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") });
@@ -152,6 +153,17 @@ public sealed class RecruitViewModelTests
         Assert.True(vm.Skills.Single(s => s.Skill.Key == "ton-client").IsSelected);
         await vm.RecruitCommand.ExecuteAsync(null);
         Assert.Contains("\"skills\":[\"rapport-client\",\"ton-client\"]", posted[^1]);
+    }
+
+    [Fact]
+    public void The_measure_says_how_often_a_skill_served_and_how_often_it_led_somewhere()
+    {
+        var skill = new SkillDto("rapport-client", "Rapport client", "Pour tout rapport.", "", true, false, 4, null);
+        Assert.Equal("Pour tout rapport.\nChargée 4 fois · 2 missions sur 3 abouties.",
+            new SkillChoice(skill, new SkillPerformanceDto("rapport-client", 3, 2)).Tip);
+        Assert.Equal("rapport-client · charte · compétences utilisées",
+            new ReportStats(0, 0, 0, Skills: ["rapport-client", "charte"]).SkillsLabel);
+        Assert.False(new ReportStats(0, 0, 0).HasSkills);
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler

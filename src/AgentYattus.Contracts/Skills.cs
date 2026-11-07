@@ -15,9 +15,16 @@ public sealed record CreateSkillRequest(string Name, string Description, string 
 
 public sealed record UpdateSkillRequest(string Name, string Description, string Body);
 
+/// <summary>Ce que les missions disent d'une compétence (leçon 107) : combien l'ont chargée, combien ont abouti.</summary>
+/// <param name="Missions">Missions terminées (réussies, échouées ou arrêtées) où un agent l'a chargée.</param>
+public sealed record SkillPerformanceDto(string Skill, int Missions, int Completed);
+
 public static class SkillsProtocol
 {
     public const string Path = "/skills";
+
+    /// <summary>Réussite des missions qui ont chargé chaque compétence (calculée par le module Missions).</summary>
+    public const string Performance = "/skills/performance";
 
     public static string Skill(string key) => $"/skills/{key}";
 }

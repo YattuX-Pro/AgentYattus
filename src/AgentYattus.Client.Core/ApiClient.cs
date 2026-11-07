@@ -111,6 +111,10 @@ public sealed class ApiClient(HttpClient http)
     public async Task<IReadOnlyList<SkillDto>> GetSkillsAsync(CancellationToken cancellationToken = default) =>
         await http.GetFromJsonAsync<SkillDto[]>(SkillsProtocol.Path.TrimStart('/'), cancellationToken) ?? [];
 
+    /// <summary>Par compétence : missions qui l'ont chargée, et combien ont abouti (leçon 107).</summary>
+    public async Task<IReadOnlyList<SkillPerformanceDto>> GetSkillPerformanceAsync(CancellationToken cancellationToken = default) =>
+        await http.GetFromJsonAsync<SkillPerformanceDto[]>(SkillsProtocol.Performance.TrimStart('/'), cancellationToken) ?? [];
+
     public async Task<SkillDto> CreateSkillAsync(CreateSkillRequest request, CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsJsonAsync(SkillsProtocol.Path.TrimStart('/'), request, cancellationToken);

@@ -72,12 +72,18 @@ public sealed partial class ToolRow(ToolInfoDto tool) : ObservableObject
 }
 
 /// <summary>Une compétence qu'on peut lui donner (leçon 104), cochée ou non.</summary>
-public sealed partial class SkillChoice(SkillDto skill) : ObservableObject
+public sealed partial class SkillChoice(SkillDto skill, SkillPerformanceDto? performance = null) : ObservableObject
 {
     public SkillDto Skill { get; } = skill;
 
-    /// <summary>Au survol : quand s'en servir, et combien de fois un agent l'a chargée.</summary>
-    public string Tip => Skill.Uses == 0 ? Skill.Description : $"{Skill.Description}\nChargée {Skill.Uses} fois.";
+    /// <summary>
+    /// Au survol : quand s'en servir, puis la mesure (leçon 107) : combien de fois un agent l'a chargée,
+    /// et combien de vos missions qui s'en sont servies ont abouti.
+    /// </summary>
+    public string Tip => Skill.Uses == 0 ? Skill.Description
+        : $"{Skill.Description}\nChargée {Skill.Uses} fois" + (performance is { Missions: > 0 } p
+            ? $" · {p.Completed} mission{(p.Completed > 1 ? "s" : "")} sur {p.Missions} abouti{(p.Completed > 1 ? "es" : "e")}."
+            : ".");
 
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
@@ -270,8 +276,17 @@ public sealed partial class RecruitViewModel(
             Skills.Clear();
             try
             {
+                var performance = new Dictionary<string, SkillPerformanceDto>();
+                try
+                {
+                    performance = (await api.GetSkillPerformanceAsync(cancellationToken)).ToDictionary(p => p.Skill);
+                }
+                catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+                {
+                    // Sans la mesure, les compétences restent proposées.
+                }
                 foreach (var skill in await api.GetSkillsAsync(cancellationToken))
-                    Skills.Add(new SkillChoice(skill) { IsSelected = current?.Skills?.Contains(skill.Key) == true });
+                    Skills.Add(new SkillChoice(skill, performance.GetValueOrDefault(skill.Key)) { IsSelected = current?.Skills?.Contains(skill.Key) == true });
             }
             catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
             {

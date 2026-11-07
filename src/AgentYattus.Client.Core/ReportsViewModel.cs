@@ -97,7 +97,9 @@ public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
                     Reads: types.Count(t => t is "outil:read_file" or "outil:list_files"),
                     Approved: types.Count(t => t == "decision:approuvee"),
                     Refused: types.Count(t => t == "decision:refusee"),
-                    Cost: report.Cost.ToString("0.###", System.Globalization.CultureInfo.GetCultureInfo("fr-FR")) + " $");
+                    Cost: report.Cost.ToString("0.###", System.Globalization.CultureInfo.GetCultureInfo("fr-FR")) + " $",
+                    // Les fiches de compétence ouvertes pendant la mission (leçon 107), une fois chacune.
+                    Skills: SkillsOf(types));
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
         {
@@ -106,9 +108,26 @@ public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
     }
 }
 
-/// <param name="Cost">« 0,005 $ ».</param>
-public sealed record ReportStats(int Reads, int Approved, int Refused, string Cost = "—")
+public sealed partial class ReportsViewModel
 {
+    /// <summary>« competence:analyste:rapport-client » → « rapport-client », une fois chacune ; null s'il n'y en a pas.</summary>
+    internal static IReadOnlyList<string>? SkillsOf(IEnumerable<string> types)
+    {
+        var keys = types.Where(t => t.StartsWith("competence:", StringComparison.Ordinal))
+            .Select(t => t.Split(':', 3) is [_, _, var key] ? key : "").Where(k => k.Length > 0).Distinct().ToList();
+        return keys.Count > 0 ? keys : null;
+    }
+}
+
+/// <param name="Cost">« 0,005 $ ».</param>
+/// <param name="Skills">Les compétences chargées pendant la mission.</param>
+public sealed record ReportStats(int Reads, int Approved, int Refused, string Cost = "—", IReadOnlyList<string>? Skills = null)
+{
+    public bool HasSkills => Skills is { Count: > 0 };
+
+    /// <summary>« rapport-client · charte-maison · compétences utilisées ».</summary>
+    public string SkillsLabel => HasSkills ? $"{string.Join(" · ", Skills!)} · compétence{(Skills!.Count > 1 ? "s" : "")} utilisée{(Skills.Count > 1 ? "s" : "")}" : "";
+
     /// <summary>« écriture approuvée », au pluriel s'il y en a plusieurs.</summary>
     public string ApprovedLabel => Approved > 1 ? "écritures approuvées" : "écriture approuvée";
 }
