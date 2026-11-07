@@ -92,6 +92,7 @@ public sealed partial class OfficeViewModel : ObservableObject
             if (e.PropertyName != nameof(MissionViewModel.IsDecisionPending))
                 return;
             OnPropertyChanged(nameof(IsKnocking));
+            OnKnockChanged();
             if (!IsKnocking)
                 IsReviewing = false;
             // Pendant le premier chargement, le journal n'est pas encore lu : LoadAsync reconstruira la scène lui-même.
@@ -143,8 +144,31 @@ public sealed partial class OfficeViewModel : ObservableObject
     [ObservableProperty]
     public partial string? Error { get; set; }
 
+    private void OnKnockChanged()
+    {
+        OnPropertyChanged(nameof(Asker));
+        OnPropertyChanged(nameof(IsLearning));
+        OnPropertyChanged(nameof(KnockTitle));
+        OnPropertyChanged(nameof(KnockText));
+        OnPropertyChanged(nameof(ReviewTitle));
+    }
+
     /// <summary>Le bureau vitré passe en laiton : quelqu'un frappe à la porte.</summary>
     public bool IsKnocking => Mission.IsDecisionPending;
+
+    /// <summary>Qui frappe : le rédacteur dans une revue, sinon l'agent de la mission, au bureau de l'analyste.</summary>
+    public DeskViewModel Asker => Mission.Mission.IsReview ? Writer : Analyst;
+
+    /// <summary>La demande est une compétence à retenir (leçon 106), pas un fichier à écrire.</summary>
+    public bool IsLearning => Mission.PendingApproval.FirstOrDefault()?.Tool == "propose_skill";
+
+    public string KnockTitle => $"{Asker.Name} frappe à votre porte";
+
+    public string KnockText => IsLearning
+        ? "Il veut retenir une compétence pour la prochaine fois. Relisez-la avant de décider."
+        : "Il veut écrire dans le workspace. Relisez tout avant de décider.";
+
+    public string ReviewTitle => IsLearning ? $"{Asker.Name} veut retenir ceci" : $"{Asker.Name} veut écrire ceci";
 
     /// <summary>La relecture est ouverte : exactement ce qui sera écrit, avant d'approuver ou de refuser.</summary>
     [ObservableProperty]
@@ -181,6 +205,7 @@ public sealed partial class OfficeViewModel : ObservableObject
 
             await Mission.LoadAsync(cancellationToken);
             OnPropertyChanged(nameof(IsKnocking));
+            OnKnockChanged();
             Rebuild();
             Error = Mission.Error;
         }

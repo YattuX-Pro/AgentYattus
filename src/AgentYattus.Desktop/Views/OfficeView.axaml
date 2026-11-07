@@ -330,9 +330,9 @@
                     BorderBrush="{StaticResource Laiton}" BorderThickness="1" IsVisible="{Binding IsKnocking}" ZIndex="10"
                     BoxShadow="0 24 48 -20 #CC000000">
               <StackPanel Spacing="10">
-                <TextBlock Text="{Binding Writer.Name, StringFormat='{}{0} frappe à votre porte'}" FontSize="12.5" FontWeight="SemiBold"
+                <TextBlock Text="{Binding KnockTitle}" FontSize="12.5" FontWeight="SemiBold"
                            Foreground="{StaticResource Laiton}" TextWrapping="Wrap" />
-                <TextBlock Text="Il veut écrire dans le workspace. Relisez tout avant de décider." FontSize="12" TextWrapping="Wrap"
+                <TextBlock Text="{Binding KnockText}" FontSize="12" TextWrapping="Wrap"
                            Foreground="{StaticResource Parchemin}" />
                 <Button Classes="gold" Command="{Binding OpenReviewCommand}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" Height="34">
                   <TextBlock Text="Voir et décider" FontSize="12.5" FontWeight="SemiBold" />
@@ -353,7 +353,7 @@
           <Grid RowDefinitions="Auto,*,Auto" RowSpacing="14">
             <StackPanel Spacing="4">
               <TextBlock Classes="label" Text="DEMANDE D'ACCORD" Foreground="{StaticResource Laiton}" />
-              <TextBlock Text="{Binding Writer.Name, StringFormat='{}{0} veut écrire ceci'}" FontSize="20" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding ReviewTitle}" FontSize="20" FontWeight="SemiBold" />
             </StackPanel>
             <ScrollViewer Grid.Row="1">
               <ItemsControl ItemsSource="{Binding Mission.PendingApproval}">

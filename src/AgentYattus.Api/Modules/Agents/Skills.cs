@@ -33,7 +33,7 @@ internal sealed class Skill
 
 internal static class SkillsEndpoints
 {
-    private static Dictionary<string, string[]> Validate(string name, string description, string body)
+    internal static Dictionary<string, string[]> Validate(string name, string description, string body)
     {
         var errors = new Dictionary<string, string[]>();
         if (name.Length is < 2 or > 40 || !name.All(c => char.IsLetterOrDigit(c) || c is ' ' or '\'' or '-'))

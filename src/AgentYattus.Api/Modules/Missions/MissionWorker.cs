@@ -182,6 +182,10 @@ internal sealed class MissionRunner(
             // Le prénom, les traits et les compétences de chaque collègue du projet entrent dans sa consigne (ADR 0012, leçon 104).
             var seats = mission.ProjectId is { } project ? await team.SeatsAsync(project, limit.Token) : null;
             var outcome = await agent.RunAsync(mission.Id, mission.Goal, mission.Kind, resume, workspace, seats, mission.Agent, mission.CreatedBy, limit.Token);
+            // Une compétence apprise et approuvée rejoint le collègue qui l'a proposée (leçon 106).
+            if (mission.ProjectId is { } learnedIn)
+                foreach (var learned in outcome.Learned ?? [])
+                    await team.AttachSkillAsync(learnedIn, learned.Role, learned.Skill, limit.Token);
             if (outcome.Usage is { } usage)
             {
                 mission.InputTokens += usage.InputTokens;

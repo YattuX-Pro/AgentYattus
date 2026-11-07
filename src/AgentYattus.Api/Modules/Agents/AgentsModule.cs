@@ -28,7 +28,13 @@ public sealed record AgentSeat(string Style, IReadOnlyList<string> Skills);
 /// Soit l'agent a fini (<see cref="Answer"/>), soit il attend une décision humaine (<see cref="Approval"/>).
 /// Dans ce cas, <see cref="Conversation"/> est l'état à conserver tel quel pour reprendre plus tard.
 /// </summary>
-public sealed record AgentOutcome(string? Answer, AgentApproval? Approval = null, string? Conversation = null, AgentUsage? Usage = null);
+/// <param name="Learned">Les compétences approuvées pendant cette exécution, à ranger sur le collègue (leçon 106).</param>
+public sealed record AgentOutcome(
+    string? Answer, AgentApproval? Approval = null, string? Conversation = null, AgentUsage? Usage = null,
+    IReadOnlyList<AgentLearned>? Learned = null);
+
+/// <summary>Une compétence qu'un agent a proposée et qu'un humain a acceptée : elle rejoint le collègue de ce rôle.</summary>
+public sealed record AgentLearned(string Role, string Skill);
 
 /// <summary>Ce qu'a consommé une exécution : tokens et coût estimé en micro-dollars (ADR 0010).</summary>
 public sealed record AgentUsage(long InputTokens, long OutputTokens, long CostMicros)

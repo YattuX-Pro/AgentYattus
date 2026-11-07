@@ -181,6 +181,14 @@ public sealed record ApprovalItem(
                 [.. lines.Take(PreviewLines)], lines, SensitiveLocation(path));
         }
 
+        // Une compétence à retenir (leçon 106) : son nom, quand s'en servir, puis toute la procédure, comme un fichier.
+        if (call.Tool == "propose_skill" && Text("name") is { } name)
+        {
+            var lines = new[] { $"Quand : {Text("description") ?? ""}", "" }.Concat((Text("body") ?? "").Split('\n')).Select(Visible).ToList();
+            return new ApprovalItem(call.Tool, $"Retenir la compétence « {Visible(name)} » ?", Visible(name),
+                [.. lines.Take(PreviewLines)], lines, null);
+        }
+
         var raw = Visible(call.Arguments);
         return new ApprovalItem(call.Tool, $"Autoriser {call.Tool} ?", null, [raw], [raw], null);
     }

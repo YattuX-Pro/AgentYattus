@@ -15,6 +15,9 @@ public interface ITeamDirectory
     /// Un rôle sans collègue n'a pas d'entrée.
     /// </summary>
     Task<IReadOnlyDictionary<string, AgentSeat>> SeatsAsync(Guid projectId, CancellationToken cancellationToken);
+
+    /// <summary>Range une compétence apprise sur le collègue du rôle (dix au plus) ; sans collègue, elle reste dans la bibliothèque.</summary>
+    Task AttachSkillAsync(Guid projectId, string role, string skill, CancellationToken cancellationToken);
 }
 
 internal sealed class TeamDirectory(TeamDb db) : ITeamDirectory
@@ -27,6 +30,15 @@ internal sealed class TeamDirectory(TeamDb db) : ITeamDirectory
         var traits = (await TeamModule.TraitsAsync(db, ct)).ToDictionary(t => t.Key, t => t.Style);
         return colleagues.ToDictionary(c => c.Role, c => new AgentSeat(
             TeamModule.Style(c.Name, c.TraitKeys.Select(k => traits.GetValueOrDefault(k)).OfType<string>()), c.SkillKeys));
+    }
+
+    public async Task AttachSkillAsync(Guid projectId, string role, string skill, CancellationToken ct)
+    {
+        var colleague = await db.Colleagues.FirstOrDefaultAsync(c => c.ProjectId == projectId && c.Role == role && c.Active, ct);
+        if (colleague is null || colleague.SkillKeys.Contains(skill) || colleague.SkillKeys.Count >= 10)
+            return;
+        colleague.Skills = string.Join(',', [.. colleague.SkillKeys, skill]);
+        await db.SaveChangesAsync(ct);
     }
 }
 

@@ -41,6 +41,9 @@ internal sealed class AgentFrameworkRunner(
     // Les types de Microsoft.Extensions.AI (messages, appels d'outils, demandes d'approbation) savent se sérialiser.
     private static readonly JsonSerializerOptions Json = AIJsonUtilities.DefaultOptions;
 
+    // Les compétences approuvées pendant cette exécution (propose_skill) : MissionRunner les range sur le collègue.
+    private readonly List<AgentLearned> _learned = [];
+
     public async Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
         IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken)
@@ -100,7 +103,7 @@ internal sealed class AgentFrameworkRunner(
                 .ToList();
             foreach (var call in calls)
                 await audit.AppendAsync(missionId, $"approbation-demandee:{call.Tool}", cancellationToken);
-            return new AgentOutcome(null, new AgentApproval(calls), stage.Serialize(), usage);
+            return new AgentOutcome(null, new AgentApproval(calls), stage.Serialize(), usage, _learned);
         }
 
         // Seulement des métadonnées : la réponse peut citer le contenu des fichiers lus, elle reste en base.
@@ -109,7 +112,7 @@ internal sealed class AgentFrameworkRunner(
             missionId, role.Key, response.Usage?.TotalTokenCount, response.Text.Length);
         return new AgentOutcome(stage.Findings is null
             ? response.Text
-            : $"{response.Text}\n\n---\nConstats de l'Analyste :\n{stage.Findings}", Usage: usage);
+            : $"{response.Text}\n\n---\nConstats de l'Analyste :\n{stage.Findings}", Usage: usage, Learned: _learned);
     }
 
     private async Task<(AgentResponse Response, AgentUsage Usage)> RunRoleAsync(
@@ -126,7 +129,9 @@ internal sealed class AgentFrameworkRunner(
         var skills = keys.Count == 0 ? [] : await db.Skills.AsNoTracking()
             .Where(s => keys.Contains(s.Key) && s.Active && (s.OwnerId == null || s.OwnerId == launchedBy))
             .OrderBy(s => s.Key).ToListAsync(cancellationToken);
-        var instructions = AgentRoles.Compose(role, definition?.Instructions, seat?.Style, [.. skills.Select(s => (s.Key, s.Description))]);
+        // Apprendre suppose un collègue sur qui ranger la compétence, et quelqu'un à qui elle appartiendra.
+        var learn = seat is not null && launchedBy is not null;
+        var instructions = AgentRoles.Compose(role, definition?.Instructions, seat?.Style, [.. skills.Select(s => (s.Key, s.Description))], learn);
 
         // Chaque rôle a son modèle : le sien s'il en a un, sinon celui par défaut.
         var client = await llm.GetAsync(role.Key, cancellationToken) ?? throw new InvalidOperationException(
@@ -138,6 +143,8 @@ internal sealed class AgentFrameworkRunner(
         var tools = allTools.Where(t => role.Tools.Contains(t.Name)).ToList();
         if (skills.Count > 0)
             tools.Add(UseSkillFunction(missionId, role.Key, [.. skills.Select(s => s.Key)], cancellationToken));
+        if (learn)
+            tools.Add(ProposeSkillFunction(missionId, role.Key, launchedBy!, cancellationToken));
         var agent = CreateAgent(role, instructions, client.Client, tools, maxIterations);
         var response = await agent.RunAsync(history, cancellationToken: cancellationToken);
 
@@ -192,12 +199,33 @@ internal sealed class AgentFrameworkRunner(
         }, AgentRoles.UseSkill, "Charge la procédure d'une de tes compétences. À appeler avant la tâche qu'elle décrit.");
 
     /// <summary>
+    /// Apprendre (leçon 106) : l'agent propose une compétence ; la boucle s'arrête et demande l'accord d'un humain,
+    /// qui voit le nom, la description et toute la procédure. Approuvée, elle appartient à qui a lancé la mission.
+    /// </summary>
+    private AIFunction ProposeSkillFunction(Guid missionId, string role, string owner, CancellationToken ct) =>
+        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(async (
+            [System.ComponentModel.Description("Un nom court, 40 caractères au plus.")] string name,
+            [System.ComponentModel.Description("Quand s'en servir, en une phrase.")] string description,
+            [System.ComponentModel.Description("La procédure : étapes, format, règles.")] string body) =>
+        {
+            var (n, d, b) = ((name ?? "").Trim(), (description ?? "").Trim(), (body ?? "").Trim());
+            if (SkillsEndpoints.Validate(n, d, b) is { Count: > 0 } errors)
+                return $"Compétence non enregistrée : {string.Join(" ", errors.Values.SelectMany(v => v))}";
+            var skill = await SkillLibrary.AddAsync(db, n, d, b, owner, hidden: false, by: $"agent:{role}", ct);
+            _learned.Add(new AgentLearned(role, skill.Key));
+            await audit.AppendAsync(missionId, $"competence-apprise:{role}:{skill.Key}", ct);
+            return $"Compétence « {skill.Name} » enregistrée.";
+        }, AgentRoles.ProposeSkill, "Propose de retenir une façon de faire comme compétence. Un humain doit l'accepter."));
+
+    /// <summary>
     /// « action:analyste:read_file:src/Api.cs » : le rôle, l'outil et le chemin visé. Seulement le chemin, jamais le
     /// contenu (celui de write_file reste dans la mission) ; les caractères invisibles sont retirés et la longueur bornée.
     /// </summary>
     internal static string ActionEvent(string role, FunctionCallContent call)
     {
-        var target = call.Arguments?.TryGetValue("path", out var value) == true ? value?.ToString() ?? "" : "";
+        // Le chemin visé, ou le nom de la compétence (use_skill, propose_skill).
+        var target = call.Arguments?.TryGetValue("path", out var value) == true || call.Arguments?.TryGetValue("name", out value) == true
+            ? value?.ToString() ?? "" : "";
         // Par caractère Unicode complet (Rune) : une moitié de paire isolée devient U+FFFD (sinon PostgreSQL refuse le texte),
         // et l'on coupe sans jamais séparer une paire. On retire contrôle, format et séparateurs de ligne ou de paragraphe.
         var runes = target.EnumerateRunes()

@@ -161,4 +161,61 @@ public sealed class SkillsTests
         Assert.DoesNotContain("rapport-client", model.Options[0]!.Instructions);
         Assert.DoesNotContain("use_skill", model.Options[0]!.Tools?.Select(t => t.Name) ?? []);
     }
+
+    private static readonly Dictionary<string, object?> Lesson = new()
+    {
+        ["name"] = "Ton client", ["description"] = "Pour tout message adressé à un client.",
+        ["body"] = "Vouvoie toujours, trois phrases au plus, termine par une question.",
+    };
+
+    private static async Task<(HttpClient Root, ProjectDto Project, MissionDto Paused)> PausedOnLessonAsync(ScriptedModelApiFactory api)
+    {
+        var root = As(api, "root", instanceAdmin: true);
+        var nora = await TeamTests.PortraitAsync(root, "nora", "Nora");
+        var project = (await (await root.PostAsJsonAsync(ProjectsProtocol.Path, new CreateProjectRequest("Orders"), Ct))
+            .Content.ReadFromJsonAsync<ProjectDto>(Ct))!;
+        await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(api.Workspace), Ct);
+        await root.PostAsJsonAsync(TeamProtocol.ProjectColleagues(project.Id), new RecruitRequest("analyste", nora.Id, "Nora", []), Ct);
+        var mission = (await (await root.PostAsJsonAsync("/missions", new CreateMissionRequest("Réponds au client, en vouvoyant", MissionKind.Question, project.Id), Ct))
+            .Content.ReadFromJsonAsync<MissionDto>(Ct))!;
+        return (root, project, await root.WaitForStatusAsync(mission.Id, MissionStatus.AwaitingApproval));
+    }
+
+    [Fact]
+    public async Task An_agent_proposes_a_skill_and_keeps_it_only_with_your_approval()
+    {
+        var model = new ScriptedChatClient(ToolCall("propose_skill", Lesson), Text("C'est noté."));
+        await using var api = new ScriptedModelApiFactory(model);
+        var (root, project, paused) = await PausedOnLessonAsync(api);
+
+        // La proposition est annoncée dans la consigne, et elle attend un humain : rien n'est encore enregistré.
+        Assert.Contains("propose_skill", model.Options[0]!.Instructions);
+        Assert.Equal("propose_skill", Assert.Single(paused.PendingApproval!.ToolCalls).Tool);
+        Assert.Empty((await root.GetFromJsonAsync<SkillDto[]>(SkillsProtocol.Path, Ct))!);
+
+        await root.PostAsJsonAsync($"/missions/{paused.Id}/decision", new DecisionRequest(true, paused.PendingApproval.Id), Ct);
+        await root.WaitForStatusAsync(paused.Id, MissionStatus.Completed);
+
+        // Approuvée : elle appartient à qui a lancé la mission, et Nora l'a désormais.
+        var skill = Assert.Single((await root.GetFromJsonAsync<SkillDto[]>(SkillsProtocol.Path, Ct))!);
+        Assert.Equal(("ton-client", true), (skill.Key, skill.Mine));
+        var team = (await root.GetFromJsonAsync<ProjectTeamDto>(TeamProtocol.ProjectTeam(project.Id), Ct))!;
+        Assert.Equal(["ton-client"], team.Colleagues.Single(c => c.Role == "analyste").Skills);
+        Assert.Contains("competence-apprise:analyste:ton-client", await api.AuditOfAsync(paused.Id));
+    }
+
+    [Fact]
+    public async Task A_refused_skill_is_never_written()
+    {
+        var model = new ScriptedChatClient(ToolCall("propose_skill", Lesson), Text("Compris."));
+        await using var api = new ScriptedModelApiFactory(model);
+        var (root, project, paused) = await PausedOnLessonAsync(api);
+
+        await root.PostAsJsonAsync($"/missions/{paused.Id}/decision", new DecisionRequest(false, paused.PendingApproval!.Id), Ct);
+        await root.WaitForStatusAsync(paused.Id, MissionStatus.Completed);
+
+        Assert.Empty((await root.GetFromJsonAsync<SkillDto[]>(SkillsProtocol.Path, Ct))!);
+        var team = (await root.GetFromJsonAsync<ProjectTeamDto>(TeamProtocol.ProjectTeam(project.Id), Ct))!;
+        Assert.Empty(team.Colleagues.Single(c => c.Role == "analyste").Skills!);
+    }
 }

@@ -52,6 +52,8 @@ public static partial class Scene
         var lastActor = Analyst;
         var folderBrought = false;
         string? writtenFile = null;
+        // La demande en cours est une compétence à retenir (leçon 106), pas un fichier à écrire.
+        var skillPending = false;
 
         void Say(string speaker, string @event, DateTimeOffset at, SceneObject carries = SceneObject.None, string? file = null, string? goalText = null)
         {
@@ -87,10 +89,17 @@ public static partial class Scene
                 case "action":
                 {
                     var parts = rest.Split(':', 3);
-                    if (parts.Length < 3 || parts[1] == "write_file")
-                        break; // l'écriture se raconte avec la décision humaine
+                    if (parts.Length < 3 || parts[1] is "write_file" or "propose_skill")
+                        break; // l'écriture et l'apprentissage se racontent avec la décision humaine
                     var (role, tool, path) = (parts[0], parts[1], parts[2]);
                     lastActor = role;
+                    if (tool == "use_skill")
+                    {
+                        // Il ouvre une de ses fiches de compétence : rien ne voyage, il la lit à son bureau.
+                        statuses[role] = "relit une fiche";
+                        Say(role, "outil:use_skill", e.At, file: path);
+                        break;
+                    }
                     statuses[role] = tool == "read_file" ? "lit le code" : "parcourt le dossier";
                     // Le premier dossier vient des archives : le workspace est l'armoire du fond.
                     var carries = !folderBrought && role == worker ? SceneObject.Folder : SceneObject.None;
@@ -98,6 +107,16 @@ public static partial class Scene
                     Say(role, $"outil:{tool}", e.At, carries, path == "." ? "le dossier" : path);
                     break;
                 }
+                case "approbation-demandee" when rest == "propose_skill":
+                    skillPending = true;
+                    statuses[lastActor] = "attend votre accord";
+                    Say(lastActor, "competence:proposee", e.At, file: approvalFile is { Length: > 0 } ? approvalFile : "nouvelle");
+                    break;
+                case "decision" when skillPending:
+                    skillPending = false;
+                    statuses[lastActor] = "disponible";
+                    Say(lastActor, rest == "approuvee" ? "competence:retenue" : "decision:refusee", e.At);
+                    break;
                 case "approbation-demandee":
                     writtenFile = approvalFile is { Length: > 0 } ? Path.GetFileName(approvalFile) : "REPORT.md";
                     statuses[Writer] = "attend votre accord";

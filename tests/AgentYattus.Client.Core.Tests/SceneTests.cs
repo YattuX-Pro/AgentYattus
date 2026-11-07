@@ -19,6 +19,9 @@ public sealed class SceneTests
             ["approbation"] = "Je peux écrire {fichier}, {vous} ?",
             ["decision:approuvee"] = "Merci ! J'écris {fichier}.",
             ["mission:fin"] = "Terminé.",
+            ["outil:use_skill"] = "J'ouvre ma fiche « {fichier} ».",
+            ["competence:proposee"] = "Je note « {fichier} » ?",
+            ["competence:retenue"] = "C'est noté.",
         },
         CanRecruit: true);
 
@@ -54,6 +57,41 @@ public sealed class SceneTests
             [SceneObject.Folder, SceneObject.Notes, SceneObject.Report],
             lines.Where(l => l.Carries != SceneObject.None).Select(l => l.Carries));
         Assert.Equal("attend votre accord", lines[5].Statuses["redacteur"]);
+    }
+
+    [Fact]
+    public void Opening_and_learning_a_skill_are_told_by_the_agent_who_does_it()
+    {
+        var events = new[]
+        {
+            E("Running"), E("agent:analyste"), E("outil:use_skill"), E("action:analyste:use_skill:rapport-client"),
+            E("approbation-demandee:propose_skill"), E("AwaitingApproval"), E("decision:approuvee"), E("Running"),
+            E("outil:propose_skill"), E("action:analyste:propose_skill:Ton client"), E("Completed"),
+        };
+
+        var lines = Scene.From(events, Team(("analyste", "Inès")), "Réponds au client", "Yatt", "Ton client");
+
+        Assert.Equal(
+            [
+                ("chef", "On démarre : Réponds au client"),
+                ("chef", "Inès, à toi."),
+                ("analyste", "J'ouvre ma fiche « rapport-client »."),
+                ("analyste", "Je note « Ton client » ?"),
+                ("analyste", "C'est noté."),
+                ("chef", "Terminé."),
+            ],
+            lines.Select(l => (l.Speaker, l.Text)));
+        Assert.Equal("attend votre accord", lines[3].Statuses["analyste"]);
+    }
+
+    [Fact]
+    public void A_proposed_skill_is_shown_in_full_before_the_decision()
+    {
+        var item = ApprovalItem.From(new ToolCallDto("propose_skill",
+            "{\"name\":\"Ton client\",\"description\":\"Pour tout message à un client.\",\"body\":\"Vouvoie.\\nTrois phrases au plus.\"}"));
+
+        Assert.Equal(("Retenir la compétence « Ton client » ?", "Ton client"), (item.Title, item.Target));
+        Assert.Equal(["Quand : Pour tout message à un client.", "", "Vouvoie.", "Trois phrases au plus."], item.AllLines);
     }
 
     [Fact]

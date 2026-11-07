@@ -43,24 +43,33 @@ internal static class AgentRoles
     /// Toujours ajouté à la fin de la consigne, modifiable ou non (ADR 0011) : effacer la consigne n'efface pas
     /// la règle sur les données, et le rappel des outils dit au modèle ce que le code lui permet réellement.
     /// </summary>
-    public static string Guardrails(AgentRole role, bool skills = false) =>
-        $"{Data} Tes seuls outils sont : {string.Join(", ", skills ? [.. role.Tools, UseSkill] : role.Tools)}. " +
+    public static string Guardrails(AgentRole role, bool skills = false, bool learn = false) =>
+        $"{Data} Tes seuls outils sont : {string.Join(", ", (string[])[.. role.Tools, .. skills ? [UseSkill] : (string[])[], .. learn ? [ProposeSkill] : (string[])[]])}. " +
         (role.Tools.Contains("write_file") ? "Chaque écriture attend la décision d'un humain." : "Tu ne peux rien écrire ni modifier.");
 
     /// <summary>
     /// La consigne complète envoyée au modèle : le texte (modifiable), la présentation du collègue (prénom, traits),
     /// puis les garde-fous (fixes). Les garde-fous viennent toujours en dernier : un trait ne peut pas les contredire après coup.
     /// </summary>
-    public static string Compose(AgentRole role, string? custom, string? style = null, IReadOnlyList<(string Key, string Description)>? skills = null) =>
+    public static string Compose(
+        AgentRole role, string? custom, string? style = null, IReadOnlyList<(string Key, string Description)>? skills = null, bool learn = false) =>
         string.Join("\n\n", new[]
         {
             custom ?? role.Instructions,
             style,
             skills is { Count: > 0 } ? SkillsIndex(skills) : null,
-            Guardrails(role, skills is { Count: > 0 }),
+            learn ? Learn : null,
+            Guardrails(role, skills is { Count: > 0 }, learn),
         }.Where(part => !string.IsNullOrWhiteSpace(part)));
 
     public const string UseSkill = "use_skill";
+    public const string ProposeSkill = "propose_skill";
+
+    /// <summary>Apprendre (leçon 106) : l'agent peut proposer une compétence ; rien n'est retenu sans l'accord d'un humain.</summary>
+    private const string Learn =
+        $"Si, pendant cette mission, l'utilisateur t'a montré une façon de faire qu'il voudra retrouver (un format, une règle, " +
+        $"une étape), tu peux la proposer comme compétence avec {ProposeSkill}, une seule fois, à la fin de la mission. " +
+        "Écris une procédure courte et générale, sans données propres à cette mission. Un humain l'acceptera ou la refusera.";
 
     /// <summary>
     /// Le premier étage du chargement progressif (leçon 104) : seulement le nom et la description de chaque compétence.
