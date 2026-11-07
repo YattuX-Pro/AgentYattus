@@ -3,7 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { NgIcon, provideIcons } from '@ng-icons/core';
 import {
-  lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideChevronRight, lucideCpu, lucideFolderKanban, lucideImages, lucideLayoutDashboard,
+  lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideChevronRight, lucideContact, lucideCpu, lucideFolderKanban, lucideImages, lucideLayoutDashboard,
   lucideLogOut, lucideMenu, lucideMonitor, lucideMoon, lucidePanelLeft, lucideScrollText, lucideSearch, lucideSettings, lucideSun, lucideUsers,
 } from '@ng-icons/lucide';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
@@ -26,7 +26,7 @@ import { NAV, locate } from './nav';
   ],
   providers: [
     provideIcons({
-      lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideChevronRight, lucideCpu, lucideFolderKanban, lucideImages, lucideLayoutDashboard,
+      lucideActivity, lucideBot, lucideBuilding2, lucideChevronDown, lucideChevronRight, lucideContact, lucideCpu, lucideFolderKanban, lucideImages, lucideLayoutDashboard,
       lucideLogOut, lucideMenu, lucideMonitor, lucideMoon, lucidePanelLeft, lucideScrollText, lucideSearch, lucideSettings, lucideSun, lucideUsers,
     }),
   ],

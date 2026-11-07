@@ -1,0 +1,128 @@
+<app-page-header title="Équipes" description="Le chef d’équipe, votre portrait, l’équipe de départ des nouveaux projets, et le rythme de la scène du bureau.">
+  <button hlmBtn variant="outline" (click)="load()" [disabled]="busy()"><ng-icon name="lucideRotateCcw" /> Annuler</button>
+  <button hlmBtn (click)="save()" [disabled]="busy() || !form()"><ng-icon name="lucideSave" /> Enregistrer</button>
+</app-page-header>
+
+@if (form(); as f) {
+  <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+    <section class="bg-card rounded-xl border">
+      <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Chef d’équipe</h2><span class="text-muted-foreground text-xs">annonce le début et la fin des missions</span></div>
+      <div class="flex flex-col gap-3 p-3.5">
+        <app-portrait-picker label="Portrait du chef d’équipe" [portraits]="portraits()" [value]="f.leaderPortraitId" (changed)="set('leaderPortraitId', $event.id); f.leaderName || set('leaderName', $event.suggestedName)" />
+        <label class="flex items-center justify-between gap-3">
+          <span class="font-medium">Prénom</span>
+          <input hlmInput class="w-56" maxlength="24" placeholder="ex. Léon" [value]="f.leaderName" (input)="set('leaderName', $any($event.target).value)" />
+        </label>
+      </div>
+    </section>
+
+    <section class="bg-card rounded-xl border">
+      <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Vous</h2><span class="text-muted-foreground text-xs">dans le bureau vitré</span></div>
+      <div class="p-3.5">
+        <app-portrait-picker label="Votre portrait" [portraits]="portraits()" [value]="f.managerPortraitId" (changed)="set('managerPortraitId', $event.id)" />
+      </div>
+    </section>
+
+    <section class="bg-card rounded-xl border xl:col-span-2">
+      <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Équipe de départ</h2><span class="text-muted-foreground text-xs">installée à la première ouverture d’un nouveau projet</span></div>
+      <div class="grid grid-cols-1 divide-y lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+        @for (r of roles(); track r.key) {
+          @let s = seat(r.key);
+          <div class="flex flex-col gap-3 p-3.5">
+            <div class="flex items-center justify-between">
+              <span class="font-medium">{{ r.name }}</span>
+              @if (s) {
+                <button hlmBtn variant="ghost" size="sm" (click)="clearSeat(r.key)">Laisser vide</button>
+              } @else {
+                <span hlmBadge variant="secondary">siège vide</span>
+              }
+            </div>
+            <app-portrait-picker [label]="'Portrait : ' + r.name" [portraits]="portraits()" [value]="s?.portraitId ?? null" (changed)="setSeat(r.key, { portraitId: $event.id }, $event.suggestedName)" />
+            <input hlmInput maxlength="24" placeholder="Prénom du collègue" [attr.aria-label]="'Prénom : ' + r.name" [value]="s?.name ?? ''" [disabled]="!s" (input)="setSeat(r.key, { name: $any($event.target).value })" />
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="bg-card rounded-xl border xl:col-span-2">
+      <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Rythme de la scène</h2><span class="text-muted-foreground text-xs">bureau des agents</span></div>
+      <div class="grid grid-cols-1 gap-4 p-3.5 lg:grid-cols-[1fr_1.2fr]">
+        <div class="flex flex-col gap-3">
+          <label class="flex items-center justify-between gap-3">
+            <span><span class="block font-medium">Écriture des bulles</span><span class="text-muted-foreground text-xs">millisecondes par lettre (5 à 200)</span></span>
+            <input hlmInput type="number" min="5" max="200" class="w-28" placeholder="ex. 38" [value]="f.typingMs" (input)="set('typingMs', +$any($event.target).value); play()" />
+          </label>
+          <label class="flex items-center justify-between gap-3">
+            <span><span class="block font-medium">Temps de lecture</span><span class="text-muted-foreground text-xs">avant la réplique suivante, en ms (300 à 10 000)</span></span>
+            <input hlmInput type="number" min="300" max="10000" class="w-28" placeholder="ex. 1800" [value]="f.pauseMs" (input)="set('pauseMs', +$any($event.target).value)" />
+          </label>
+        </div>
+        <div class="bg-muted/50 relative flex min-h-24 items-center gap-3 rounded-xl border p-3">
+          @if (f.defaultTeam[0]; as a) {
+            @if (byId().get(a.portraitId); as p) {
+              <div class="relative size-14 shrink-0 overflow-hidden rounded-full"><img [src]="'/api' + p.talkUrl" alt="" class="absolute top-[-6%] left-[-50%] h-[200%] w-[200%] max-w-none" /></div>
+            }
+          }
+          <div class="relative flex-1 rounded-2xl rounded-tl-sm bg-[#ECE6D8] px-3.5 py-2.5 text-[13px] font-medium text-[#16181b] shadow-sm">
+            {{ preview() }}<span class="ml-0.5 inline-block h-3.5 w-0.5 translate-y-0.5 animate-pulse bg-[#33796d]"></span>
+          </div>
+          <button hlmBtn variant="outline" size="icon-sm" (click)="play()" aria-label="Rejouer l’aperçu"><ng-icon name="lucidePlay" /></button>
+        </div>
+      </div>
+    </section>
+  </div>
+} @else {
+  <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
+    @for (i of [1, 2, 3, 4]; track i) {
+      <hlm-skeleton class="h-40 w-full rounded-xl" />
+    }
+  </div>
+}
+
+<section class="bg-card mt-3 rounded-xl border">
+  <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Collègues des projets</h2><span class="text-muted-foreground text-xs">recrutés depuis le bureau, et ceux qu’ils ont remplacés</span></div>
+  <div class="overflow-x-auto">
+    <table hlmTable>
+      <thead hlmTHead>
+        <tr hlmTr>
+          <th hlmTh>Collègue</th><th hlmTh>Projet</th><th hlmTh>Rôle</th><th hlmTh>Traits</th><th hlmTh>Recruté par</th><th hlmTh>Depuis</th><th hlmTh></th>
+        </tr>
+      </thead>
+      <tbody hlmTBody>
+        @if (colleagues() === null) {
+          @for (i of [1, 2, 3]; track i) {
+            <tr hlmTr><td hlmTd colspan="7"><hlm-skeleton class="h-4 w-full" /></td></tr>
+          }
+        }
+        @for (e of colleagues() ?? []; track e.colleague.id) {
+          <tr hlmTr [class.opacity-55]="!e.colleague.active">
+            <td hlmTd>
+              <div class="flex items-center gap-2.5">
+                @if (byId().get(e.colleague.portraitId); as p) {
+                  <div class="relative size-8 shrink-0 overflow-hidden rounded-full"><img [src]="'/api' + p.workUrl" alt="" class="absolute top-[-6%] left-[-50%] h-[200%] w-[200%] max-w-none" /></div>
+                }
+                <span class="font-medium">{{ e.colleague.name }}</span>
+              </div>
+            </td>
+            <td hlmTd>{{ e.projectName }}</td>
+            <td hlmTd class="text-muted-foreground">{{ e.colleague.role }}</td>
+            <td hlmTd class="text-muted-foreground">{{ e.colleague.traits.join(', ') || '—' }}</td>
+            <td hlmTd class="text-muted-foreground">{{ e.colleague.recruitedBy?.username ?? 'équipe de départ' }}</td>
+            <td hlmTd class="text-muted-foreground num">{{ when(e.colleague.recruitedAt) }}</td>
+            <td hlmTd class="text-right">
+              @if (e.colleague.active) {
+                <button hlmBtn variant="ghost" size="sm" (click)="remove(e)"><ng-icon name="lucideUserMinus" /> Retirer</button>
+              } @else {
+                <span hlmBadge variant="secondary">remplacé</span>
+              }
+            </td>
+          </tr>
+        } @empty {
+          @if (colleagues() !== null) {
+            <tr hlmTr><td hlmTd colspan="7" class="text-muted-foreground py-8 text-center">Aucun collègue pour l’instant : une équipe s’installe à la première ouverture d’un projet dans le bureau.</td></tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+</section>
