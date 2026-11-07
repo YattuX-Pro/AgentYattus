@@ -127,10 +127,14 @@ Préalable : `feat(auth): page de connexion aux couleurs d'Agent Yattus, avec Go
 - [x] 84 à 89 `feat(desktop)`: l'open space, les collègues, la bulle, ce qui circule, on frappe à votre porte, le fil de l'équipe
 - [x] 90 `feat(client): RecruitViewModel` · 91 `feat(desktop): l'écran Nouveau collègue`
 - [x] `fix(evals)` · 92 `fix(security)` (revue de la phase)
+- [x] 94 `docs(adr): ADR 0013, ajouter des agents depuis l'admin`
+- [x] 95 `feat(agents): ajouter, modifier et retirer des agents` · `fix(missions)` (relance et agent retiré)
+- [x] 96 `feat(admin): page Agents allégée, créer et retirer un agent`
+- [x] 97 `feat(desktop): choisir l'agent d'une mission`
 
 ## Ensuite
 
-- [ ] Poste « personnalisé » : rôles d'agents sur mesure (outils, consigne), avec leur propre décision.
+- [ ] Équipe en chaîne (plusieurs agents à la suite) ou chef qui délègue : chacun avec sa propre décision (ADR 0013).
 - [ ] Statuts des bureaux (« lit le code », « rédige »…) réglables dans l'admin, comme les répliques.
 
 - [ ] Rôles d'agents personnalisés (choix des outils) : une décision à part.
