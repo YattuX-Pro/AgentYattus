@@ -1,0 +1,88 @@
+<app-page-header title="Traits et répliques" description="La personnalité qu’on donne à un collègue, et ce que chacun dit dans les bulles du bureau.">
+  <button hlmBtn variant="outline" (click)="load()" [disabled]="busy()"><ng-icon name="lucideRotateCcw" /> Annuler</button>
+</app-page-header>
+
+<div class="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1.35fr]">
+  <section class="bg-card self-start rounded-xl border">
+    <div class="flex min-h-11 items-center justify-between gap-2 border-b px-3.5">
+      <h2 class="font-semibold">Traits de personnalité</h2>
+      <div class="flex gap-1.5">
+        <button hlmBtn variant="ghost" size="sm" (click)="addTrait()"><ng-icon name="lucidePlus" /> Ajouter</button>
+        <button hlmBtn size="sm" (click)="saveTraits()" [disabled]="busy() || !traits()"><ng-icon name="lucideSave" /> Enregistrer</button>
+      </div>
+    </div>
+    <p class="text-muted-foreground border-b px-3.5 py-2 text-xs">La phrase est ajoutée à la consigne de l’agent, avant les règles de sécurité, qui restent toujours les dernières.</p>
+    @if (traits(); as list) {
+      <ol class="flex flex-col divide-y">
+        @for (t of list; track $index; let i = $index) {
+          <li class="flex flex-col gap-2 px-3.5 py-3">
+            <div class="flex gap-2">
+              <input hlmInput class="h-8 w-36 font-mono text-xs" maxlength="30" placeholder="clé (ex. rigueur)" aria-label="Clé du trait" [value]="t.key" (input)="setTrait(i, { key: $any($event.target).value })" />
+              <input hlmInput class="h-8 flex-1" maxlength="30" placeholder="Libellé (ex. Rigoureux)" aria-label="Libellé du trait" [value]="t.label" (input)="setTrait(i, { label: $any($event.target).value })" />
+              <button hlmBtn variant="ghost" size="icon-sm" (click)="removeTrait(i)" [attr.aria-label]="'Retirer le trait ' + (t.label || t.key)"><ng-icon name="lucideTrash2" /></button>
+            </div>
+            <input hlmInput class="h-8" maxlength="300" placeholder="Phrase ajoutée à la consigne (ex. Tu vérifies chaque affirmation…)" aria-label="Phrase de style" [value]="t.style" (input)="setTrait(i, { style: $any($event.target).value })" />
+          </li>
+        }
+      </ol>
+    } @else {
+      <div class="flex flex-col gap-2 p-3.5">
+        @for (i of [1, 2, 3]; track i) {
+          <hlm-skeleton class="h-16 w-full" />
+        }
+      </div>
+    }
+  </section>
+
+  <section class="bg-card rounded-xl border">
+    <div class="flex min-h-11 items-center justify-between gap-2 border-b px-3.5">
+      <h2 class="font-semibold">Répliques</h2>
+      <button hlmBtn size="sm" (click)="saveLines()" [disabled]="busy() || !dirty()"><ng-icon name="lucideSave" /> Enregistrer</button>
+    </div>
+    @if (lines(); as list) {
+      <ol class="flex flex-col divide-y">
+        @for (l of list; track l.event) {
+          @let value = text(l);
+          @let unknown = unknownVariables(value, l.variables);
+          <li class="flex flex-col gap-2 px-3.5 py-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-medium">{{ l.description }}</span>
+              <span hlmBadge variant="outline">{{ speakers[l.speaker] ?? l.speaker }}</span>
+              <span class="text-muted-foreground font-mono text-[10.5px]">{{ l.event }}</span>
+              @if (!l.isDefault || edits()[l.event]) {
+                <button hlmBtn variant="ghost" size="sm" class="ml-auto h-7" (click)="reset(l)"><ng-icon name="lucideUndo2" /> Réplique de départ</button>
+              }
+            </div>
+            <input
+              hlmInput
+              class="h-9"
+              maxlength="160"
+              [class.border-destructive]="unknown.length"
+              [placeholder]="edits()[l.event] === null ? 'Réplique de départ (enregistrez pour la rétablir)' : 'Ce que le collègue dit…'"
+              [attr.aria-label]="'Réplique : ' + l.description"
+              [value]="value"
+              (input)="edit(l, $any($event.target).value)"
+            />
+            <div class="flex flex-wrap items-center gap-1.5">
+              @for (v of l.variables; track v) {
+                <button type="button" class="bg-muted hover:bg-primary-soft hover:text-primary rounded-md px-1.5 py-0.5 font-mono text-[11px]" (click)="insert(l, v)">{{ '{' + v + '}' }}</button>
+              }
+              @if (unknown.length) {
+                <span class="text-destructive animate-in fade-in-0 text-xs">Variable inconnue : {{ unknown.join(', ') }}</span>
+              }
+            </div>
+            @if (value) {
+              <div class="animate-in fade-in-0 self-start rounded-2xl rounded-tl-sm bg-[#ECE6D8] px-3 py-2 text-[12.5px] font-medium text-[#16181b] shadow-sm duration-200">{{ fill(value, sample) }}</div>
+            }
+          </li>
+        }
+      </ol>
+    } @else {
+      <div class="flex flex-col gap-2 p-3.5">
+        @for (i of [1, 2, 3, 4]; track i) {
+          <hlm-skeleton class="h-20 w-full" />
+        }
+      </div>
+    }
+  </section>
+</div>

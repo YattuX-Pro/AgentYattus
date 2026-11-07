@@ -20,6 +20,7 @@ export const routes: Routes = [
       { path: 'utilisateurs', loadComponent: () => import('./pages/users/users').then((m) => m.Users) },
       { path: 'equipes', loadComponent: () => import('./pages/teams/teams').then((m) => m.Teams) },
       { path: 'reglages', loadComponent: () => import('./pages/settings/settings').then((m) => m.Settings) },
+      { path: 'repliques', loadComponent: () => import('./pages/lines/lines').then((m) => m.Lines) },
       { path: 'portraits', loadComponent: () => import('./pages/portraits/portraits').then((m) => m.Portraits) },
       { path: 'modeles', loadComponent: () => import('./pages/models/models').then((m) => m.Models) },
     ],
