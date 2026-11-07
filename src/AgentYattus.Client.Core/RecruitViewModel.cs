@@ -71,6 +71,18 @@ public sealed partial class ToolRow(ToolInfoDto tool) : ObservableObject
     public partial bool IsOn { get; set; }
 }
 
+/// <summary>Une compétence qu'on peut lui donner (leçon 104), cochée ou non.</summary>
+public sealed partial class SkillChoice(SkillDto skill) : ObservableObject
+{
+    public SkillDto Skill { get; } = skill;
+
+    /// <summary>Au survol : quand s'en servir, et combien de fois un agent l'a chargée.</summary>
+    public string Tip => Skill.Uses == 0 ? Skill.Description : $"{Skill.Description}\nChargée {Skill.Uses} fois.";
+
+    [ObservableProperty]
+    public partial bool IsSelected { get; set; }
+}
+
 /// <summary>Un modèle proposé ; <see cref="Selection"/> null : celui du poste.</summary>
 public sealed record ModelChoice(LlmSelectionDto? Selection, string Label);
 
@@ -126,6 +138,25 @@ public sealed partial class RecruitViewModel(
     public ObservableCollection<PortraitChoice> Portraits { get; } = [];
     public ObservableCollection<TraitChoice> Traits { get; } = [];
     public ObservableCollection<RoleChoice> Roles { get; } = [];
+
+    /// <summary>Ses compétences : chargées seulement quand sa tâche en a besoin. On les coche, ou on en écrit une.</summary>
+    public ObservableCollection<SkillChoice> Skills { get; } = [];
+
+    /// <summary>Vrai : le petit formulaire « Écrire une compétence » est ouvert.</summary>
+    [ObservableProperty]
+    public partial bool IsWritingSkill { get; set; }
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveSkillCommand))]
+    public partial string SkillName { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveSkillCommand))]
+    public partial string SkillDescription { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SaveSkillCommand))]
+    public partial string SkillBody { get; set; } = "";
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Intro), nameof(DisplayName), nameof(Action))]
@@ -236,6 +267,16 @@ public sealed partial class RecruitViewModel(
                 };
                 Tools.Add(row);
             }
+            Skills.Clear();
+            try
+            {
+                foreach (var skill in await api.GetSkillsAsync(cancellationToken))
+                    Skills.Add(new SkillChoice(skill) { IsSelected = current?.Skills?.Contains(skill.Key) == true });
+            }
+            catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+            {
+                // Sans la liste, on recrute sans compétence.
+            }
             Models.Clear();
             Models.Add(new ModelChoice(null, "Modèle du poste"));
             try
@@ -338,7 +379,8 @@ public sealed partial class RecruitViewModel(
             }
 
             await api.RecruitAsync(ProjectId, new RecruitRequest(
-                role, Selected!.Portrait.Id, Name.Trim(), [.. Traits.Where(t => t.IsSelected).Select(t => t.Trait.Key)]), cancellationToken);
+                role, Selected!.Portrait.Id, Name.Trim(), [.. Traits.Where(t => t.IsSelected).Select(t => t.Trait.Key)],
+                [.. Skills.Where(s => s.IsSelected).Select(s => s.Skill.Key)]), cancellationToken);
             Done?.Invoke();
         }
         catch (HttpRequestException ex)
@@ -363,6 +405,34 @@ public sealed partial class RecruitViewModel(
 
     [RelayCommand]
     private void Cancel() => Done?.Invoke();
+
+    [RelayCommand]
+    private void WriteSkill()
+    {
+        IsWritingSkill = !IsWritingSkill;
+        Error = null;
+    }
+
+    // Mêmes bornes que le serveur : un nom, une phrase « quand s'en servir », une procédure.
+    private bool CanSaveSkill => SkillName.Trim().Length is >= 2 and <= 40 && SkillDescription.Trim().Length is >= 10 and <= 200
+        && SkillBody.Trim().Length is >= 20 and <= 8000;
+
+    /// <summary>Écrite ici, elle est à vous seul ; elle rejoint la liste, déjà cochée.</summary>
+    [RelayCommand(CanExecute = nameof(CanSaveSkill))]
+    private async Task SaveSkillAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var skill = await api.CreateSkillAsync(
+                new CreateSkillRequest(SkillName.Trim(), SkillDescription.Trim(), SkillBody.Trim()), cancellationToken);
+            Skills.Add(new SkillChoice(skill) { IsSelected = true });
+            (SkillName, SkillDescription, SkillBody, IsWritingSkill, Error) = ("", "", "", false, null);
+        }
+        catch (HttpRequestException ex)
+        {
+            Error = $"Compétence refusée : {ex.Message}";
+        }
+    }
 
     [GeneratedRegex(@"^\p{L}[\p{L}\p{M}' \-]{0,23}$")]
     private static partial Regex NamePattern();

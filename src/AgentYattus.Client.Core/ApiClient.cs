@@ -107,6 +107,17 @@ public sealed class ApiClient(HttpClient http)
             await EnsureOkAsync(r, cancellationToken);
     }
 
+    /// <summary>Les compétences qu'on peut donner à ses collègues : les siennes et celles de l'instance (leçon 104).</summary>
+    public async Task<IReadOnlyList<SkillDto>> GetSkillsAsync(CancellationToken cancellationToken = default) =>
+        await http.GetFromJsonAsync<SkillDto[]>(SkillsProtocol.Path.TrimStart('/'), cancellationToken) ?? [];
+
+    public async Task<SkillDto> CreateSkillAsync(CreateSkillRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync(SkillsProtocol.Path.TrimStart('/'), request, cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
+        return (await response.Content.ReadFromJsonAsync<SkillDto>(cancellationToken))!;
+    }
+
     /// <summary>Les modèles qu'on peut donner à ses agents (connexions de l'instance).</summary>
     public async Task<IReadOnlyList<LlmModelDto>> GetModelChoicesAsync(CancellationToken cancellationToken = default) =>
         (await http.GetFromJsonAsync<LlmModelsDto>(LlmProtocol.Choices.TrimStart('/'), cancellationToken))?.Models ?? [];

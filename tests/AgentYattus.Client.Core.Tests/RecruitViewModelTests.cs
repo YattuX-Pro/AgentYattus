@@ -18,6 +18,7 @@ public sealed class RecruitViewModelTests
             new PortraitDto(Guid.NewGuid(), "karim", "Karim", true, true, "/team/portraits/b/travail", "/team/portraits/b/parle"),
         };
         TraitDto[] traits = [new("rigueur", "Rigoureux", "Tu vérifies tout."), new("prudence", "Prudent", "Tu signales les risques.")];
+        SkillDto[] skills = [new("rapport-client", "Rapport client", "Pour tout rapport destiné à un client.", "1. Résumé.", true, false, 2, null)];
         AgentDto[] agents = [new("Analyste", "Explore", "m", 10, [new ToolInfoDto("read_file", "", false)], "analyste")];
         var handler = new StubHandler(request =>
         {
@@ -28,6 +29,15 @@ public sealed class RecruitViewModelTests
                 return new HttpResponseMessage(HttpStatusCode.Created)
                 {
                     Content = JsonContent.Create(new AgentDto("Agent de Karim", "Relit.", "m", 10, [], "agent-de-karim", Builtin: false, Mine: true)),
+                };
+            }
+
+            if (request.Method == HttpMethod.Post && path == "/skills")
+            {
+                posted.Add(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                return new HttpResponseMessage(HttpStatusCode.Created)
+                {
+                    Content = JsonContent.Create(new SkillDto("ton-client", "Ton client", "Pour tout message à un client.", "Vouvoie, sois bref.", true, false, 0, null)),
                 };
             }
 
@@ -42,7 +52,7 @@ public sealed class RecruitViewModelTests
 
             if (path.EndsWith("/travail"))
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1]) };
-            object body = path.EndsWith("/portraits") ? portraits : path.EndsWith("/traits") ? traits : agents;
+            object body = path.EndsWith("/portraits") ? portraits : path.EndsWith("/traits") ? traits : path == "/skills" ? skills : agents;
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(body, body.GetType()) };
         });
         var api = new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") });
@@ -118,6 +128,30 @@ public sealed class RecruitViewModelTests
         await vm.RecruitCommand.ExecuteAsync(null);
 
         Assert.Contains("\"role\":\"analyste\"", Assert.Single(posted));
+    }
+
+    [Fact]
+    public async Task Checked_and_newly_written_skills_go_with_the_colleague()
+    {
+        var (vm, posted) = Create();
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("Pour tout rapport destiné à un client.\nChargée 2 fois.", Assert.Single(vm.Skills).Tip);
+        vm.Skills[0].IsSelected = true;
+
+        vm.WriteSkillCommand.Execute(null);
+        Assert.True(vm.IsWritingSkill);
+        vm.SkillName = "Ton client";
+        vm.SkillDescription = "Pour tout message à un client.";
+        // Une procédure trop courte : refusée avant même l'appel, comme le ferait le serveur.
+        vm.SkillBody = "Bref.";
+        Assert.False(vm.SaveSkillCommand.CanExecute(null));
+        vm.SkillBody = "Vouvoie, sois bref, termine par une question.";
+        await vm.SaveSkillCommand.ExecuteAsync(null);
+
+        Assert.False(vm.IsWritingSkill);
+        Assert.True(vm.Skills.Single(s => s.Skill.Key == "ton-client").IsSelected);
+        await vm.RecruitCommand.ExecuteAsync(null);
+        Assert.Contains("\"skills\":[\"rapport-client\",\"ton-client\"]", posted[^1]);
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler

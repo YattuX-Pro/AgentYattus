@@ -279,7 +279,15 @@
 
         <!-- Le formulaire : 876 px de haut comme la maquette ; il défile seul quand la fenêtre est plus basse. -->
         <ScrollViewer Grid.Column="1">
-        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="16" MinHeight="876">
+        <Grid RowSpacing="16" MinHeight="876">
+          <!-- Personnalité et outils prennent la place libre, sans descendre sous leur contenu. -->
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" MinHeight="340" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+          </Grid.RowDefinitions>
 
           <!-- La galerie -->
           <!-- La liste garde 4 px autour des tuiles (l'anneau déborde) : marges réduites d'autant. -->
@@ -410,8 +418,62 @@
             </Border>
           </Grid>
 
+          <!-- Compétences (leçon 104) : pas encore dans la maquette ; mêmes cartes, puces et champs que le reste du formulaire. -->
+          <Border Grid.Row="3" Classes="card">
+            <StackPanel Spacing="12">
+              <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                  <TextBlock Classes="h2" Text="Compétences" />
+                  <TextBlock Text="Des procédures qu’il ou elle ne lit que lorsque la tâche en a besoin." FontSize="12" Foreground="{StaticResource Cendre}" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="link" Height="32" Padding="10,0" Command="{Binding WriteSkillCommand}" VerticalAlignment="Center"
+                        VerticalContentAlignment="Center">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Path Data="M12 5v14M5 12h14" Stroke="{Binding $parent[Button].Foreground}" StrokeThickness="2" StrokeLineCap="Round"
+                          Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" />
+                    <TextBlock Text="Écrire une compétence" FontSize="13" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </Grid>
+              <ItemsControl ItemsSource="{Binding Skills}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate><WrapPanel ItemSpacing="8" LineSpacing="8" /></ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="core:SkillChoice">
+                    <ToggleButton Classes="trait" IsChecked="{Binding IsSelected}" Content="{Binding Skill.Name}" ToolTip.Tip="{Binding Tip}" />
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <TextBlock IsVisible="{Binding !Skills.Count}" Text="Aucune compétence pour l’instant : écrivez la première."
+                         FontSize="12.5" Foreground="{StaticResource Pierre}" />
+              <Grid IsVisible="{Binding IsWritingSkill}" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="10"
+                    Margin="0,4,0,0">
+                <StackPanel Spacing="8">
+                  <TextBlock Classes="field" Text="Nom" />
+                  <TextBox Classes="field" Text="{Binding SkillName}" PlaceholderText="ex. Rapport client" MaxLength="40" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" Spacing="8">
+                  <TextBlock Classes="field" Text="Quand s’en servir" />
+                  <TextBox Classes="field" Text="{Binding SkillDescription}" PlaceholderText="ex. Pour tout rapport destiné à un client." MaxLength="200" />
+                </StackPanel>
+                <TextBox Grid.Row="1" Grid.ColumnSpan="2" Classes="consigne" Text="{Binding SkillBody}" MinHeight="90" MaxLength="8000"
+                         PlaceholderText="La procédure : les étapes à suivre, le format attendu, un exemple (20 caractères au moins)."
+                         AcceptsReturn="True" TextWrapping="Wrap" FontSize="13" LineHeight="19.5" />
+                <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="10" HorizontalAlignment="Right">
+                  <Button Classes="link" Height="36" Padding="14,0" Command="{Binding WriteSkillCommand}" VerticalContentAlignment="Center">
+                    <TextBlock Text="Annuler" FontSize="13" FontWeight="Medium" />
+                  </Button>
+                  <Button Classes="primary" Height="36" Padding="16,0" Command="{Binding SaveSkillCommand}">
+                    <TextBlock Text="Enregistrer la compétence" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                  </Button>
+                </StackPanel>
+              </Grid>
+            </StackPanel>
+          </Border>
+
           <!-- Le pied : erreur, annuler, recruter -->
-          <Border Grid.Row="3" Height="64" BorderBrush="#1A1C20" BorderThickness="0,1,0,0">
+          <Border Grid.Row="4" Height="64" BorderBrush="#1A1C20" BorderThickness="0,1,0,0">
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
               <TextBlock Text="{Binding Error}" FontSize="12.5" Foreground="{StaticResource Cinabre}" TextWrapping="Wrap" VerticalAlignment="Center" />
               <Button Grid.Column="1" Classes="link" Height="42" Padding="16,0" Command="{Binding CancelCommand}" VerticalContentAlignment="Center">
