@@ -143,7 +143,8 @@ internal sealed class EvalApi(IChatClient chatClient, string model, string works
     private readonly string _dbPath = Path.Combine(Path.GetTempPath(), $"agentyattus-eval-{Guid.NewGuid():N}.db");
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) =>
-        builder.UseSetting("Llm:CatalogUrl", "").ConfigureServices(services =>
+        // La galerie n'est pas importée : une évaluation n'a pas besoin de l'open space.
+        builder.UseSetting("Llm:CatalogUrl", "").UseSetting("Team:SeedFolder", "").ConfigureServices(services =>
         {
             UseSqlite<MissionsDb>(services);
             UseSqlite<AuditDb>(services);
@@ -152,6 +153,7 @@ internal sealed class EvalApi(IChatClient chatClient, string model, string works
             UseSqlite<AgentYattus.Api.Modules.Projects.ProjectsDb>(services);
             UseSqlite<AgentYattus.Api.Modules.Settings.SettingsDb>(services);
             UseSqlite<AgentsDb>(services);
+            UseSqlite<AgentYattus.Api.Modules.Team.TeamDb>(services);
             services.RemoveAll<ILlmClientProvider>();
             services.AddSingleton<ILlmClientProvider>(new EvalModel(chatClient, model));
             services.Configure<AgentsOptions>(options => options.Workspace = workspace);
