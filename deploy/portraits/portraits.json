@@ -1,0 +1,32 @@
+{
+  "portraits": [
+    { "slug": "ines", "name": "Inès" },
+    { "slug": "malik", "name": "Malik" },
+    { "slug": "leon", "name": "Léon" },
+    { "slug": "vous", "name": "Vous" },
+    { "slug": "nora", "name": "Nora" },
+    { "slug": "lucas", "name": "Lucas" },
+    { "slug": "mei", "name": "Mei" },
+    { "slug": "karim", "name": "Karim" },
+    { "slug": "sofia", "name": "Sofia" },
+    { "slug": "aarav", "name": "Aarav" },
+    { "slug": "amara", "name": "Amara" },
+    { "slug": "tomas", "name": "Tomas" },
+    { "slug": "leila", "name": "Leila" },
+    { "slug": "jonas", "name": "Jonas" },
+    { "slug": "yuki", "name": "Yuki" },
+    { "slug": "camille", "name": "Camille" },
+    { "slug": "diego", "name": "Diego" },
+    { "slug": "fatou", "name": "Fatou" },
+    { "slug": "hugo", "name": "Hugo" },
+    { "slug": "priya", "name": "Priya" },
+    { "slug": "salma", "name": "Salma" },
+    { "slug": "aicha", "name": "Aïcha" }
+  ],
+  "leader": { "slug": "leon", "name": "Léon" },
+  "manager": "vous",
+  "defaultTeam": [
+    { "role": "analyste", "slug": "ines", "name": "Inès" },
+    { "role": "redacteur", "slug": "malik", "name": "Malik" }
+  ]
+}

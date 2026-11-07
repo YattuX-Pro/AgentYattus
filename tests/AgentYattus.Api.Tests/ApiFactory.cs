@@ -30,7 +30,10 @@ public class ApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) =>
         // Pas d'appel à models.dev pendant les tests : le catalogue embarqué suffit.
-        builder.UseSetting("Llm:CatalogUrl", "").ConfigureServices(services =>
+        builder.UseSetting("Llm:CatalogUrl", "")
+            // Chaque test part d'une galerie vide : il ajoute les portraits dont il a besoin.
+            .UseSetting("Team:SeedFolder", "")
+            .ConfigureServices(services =>
         {
             UseSqlite<MissionsDb>(services);
             UseSqlite<AuditDb>(services);

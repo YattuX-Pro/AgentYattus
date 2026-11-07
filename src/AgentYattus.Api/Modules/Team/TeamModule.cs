@@ -14,7 +14,8 @@ public static partial class TeamModule
     public const int MaxImageBytes = 2 * 1024 * 1024;
 
     public static IServiceCollection AddTeamModule(this IServiceCollection services) =>
-        services.AddScoped<ITeamDirectory, TeamDirectory>().AddModuleDb<TeamDb>(TeamDb.Schema);
+        // L'import de la galerie démarre après la mise à jour du schéma (services hébergés lancés dans l'ordre d'ajout).
+        services.AddScoped<ITeamDirectory, TeamDirectory>().AddModuleDb<TeamDb>(TeamDb.Schema).AddHostedService<PortraitSeeder>();
 
     public static IEndpointRouteBuilder MapTeamEndpoints(this IEndpointRouteBuilder app)
     {

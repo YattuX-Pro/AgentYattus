@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.Extensions.DependencyInjection;
 using AgentYattus.Contracts;
 using static AgentYattus.Api.Tests.IdentityTests;
 
@@ -159,5 +160,32 @@ public sealed class TeamTests
         Assert.Equal(HttpStatusCode.NotFound, (await carol.GetAsync(TeamProtocol.ProjectTeam(project.Id), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await carol.PostAsJsonAsync(TeamProtocol.ProjectColleagues(project.Id), recruit, Ct)).StatusCode);
         Assert.Empty((await carol.GetFromJsonAsync<ColleagueEntryDto[]>(TeamProtocol.Colleagues, Ct))!);
+    }
+
+    [Fact]
+    public async Task The_gallery_folder_is_imported_with_its_leader_and_default_team()
+    {
+        await using var api = new ApiFactory();
+        var folder = Directory.CreateTempSubdirectory("galerie").FullName;
+        await File.WriteAllBytesAsync(Path.Combine(folder, "ines.webp"), Webp, Ct);
+        await File.WriteAllBytesAsync(Path.Combine(folder, "ines-parle.webp"), Webp, Ct);
+        await File.WriteAllBytesAsync(Path.Combine(folder, "leon.webp"), Webp, Ct);
+        await File.WriteAllTextAsync(Path.Combine(folder, "portraits.json"), """
+            { "portraits": [ { "slug": "ines", "name": "Inès" }, { "slug": "leon", "name": "Léon" } ],
+              "leader": { "slug": "leon", "name": "Léon" }, "manager": "ines",
+              "defaultTeam": [ { "role": "analyste", "slug": "ines", "name": "Inès" } ] }
+            """, Ct);
+
+        await using (var scope = api.Services.CreateAsyncScope())
+            Assert.Equal(2, await AgentYattus.Api.Modules.Team.PortraitSeeder.SeedAsync(
+                scope.ServiceProvider.GetRequiredService<AgentYattus.Api.Modules.Team.TeamDb>(), folder, Ct));
+
+        var root = As(api, "root", instanceAdmin: true);
+        var portraits = (await root.GetFromJsonAsync<PortraitDto[]>(TeamProtocol.Portraits, Ct))!;
+        Assert.Equal(["ines", "leon"], portraits.Select(p => p.Slug));
+        Assert.False(portraits.Single(p => p.Slug == "leon").HasTalk);
+        var settings = (await root.GetFromJsonAsync<TeamSettingsDto>(TeamProtocol.Settings, Ct))!;
+        Assert.Equal(("Léon", "Inès"), (settings.LeaderName, Assert.Single(settings.DefaultTeam).Name));
+        Assert.Equal(portraits.Single(p => p.Slug == "leon").Id, settings.LeaderPortraitId);
     }
 }
