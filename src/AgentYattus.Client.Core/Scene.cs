@@ -89,7 +89,7 @@ public static partial class Scene
                 case "action":
                 {
                     var parts = rest.Split(':', 3);
-                    if (parts.Length < 3 || parts[1] is "write_file" or "write_document" or "propose_skill")
+                    if (parts.Length < 3 || parts[1] is "write_file" or "write_document" or "edit_file" or "propose_skill")
                         break; // l'écriture et l'apprentissage se racontent avec la décision humaine
                     var (role, tool, path) = (parts[0], parts[1], parts[2]);
                     lastActor = role;
@@ -100,7 +100,7 @@ public static partial class Scene
                         Say(role, "outil:use_skill", e.At, file: path);
                         break;
                     }
-                    statuses[role] = tool == "read_file" ? "lit le code" : "parcourt le dossier";
+                    statuses[role] = tool switch { "read_file" => "lit le code", "search" => "cherche dans le code", _ => "parcourt le dossier" };
                     // Le premier dossier vient des archives : le workspace est l'armoire du fond.
                     var carries = !folderBrought && role == worker ? SceneObject.Folder : SceneObject.None;
                     folderBrought |= carries == SceneObject.Folder;

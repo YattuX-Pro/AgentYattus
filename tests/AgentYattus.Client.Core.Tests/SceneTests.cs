@@ -85,6 +85,18 @@ public sealed class SceneTests
     }
 
     [Fact]
+    public void An_edit_is_reviewed_as_removed_and_added_lines()
+    {
+        var item = ApprovalItem.From(new ToolCallDto("edit_file",
+            "{\"path\":\"src/a.cs\",\"oldText\":\"var x = t.Result;\",\"newText\":\"var x = await t;\\n// async\"}"));
+
+        Assert.Equal(("Modifier a.cs ?", "src/a.cs"), (item.Title, item.Target));
+        Assert.Equal(["− var x = t.Result;", "+ var x = await t;", "+ // async"], item.ShownLines);
+        var written = ApprovalItem.From(new ToolCallDto("write_file", "{\"path\":\"R.md\",\"content\":\"# T\"}"));
+        Assert.Equal(["+ # T"], written.ShownLines);
+    }
+
+    [Fact]
     public void A_proposed_skill_is_shown_in_full_before_the_decision()
     {
         var item = ApprovalItem.From(new ToolCallDto("propose_skill",

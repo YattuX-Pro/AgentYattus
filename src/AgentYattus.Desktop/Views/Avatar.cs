@@ -177,6 +177,14 @@ public static class StateBrush
 /// <summary>La teinte d'une mission : vert-de-gris en cours, laiton à valider, cendre terminée, cinabre en échec.</summary>
 public static class Tone
 {
+    /// <summary>Une ligne de relecture (leçon 124) : « − » retirée en cinabre, « + » ajoutée en vert-de-gris, le reste en parchemin.</summary>
+    public static readonly IValueConverter Diff = new FuncValueConverter<string?, IBrush>(line => line switch
+    {
+        ['−', ' ', ..] => new SolidColorBrush(Color.Parse("#D9654B")),
+        ['+', ' ', ..] => new SolidColorBrush(Color.Parse("#7FB8AC")),
+        _ => new SolidColorBrush(Color.Parse("#ECE6D8")),
+    });
+
     private static readonly IBrush Active = new SolidColorBrush(Color.Parse("#5E9E92"));
     private static readonly IBrush Awaiting = new SolidColorBrush(Color.Parse("#D8B86E"));
     private static readonly IBrush Done = new SolidColorBrush(Color.Parse("#8A857B"));

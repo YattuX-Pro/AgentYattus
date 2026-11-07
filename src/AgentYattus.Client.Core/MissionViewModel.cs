@@ -155,6 +155,11 @@ public sealed record ApprovalItem(
     private const int PreviewLines = 6;
 
     public int MoreLines => AllLines.Count - Preview.Count;
+
+    // À l'écran : un fichier écrit en entier s'affiche en lignes ajoutées (« + ») ; un passage modifié porte déjà ses « − » et « + ».
+    private bool AddsWholeFile => Tool is "write_file" or "write_document";
+    public IReadOnlyList<string> ShownPreview => AddsWholeFile ? [.. Preview.Select(l => "+ " + l)] : Preview;
+    public IReadOnlyList<string> ShownLines => AddsWholeFile ? [.. AllLines.Select(l => "+ " + l)] : AllLines;
     public bool HasMoreLines => MoreLines > 0;
 
     public static ApprovalItem From(ToolCallDto call)
@@ -180,6 +185,15 @@ public sealed record ApprovalItem(
             var lines = (Text("content") ?? "").Split('\n').Select(Visible).ToList();
             return new ApprovalItem(call.Tool, $"Écrire {Visible(Path.GetFileName(path))} ?", Visible(path),
                 [.. lines.Take(PreviewLines)], lines, SensitiveLocation(path));
+        }
+
+        // Un passage modifié (leçon 124) : seulement ce qui change, en lignes « − » (retirées) et « + » (ajoutées).
+        if (call.Tool == "edit_file" && Text("path") is { } edited)
+        {
+            var lines = (Text("oldText") ?? "").Split('\n').Select(l => "− " + Visible(l))
+                .Concat((Text("newText") ?? "").Split('\n').Select(l => "+ " + Visible(l))).ToList();
+            return new ApprovalItem(call.Tool, $"Modifier {Visible(Path.GetFileName(edited))} ?", Visible(edited),
+                [.. lines.Take(PreviewLines)], lines, SensitiveLocation(edited));
         }
 
         // Une compétence à retenir (leçon 106) : son nom, quand s'en servir, puis toute la procédure, comme un fichier.

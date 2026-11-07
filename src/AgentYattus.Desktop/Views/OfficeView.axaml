@@ -367,19 +367,19 @@
                                  IsVisible="{Binding Warning, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
                       <Border Padding="12,10" CornerRadius="10" Background="{StaticResource Obsidienne}" BorderBrush="{StaticResource Filet}" BorderThickness="1">
                         <StackPanel>
-                          <ItemsControl ItemsSource="{Binding Preview}"
+                          <ItemsControl ItemsSource="{Binding ShownPreview}"
                                         IsVisible="{Binding !$parent[UserControl].((core:OfficeViewModel)DataContext).Mission.AllShown}">
                             <ItemsControl.ItemTemplate>
                               <DataTemplate x:DataType="x:String">
-                                <TextBlock Classes="mono" Text="{Binding StringFormat='+ {0}'}" FontSize="12" LineHeight="20" TextWrapping="Wrap" />
+                                <TextBlock Classes="mono" Text="{Binding}" Foreground="{Binding Converter={x:Static views:Tone.Diff}}" FontSize="12" LineHeight="20" TextWrapping="Wrap" />
                               </DataTemplate>
                             </ItemsControl.ItemTemplate>
                           </ItemsControl>
-                          <ItemsControl ItemsSource="{Binding AllLines}"
+                          <ItemsControl ItemsSource="{Binding ShownLines}"
                                         IsVisible="{Binding $parent[UserControl].((core:OfficeViewModel)DataContext).Mission.AllShown}">
                             <ItemsControl.ItemTemplate>
                               <DataTemplate x:DataType="x:String">
-                                <TextBlock Classes="mono" Text="{Binding StringFormat='+ {0}'}" FontSize="12" LineHeight="20" TextWrapping="Wrap" />
+                                <TextBlock Classes="mono" Text="{Binding}" Foreground="{Binding Converter={x:Static views:Tone.Diff}}" FontSize="12" LineHeight="20" TextWrapping="Wrap" />
                               </DataTemplate>
                             </ItemsControl.ItemTemplate>
                           </ItemsControl>

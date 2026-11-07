@@ -62,6 +62,8 @@ public sealed partial class ToolRow(ToolInfoDto tool) : ObservableObject
         "read_file" => "Lire un fichier",
         "write_file" => "Écrire un fichier",
         "write_document" => "Écrire un document Word",
+        "search" => "Chercher dans le code",
+        "edit_file" => "Modifier un passage",
         _ => tool.Description,
     };
 
