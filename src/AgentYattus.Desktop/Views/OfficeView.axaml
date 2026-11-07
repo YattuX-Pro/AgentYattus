@@ -29,6 +29,32 @@
     <Style Selector="Panel.speaking Image.talk"><Setter Property="Opacity" Value="1" /></Style>
     <Style Selector="Panel.speaking Image.work"><Setter Property="Opacity" Value="0" /></Style>
     <!-- /region -->
+    <!-- region:bubble -->
+    <!-- La bulle : elle apparaît en grossissant depuis la tête, et le curseur clignote pendant l'écriture. -->
+    <Style Selector="Canvas.cloud">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="RenderTransform" Value="scale(0.6)" />
+      <Setter Property="RenderTransformOrigin" Value="20%,100%" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.25" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.35" Easing="BackEaseOut" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Panel.speaking Canvas.cloud">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="scale(1)" />
+    </Style>
+    <Style Selector="Rectangle.caret">
+      <Style.Animations>
+        <Animation Duration="0:0:1" IterationCount="INFINITE">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <!-- /region -->
   </UserControl.Styles>
 
   <UserControl.Resources>
@@ -36,6 +62,28 @@
     <!-- Un bureau : le collègue (deux poses), le meuble, sa plaque et son statut. -->
     <DataTemplate x:Key="Desk" x:DataType="core:DeskViewModel">
       <Panel Width="240" Height="350" Classes.speaking="{Binding IsSpeaking}">
+        <!-- region:bubble -->
+        <Canvas Classes="cloud" Width="290" Height="124" Margin="120,-112,0,0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                Effect="drop-shadow(0 12 24 #80000000)" ZIndex="8">
+          <Rectangle Canvas.Left="24" Canvas.Top="28" Width="242" Height="58" RadiusX="29" RadiusY="29" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="36" Canvas.Top="16" Width="52" Height="52" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="82" Canvas.Top="0" Width="56" Height="56" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="136" Canvas.Top="-4" Width="60" Height="60" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="196" Canvas.Top="10" Width="52" Height="52" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="230" Canvas.Top="36" Width="44" Height="44" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="18" Canvas.Top="42" Width="44" Height="44" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="74" Canvas.Top="54" Width="44" Height="44" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="122" Canvas.Top="54" Width="52" Height="52" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="182" Canvas.Top="52" Width="48" Height="48" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="51" Canvas.Top="101" Width="14" Height="14" Fill="#ECE6D8" />
+          <Ellipse Canvas.Left="44" Canvas.Top="116" Width="8" Height="8" Fill="#ECE6D8" />
+          <WrapPanel Canvas.Left="40" Canvas.Top="22" Width="212" Height="72" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Bubble}" Foreground="#16181B" FontSize="12.5" FontWeight="Medium" LineHeight="17" TextWrapping="Wrap"
+                       MaxWidth="206" VerticalAlignment="Center" />
+          </WrapPanel>
+          <Rectangle Classes="caret" Canvas.Left="40" Canvas.Top="98" Width="14" Height="2" Fill="{StaticResource VertDeGris}" />
+        </Canvas>
+        <!-- /region -->
         <Panel Width="240" Height="240" VerticalAlignment="Top" HorizontalAlignment="Left">
           <Image Classes="work" Source="{Binding WorkImage, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" Stretch="Uniform" />
           <Image Classes="talk" Source="{Binding TalkImage, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" Stretch="Uniform" />
