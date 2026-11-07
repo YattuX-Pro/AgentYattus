@@ -103,15 +103,30 @@ public sealed class ProjectsTests
     }
 
     [Fact]
-    public async Task Only_instance_admins_choose_a_workspace_and_it_must_be_an_existing_absolute_folder()
+    public async Task Owners_choose_a_workspace_inside_the_allowed_folders_and_admins_anywhere()
     {
+        var allowed = Directory.CreateTempSubdirectory("autorise-").FullName;
+        var repo = Directory.CreateDirectory(Path.Combine(allowed, "mon-depot")).FullName;
+        var outside = Directory.CreateTempSubdirectory("dehors-").FullName;
+        // Un lien dans le dossier autorisé vers un dossier hors de lui : refusé, comme le dossier lui-même.
+        var link = Path.Combine(allowed, "raccourci");
+        Directory.CreateSymbolicLink(link, outside);
         await using var api = new ApiFactory();
+        api.Settings["Projects:AllowedRoots:0"] = allowed;
         var alice = As(api, "alice");
+        var bob = As(api, "bob");
         var root = As(api, "root", instanceAdmin: true);
         var project = await CreateAsync(alice, "Agent Yattus");
         var folder = Directory.CreateTempSubdirectory().FullName;
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await alice.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(folder), Ct)).StatusCode);
+        Assert.Equal(new WorkspaceRootsDto(false, [allowed]), await alice.GetFromJsonAsync<WorkspaceRootsDto>(ProjectsProtocol.WorkspaceRoots, Ct),
+            new RootsComparer());
+        Assert.True((await root.GetFromJsonAsync<WorkspaceRootsDto>(ProjectsProtocol.WorkspaceRoots, Ct))!.Anywhere);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(outside), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await alice.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(link), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await bob.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(repo), Ct)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await alice.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(repo), Ct)).StatusCode);
+        Assert.Equal(repo, Assert.Single(await ListAsync(alice)).Workspace);
         Assert.Equal(HttpStatusCode.BadRequest, (await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest("relatif/dossier"), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, (await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(Path.Combine(folder, "absent")), Ct)).StatusCode);
         Assert.Equal(HttpStatusCode.NoContent, (await root.PutAsJsonAsync(ProjectsProtocol.Workspace(project.Id), new SetWorkspaceRequest(folder), Ct)).StatusCode);
@@ -120,5 +135,11 @@ public sealed class ProjectsTests
         Assert.Equal(folder, seen.Workspace);
         var asRoot = Assert.Single(await ListAsync(root));
         Assert.Equal((ProjectRole.Reader, false), (asRoot.MyAccess, asRoot.CanManage));
+    }
+
+    private sealed class RootsComparer : IEqualityComparer<WorkspaceRootsDto?>
+    {
+        public bool Equals(WorkspaceRootsDto? x, WorkspaceRootsDto? y) => x?.Anywhere == y?.Anywhere && x!.Roots.SequenceEqual(y!.Roots);
+        public int GetHashCode(WorkspaceRootsDto? obj) => 0;
     }
 }

@@ -154,21 +154,61 @@ public static class ProjectsModule
             return TypedResults.NoContent();
         });
 
-        // Le dossier de travail : seul un administrateur de l'instance le choisit (ADR 0009, point 6).
-        projects.MapPut("/{id:guid}/workspace", async Task<Results<NoContent, NotFound, ValidationProblem>> (
-            Guid id, SetWorkspaceRequest request, ProjectsDb db, CancellationToken ct) =>
+        // Où choisir : n'importe où pour l'administrateur (et en mode local, où l'on est administrateur), sinon sous les
+        // dossiers autorisés par lui (ADR 0014).
+        projects.MapGet("/workspace-roots", (ICurrentUser me, IConfiguration configuration) =>
+            TypedResults.Ok(new WorkspaceRootsDto(me.IsInstanceAdmin, me.IsInstanceAdmin ? [] : AllowedRoots(configuration))));
+
+        // Le dossier de travail : l'administrateur, n'importe lequel ; le gestionnaire du projet, sous un dossier autorisé.
+        projects.MapPut("/{id:guid}/workspace", async Task<Results<NoContent, NotFound, ForbidHttpResult, ValidationProblem>> (
+            Guid id, SetWorkspaceRequest request, ProjectsDb db, IDirectory directory, ICurrentUser me, IConfiguration configuration,
+            CancellationToken ct) =>
         {
-            if (await db.Projects.FindAsync([id], ct) is not { } project)
+            var (project, refusal) = me.IsInstanceAdmin
+                ? (await db.Projects.FindAsync([id], ct), null)
+                : await ManageableAsync(db, directory, me, id, ct);
+            if (refusal is { } refused)
+                return refused;
+            if (project is null)
                 return TypedResults.NotFound();
             var path = string.IsNullOrWhiteSpace(request.Path) ? null : request.Path.Trim();
             if (path is not null && (path.Length > 500 || !Path.IsPathFullyQualified(path) || !System.IO.Directory.Exists(path)))
                 return Invalid("path", "Le chemin doit être absolu et désigner un dossier existant sur le serveur.");
+            if (path is not null && !me.IsInstanceAdmin && !InsideAllowedRoot(Path.GetFullPath(path), AllowedRoots(configuration)))
+                return Invalid("path", "Ce dossier n'est pas dans un des dossiers autorisés par l'administrateur.");
             project.Workspace = path is null ? null : Path.GetFullPath(path);
             await db.SaveChangesAsync(ct);
             return TypedResults.NoContent();
-        }).RequireAuthorization(Authentication.LlmAdminPolicy);
+        });
 
         return app;
+    }
+
+    private static IReadOnlyList<string> AllowedRoots(IConfiguration configuration) =>
+        [.. (configuration.GetSection("Projects:AllowedRoots").Get<string[]>() ?? [])
+            .Where(r => Path.IsPathFullyQualified(r)).Select(r => Path.TrimEndingDirectorySeparator(Path.GetFullPath(r)))];
+
+    /// <summary>
+    /// Dans un dossier autorisé, sans passer par un lien symbolique : sinon « autorise/lien → /etc » ferait lire /etc.
+    /// La racine elle-même vient de la configuration de l'administrateur.
+    /// </summary>
+    internal static bool InsideAllowedRoot(string fullPath, IReadOnlyList<string> roots)
+    {
+        foreach (var root in roots)
+        {
+            if (fullPath != root && !fullPath.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                continue;
+            var current = root;
+            var linked = false;
+            foreach (var part in Path.GetRelativePath(root, fullPath).Split(Path.DirectorySeparatorChar).Where(p => p != "."))
+            {
+                current = Path.Combine(current, part);
+                linked |= new DirectoryInfo(current).LinkTarget is not null;
+            }
+            if (!linked)
+                return true;
+        }
+        return false;
     }
 
     private static ValidationProblem Invalid(string field, string message) =>

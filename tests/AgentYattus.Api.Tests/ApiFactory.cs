@@ -28,7 +28,17 @@ public class ApiFactory : WebApplicationFactory<Program>
 
     public FakeAgentRunner Runner { get; } = new();
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
+    /// <summary>Des réglages en plus, à donner avant le premier client (« Projects:AllowedRoots:0 »…).</summary>
+    public Dictionary<string, string> Settings { get; } = [];
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        foreach (var (key, value) in Settings)
+            builder.UseSetting(key, value);
+        ConfigureBase(builder);
+    }
+
+    private void ConfigureBase(IWebHostBuilder builder) =>
         // Pas d'appel à models.dev pendant les tests : le catalogue embarqué suffit.
         builder.UseSetting("Llm:CatalogUrl", "")
             // Chaque test part d'une galerie vide : il ajoute les portraits dont il a besoin.

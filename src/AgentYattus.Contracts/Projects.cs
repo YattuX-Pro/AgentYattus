@@ -38,6 +38,11 @@ public sealed record SetProjectMemberRequest(ProjectRole Role);
 /// <param name="Path">Chemin absolu d'un dossier existant sur le serveur ; null pour revenir au dossier par défaut.</param>
 public sealed record SetWorkspaceRequest(string? Path);
 
+/// <summary>Où l'on peut choisir le dossier de ses projets (ADR 0014).</summary>
+/// <param name="Anywhere">Vrai pour l'administrateur de l'instance (et en mode local) : n'importe quel dossier.</param>
+/// <param name="Roots">Sinon, les dossiers autorisés par l'administrateur : le dossier choisi doit être dedans.</param>
+public sealed record WorkspaceRootsDto(bool Anywhere, IReadOnlyList<string> Roots);
+
 public static class ProjectsProtocol
 {
     public const string Path = "/projects";
@@ -45,4 +50,6 @@ public static class ProjectsProtocol
     public static string Members(Guid project, string userId) => $"/projects/{project}/members/{Uri.EscapeDataString(userId)}";
 
     public static string Workspace(Guid project) => $"/projects/{project}/workspace";
+
+    public const string WorkspaceRoots = "/projects/workspace-roots";
 }
