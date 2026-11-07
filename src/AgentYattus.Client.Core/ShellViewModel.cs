@@ -73,7 +73,7 @@ public sealed partial class ShellViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsAgentsSection), nameof(IsReportsSection))]
     public partial ObservableObject Current { get; set; }
 
-    public bool IsMissionsSection => Current is HomeViewModel or OfficeViewModel;
+    public bool IsMissionsSection => Current is HomeViewModel or OfficeViewModel or RecruitViewModel;
     public bool IsAgentsSection => Current is AgentsViewModel;
     public bool IsReportsSection => Current is ReportsViewModel;
 
@@ -81,8 +81,22 @@ public sealed partial class ShellViewModel : ObservableObject
     public async Task OpenMissionAsync(MissionItem mission)
     {
         var screen = new OfficeViewModel(_api, mission, UserName ?? "vous");
+        screen.RecruitRequested += project => _ = RecruitAsync(screen, project);
         Current = screen;
         await screen.LoadAsync();
+    }
+
+    /// <summary>L'écran Nouveau collègue ; une fois fait (ou annulé), on revient à l'open space, qui recharge son équipe.</summary>
+    private async Task RecruitAsync(OfficeViewModel office, Guid project)
+    {
+        var recruit = new RecruitViewModel(_api, project);
+        recruit.Done += () =>
+        {
+            Current = office;
+            _ = office.ReloadTeamAsync();
+        };
+        Current = recruit;
+        await recruit.LoadAsync();
     }
 
     [RelayCommand]

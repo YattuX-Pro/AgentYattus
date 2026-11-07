@@ -15,6 +15,7 @@
     <DataTemplate DataType="core:LoginViewModel"><views:LoginView /></DataTemplate>
     <DataTemplate DataType="core:HomeViewModel"><views:HomeView /></DataTemplate>
     <DataTemplate DataType="core:OfficeViewModel"><views:OfficeView /></DataTemplate>
+    <DataTemplate DataType="core:RecruitViewModel"><views:RecruitView /></DataTemplate>
     <DataTemplate DataType="core:AgentsViewModel"><views:AgentsView /></DataTemplate>
     <DataTemplate DataType="core:ReportsViewModel"><views:ReportsView /></DataTemplate>
   </Window.DataTemplates>

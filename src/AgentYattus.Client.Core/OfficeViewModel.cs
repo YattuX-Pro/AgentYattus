@@ -182,6 +182,13 @@ public sealed partial class OfficeViewModel : ObservableObject
         }
     }
 
+    /// <summary>Après un recrutement : les bureaux reprennent les visages et prénoms de l'équipe à jour.</summary>
+    public Task ReloadTeamAsync()
+    {
+        _team = null;
+        return LoadAsync();
+    }
+
     /// <summary>Un événement du hub : on recharge si c'est notre mission, et les nouvelles répliques se jouent à la suite.</summary>
     public Task ApplyAsync(MissionEventDto e) => e.MissionId == Mission.Mission.Id ? LoadAsync() : Task.CompletedTask;
 
