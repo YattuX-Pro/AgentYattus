@@ -33,11 +33,27 @@
         }
       </div>
 
-      <div class="text-muted-foreground flex items-center justify-between gap-2 border-t pt-3 text-xs">
+      <!-- Performance : combien il a travaillé, ce qu'il consomme en moyenne (son efficacité) et au total. -->
+      <div class="bg-muted/50 grid grid-cols-3 divide-x rounded-xl border text-center">
+        <div class="flex flex-col gap-0.5 px-2 py-2" title="Nombre d’exécutions de cet agent">
+          <b class="num text-[15px]">{{ agent.stats?.runs ?? 0 }}</b>
+          <span class="text-muted-foreground text-[10.5px]">exécutions</span>
+        </div>
+        <div class="flex flex-col gap-0.5 px-2 py-2" title="Tokens moyens par exécution : plus c’est bas, plus l’agent est économe">
+          <b class="num text-[15px]">{{ tokens(agent.stats?.averageTokens) }}</b>
+          <span class="text-muted-foreground text-[10.5px]">tokens / exécution</span>
+        </div>
+        <div class="flex flex-col gap-0.5 px-2 py-2" title="Tokens consommés au total">
+          <b class="num text-[15px]">{{ tokens(agent.stats?.totalTokens) }}</b>
+          <span class="text-muted-foreground text-[10.5px]">au total</span>
+        </div>
+      </div>
+
+      <div class="text-muted-foreground flex items-center justify-between gap-2 text-xs">
         <button type="button" class="hover:text-foreground min-w-0 truncate text-left font-mono" (click)="change(agent)" [disabled]="busy() || !models().length" [title]="'Modèle : ' + agent.model + ' (' + source(agent) + ') — cliquer pour changer'">
           {{ agent.model }} <span class="font-sans">· {{ source(agent) }}</span>
         </button>
-        <span class="num shrink-0">{{ agent.stats?.runs ?? 0 }} missions</span>
+        <span class="num shrink-0">{{ agent.maxIterations }} tours max</span>
       </div>
       <button hlmBtn variant="outline" size="sm" (click)="edit(agent)">Modifier</button>
     </li>
