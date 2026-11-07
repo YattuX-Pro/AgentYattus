@@ -13,7 +13,22 @@ internal static class Authentication
     public const string LlmAdminPolicy = "llm-admin";
     public const string LlmAdminRole = "llm-admin";
 
-    public static IServiceCollection AddKeycloakAuthentication(
+    /// <summary>Keycloak en mode serveur ; le jeton du lancement en mode local (ADR 0014). Les mêmes règles d'accès ensuite.</summary>
+    public static IServiceCollection AddApiAuthentication(
+        this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
+    {
+        if (LocalMode.IsOn(configuration))
+            services.AddLocalAuthentication(configuration);
+        else
+            services.AddKeycloakAuthentication(configuration, environment);
+        services.AddAuthorizationBuilder()
+            // Par défaut, chaque route exige un utilisateur connecté ; /health s'en exempte explicitement.
+            .SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+            .AddPolicy(LlmAdminPolicy, policy => policy.RequireRole(LlmAdminRole));
+        return services;
+    }
+
+    private static void AddKeycloakAuthentication(
         this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -50,12 +65,6 @@ internal static class Authentication
                     },
                 };
             });
-
-        services.AddAuthorizationBuilder()
-            // Par défaut, chaque route exige un utilisateur connecté ; /health s'en exempte explicitement.
-            .SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
-            .AddPolicy(LlmAdminPolicy, policy => policy.RequireRole(LlmAdminRole));
-        return services;
     }
 
     /// <summary>

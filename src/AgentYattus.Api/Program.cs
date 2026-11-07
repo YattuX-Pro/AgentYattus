@@ -12,7 +12,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddHealthChecks();
 builder.Services.AddTelemetry(builder.Configuration);
-builder.Services.AddKeycloakAuthentication(builder.Configuration, builder.Environment);
+builder.Services.AddApiAuthentication(builder.Configuration, builder.Environment);
 builder.Services
     .AddIdentityModule()
     .AddSettingsModule()

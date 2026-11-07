@@ -47,6 +47,9 @@ public static class LlmModule
         // Le trousseau de chiffrement vit hors de la base : voler la base seule ne suffit pas à lire les clés.
         if (configuration["DataProtection:KeysPath"] is { Length: > 0 } keysPath)
             dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+        else if (LocalMode.IsOn(configuration))
+            // Mode local : à côté de la base, dans le dossier de données de l'utilisateur (ADR 0014).
+            dataProtection.PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(LocalMode.DataFolder(configuration), "keys")));
         services.AddHttpClient(ModelCatalog.HttpClientName, http =>
         {
             http.Timeout = TimeSpan.FromSeconds(30);
