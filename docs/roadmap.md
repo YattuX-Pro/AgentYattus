@@ -140,14 +140,15 @@ Préalable : `feat(auth): page de connexion aux couleurs d'Agent Yattus, avec Go
 ## Vraiment utile, aux devs et aux autres (validé le 2026-11-07)
 
 ### Phase A — « Mon dossier, mes fichiers »
-- [ ] 108 `docs(adr): 0014 mode local et mode serveur`
-- [ ] 109 `feat(desktop): l'API démarre avec le logiciel (sidecar, SQLite, sans Docker)`
-- [ ] 110 `feat(auth): mode local sans Keycloak`
-- [ ] 111 `feat(projects): chacun choisit le dossier de ses projets`
-- [ ] 112 `feat(desktop): choisir le dossier d'un projet depuis le logiciel`
-- [ ] 113 `feat(agents): lire les PDF` · 114 `feat(agents): lire Word et Excel`
-- [ ] 115 `feat(missions): glisser-déposer des fichiers dans une mission`
-- [ ] 116 `feat(agents): rendre un document Word ou PDF, avec ton accord`
+- [x] 108 `docs(adr): 0014 mode local et mode serveur`
+- [x] 109 `feat(auth): mode local sans Keycloak, SQLite dans le dossier de données`
+- [x] 110 `feat(desktop): l'API démarre avec le logiciel (sidecar)` · `fix(security)` (l'API prouve qu'elle connaît le jeton)
+- [x] 111 `feat(desktop): « Modèles et clés » en mode local`
+- [x] 112 `feat(projects): chacun choisit le dossier de ses projets` · 2 × `fix(security)` (ni la racine, ni le dossier d'un autre ; noms réels, verrou)
+- [x] 113 `feat(desktop): choisir le dossier d'un projet`
+- [x] 114 `feat(agents): lire les PDF, Word et Excel` · 2 × `fix(security)` (bombes de décompression, temps)
+- [x] 115 `feat(missions): glisser-déposer des fichiers dans une mission`
+- [x] 116 `feat(agents): write_document, un document Word avec ton accord` (PDF : Word sait l'exporter)
 
 ### Phase B — « Une vraie conversation »
 - [ ] 117 `feat(missions): répondre à l'agent` · 118 `feat(desktop): le fil de conversation`
