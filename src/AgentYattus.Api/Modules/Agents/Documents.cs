@@ -17,13 +17,24 @@ internal static class Documents
 
     private const int MaxPages = 300;
     private const int MaxRows = 5000;
+    private const int MaxSheets = 50;
+
+    /// <summary>Total décompressé d'une archive Office : au-delà, on ne l'ouvre pas (bombe de décompression).</summary>
+    private const long MaxUnzippedBytes = 100 * 1024 * 1024;
+
+    /// <summary>Le temps qu'un document peut prendre ; vérifié entre deux pages ou deux rangées.</summary>
+    private static readonly TimeSpan Budget = TimeSpan.FromSeconds(15);
 
     public static bool IsDocument(string path) => Path.GetExtension(path).ToLowerInvariant() is ".pdf" or ".docx" or ".xlsx";
 
     /// <summary>Le texte du document, coupé à <paramref name="maxChars"/> caractères avec une note qui le dit.</summary>
-    public static string ExtractText(string path, int maxChars)
+    public static string ExtractText(string path, int maxChars, CancellationToken cancellationToken = default)
     {
-        var text = new Bounded(maxChars);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(Budget);
+        var text = new Bounded(maxChars, budget.Token);
+        if (Path.GetExtension(path).ToLowerInvariant() is ".docx" or ".xlsx")
+            CheckUnzippedSize(path);
         switch (Path.GetExtension(path).ToLowerInvariant())
         {
             case ".pdf":
@@ -37,6 +48,17 @@ internal static class Documents
                 break;
         }
         return text.ToString();
+    }
+
+    /// <summary>
+    /// Avant d'ouvrir l'archive : la somme des tailles décompressées annoncées. Une archive qui ment sur ses tailles
+    /// bute ensuite sur MaxCharactersInPart, partie par partie.
+    /// </summary>
+    private static void CheckUnzippedSize(string path)
+    {
+        using var zip = System.IO.Compression.ZipFile.OpenRead(path);
+        if (zip.Entries.Sum(e => e.Length) > MaxUnzippedBytes)
+            throw new InvalidDataException("Archive trop volumineuse une fois décompressée.");
     }
 
     // Une archive Office dont une partie dépasse cette taille une fois décompressée est refusée (bombe de décompression).
@@ -80,7 +102,7 @@ internal static class Documents
         if (doc.WorkbookPart is not { } workbook)
             return;
         var shared = workbook.SharedStringTablePart?.SharedStringTable?.Elements<SharedStringItem>().Select(s => s.InnerText).ToList() ?? [];
-        foreach (var sheet in workbook.Workbook?.Sheets?.Elements<Sheet>() ?? [])
+        foreach (var sheet in (workbook.Workbook?.Sheets?.Elements<Sheet>() ?? []).Take(MaxSheets))
         {
             if (sheet.Id?.Value is not { } id || workbook.GetPartById(id) is not WorksheetPart part)
                 continue;
@@ -109,13 +131,19 @@ internal static class Documents
             : cell.CellValue?.Text ?? "";
 
     /// <summary>Accumule des lignes jusqu'à la limite ; ensuite, une seule note dit que le texte est coupé.</summary>
-    private sealed class Bounded(int max)
+    private sealed class Bounded(int max, CancellationToken budget)
     {
         private readonly StringBuilder _text = new();
         private bool _full;
 
         public bool Line(string line)
         {
+            // Le temps est écoulé (ou la mission arrêtée) : on rend ce qui a été lu, en le disant.
+            if (!_full && budget.IsCancellationRequested)
+            {
+                _text.Append("[… lecture arrêtée : document trop long à lire]");
+                _full = true;
+            }
             if (_full)
                 return false;
             if (_text.Length + line.Length + 1 > max)

@@ -78,7 +78,8 @@ internal sealed class WorkspaceTools
                 throw new InvalidOperationException($"Document trop volumineux : {file.Length} octets (maximum {Documents.MaxDocumentBytes}).");
             try
             {
-                return Documents.ExtractText(file.FullName, (int)Math.Min(_maxFileBytes, int.MaxValue));
+                // Hors du fil de la requête, avec son jeton : la mission peut être arrêtée pendant la lecture.
+                return await Task.Run(() => Documents.ExtractText(file.FullName, (int)Math.Min(_maxFileBytes, int.MaxValue), cancellationToken), cancellationToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

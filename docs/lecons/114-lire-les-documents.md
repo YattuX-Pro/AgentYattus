@@ -31,6 +31,13 @@ Un document peut être hostile, comme n'importe quel fichier du workspace :
 - **Pages et rangées** : 300 pages et 5 000 rangées par feuille au plus.
 - **Document cassé** : « Document illisible : faux.pdf », sans le détail de l'exception.
 
+**Après revue de sécurité** (un correctif à part) :
+
+- **Taille totale** : avant d'ouvrir un `.docx` ou un `.xlsx`, on additionne les tailles décompressées annoncées dans l'archive, 100 Mo au plus. La limite par partie reste derrière, pour une archive qui mentirait.
+- **Nombre de feuilles** : 50 au plus.
+- **Temps** : 15 secondes par document, vérifiées entre deux pages ou deux rangées, avec le jeton d'arrêt de la mission. Au-delà, on rend ce qui a été lu, avec une note.
+- **Limite connue** (`ponytail`) : une seule page PDF énorme peut encore consommer mémoire et processeur avant la vérification suivante. Une lecture dans un processus séparé, avec un plafond de mémoire, viendra avec le bac à sable (phase C).
+
 Et toujours : le texte d'un document est une **donnée**, jamais une consigne (leçon 03). Un PDF qui écrit « ignore tes règles » reste un PDF.
 
 ## 4. Vérifie toi-même

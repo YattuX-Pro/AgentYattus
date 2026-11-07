@@ -84,4 +84,21 @@ public sealed class DocumentsTests
         var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => new WorkspaceTools(_workspace).ReadFile("faux.pdf", Ct));
         Assert.StartsWith("Document illisible : faux.pdf", refused.Message);
     }
+
+    [Fact]
+    public async Task An_office_archive_announcing_too_much_once_unzipped_is_refused()
+    {
+        // Un faux .docx : une seule entrée de 150 Mo de zéros, qui se compresse en quelques centaines de Ko.
+        var path = Path.Combine(_workspace, "bombe.docx");
+        using (var zip = System.IO.Compression.ZipFile.Open(path, System.IO.Compression.ZipArchiveMode.Create))
+        await using (var entry = zip.CreateEntry("word/document.xml", System.IO.Compression.CompressionLevel.SmallestSize).Open())
+        {
+            var zeros = new byte[1024 * 1024];
+            for (var i = 0; i < 150; i++)
+                await entry.WriteAsync(zeros, Ct);
+        }
+
+        var refused = await Assert.ThrowsAsync<InvalidOperationException>(() => new WorkspaceTools(_workspace).ReadFile("bombe.docx", Ct));
+        Assert.StartsWith("Document illisible : bombe.docx", refused.Message);
+    }
 }
