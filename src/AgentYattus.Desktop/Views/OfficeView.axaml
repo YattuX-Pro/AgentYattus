@@ -1,0 +1,147 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="using:AgentYattus.Client.Core"
+             xmlns:conv="using:AgentYattus.Desktop.Converters"
+             x:Class="AgentYattus.Desktop.Views.OfficeView"
+             x:DataType="core:OfficeViewModel"
+             Foreground="{StaticResource Parchemin}">
+
+  <!--
+    L'open space d'une mission (ADR 0012, maquette « Bureau des agents ») : les collègues à leur bureau, leurs bulles,
+    ce qui passe de l'un à l'autre, et votre bureau vitré. La scène est dessinée sur un plan fixe de 1016 × 804
+    (les trajets de OfficeViewModel en dépendent) et s'adapte à la fenêtre par un Viewbox.
+  -->
+  <UserControl.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontFamily" Value="{StaticResource Mono}" />
+      <Setter Property="FontSize" Value="10" />
+      <Setter Property="LetterSpacing" Value="1.4" />
+      <Setter Property="Foreground" Value="#8A857B" />
+    </Style>
+  </UserControl.Styles>
+
+  <UserControl.Resources>
+  </UserControl.Resources>
+
+  <Grid ColumnDefinitions="*,352" ColumnSpacing="16" Margin="20,8,20,16">
+
+    <!-- En-tête de la mission, au-dessus de la scène -->
+    <Grid RowDefinitions="Auto,*" RowSpacing="10">
+      <Grid ColumnDefinitions="*,Auto">
+        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+          <TextBlock Text="{Binding Mission.Mission.Goal}" FontSize="15" FontWeight="SemiBold" MaxWidth="560" TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center" />
+          <Border Padding="9,3" CornerRadius="11" Background="#245E9E92" VerticalAlignment="Center">
+            <TextBlock Classes="label" Text="{Binding Mission.Mission.StatusLabel}" Foreground="{StaticResource VertDeGris}" />
+          </Border>
+        </StackPanel>
+        <Button Grid.Column="1" Classes="square" Command="{Binding RecruitCommand}" Padding="12,0" Height="34" IsVisible="{Binding CanRecruit}">
+          <StackPanel Orientation="Horizontal" Spacing="7">
+            <Path Data="M12,5 L12,19 M5,12 L19,12" Stroke="{StaticResource Parchemin}" StrokeThickness="2" StrokeLineCap="Round"
+                  Width="12" Height="12" Stretch="Uniform" VerticalAlignment="Center" />
+            <TextBlock Text="Recruter" FontSize="13" FontWeight="Medium" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+      </Grid>
+
+      <!-- region:decor -->
+      <Border Grid.Row="1" CornerRadius="16" BorderBrush="#1F2226" BorderThickness="1" ClipToBounds="True">
+        <Border.Background>
+          <VisualBrush TileMode="Tile" SourceRect="0,0,48,48" DestinationRect="0,0,48,48">
+            <VisualBrush.Visual>
+              <Canvas Width="48" Height="48" Background="#0F1013">
+                <Rectangle Width="48" Height="1" Fill="#08ECE6D8" />
+                <Rectangle Width="1" Height="48" Fill="#08ECE6D8" />
+              </Canvas>
+            </VisualBrush.Visual>
+          </VisualBrush>
+        </Border.Background>
+        <Viewbox Stretch="Uniform">
+          <Canvas Width="1016" Height="804" ClipToBounds="True">
+            <!-- Le mur du fond, ses fenêtres et l'horloge -->
+            <Border Width="1016" Height="150" Background="#141619" BorderBrush="#23262B" BorderThickness="0,0,0,1" />
+            <TextBlock Classes="label" Canvas.Left="36" Canvas.Top="30" Text="ÉQUIPE" LetterSpacing="2.4" />
+            <TextBlock Canvas.Left="36" Canvas.Top="48" Text="Open space" FontSize="20" FontWeight="SemiBold" LetterSpacing="-0.4" />
+            <Grid Canvas.Left="240" Canvas.Top="22" Width="520" Height="92" ColumnDefinitions="*,*,*" ColumnSpacing="10">
+              <Border CornerRadius="6" BorderBrush="#262A2F" BorderThickness="1" Background="#101216" ClipToBounds="True">
+                <Canvas>
+                  <Rectangle Canvas.Left="12" Canvas.Top="42" Width="22" Height="48" Fill="#181B1F" />
+                  <Rectangle Canvas.Left="40" Canvas.Top="26" Width="30" Height="64" Fill="#16191D" />
+                  <Rectangle Canvas.Left="78" Canvas.Top="52" Width="18" Height="38" Fill="#181B1F" />
+                  <Rectangle Canvas.Left="104" Canvas.Top="34" Width="36" Height="56" Fill="#15181C" />
+                </Canvas>
+              </Border>
+              <Border Grid.Column="1" CornerRadius="6" BorderBrush="#262A2F" BorderThickness="1" Background="#101216" ClipToBounds="True">
+                <Canvas>
+                  <Ellipse Canvas.Left="120" Canvas.Top="14" Width="12" Height="12" Fill="#2A2A24" />
+                  <Rectangle Canvas.Left="8" Canvas.Top="20" Width="34" Height="70" Fill="#16191D" />
+                  <Rectangle Canvas.Left="50" Canvas.Top="46" Width="24" Height="44" Fill="#181B1F" />
+                  <Rectangle Canvas.Left="82" Canvas.Top="32" Width="40" Height="58" Fill="#15181C" />
+                </Canvas>
+              </Border>
+              <Border Grid.Column="2" CornerRadius="6" BorderBrush="#262A2F" BorderThickness="1" Background="#101216" ClipToBounds="True">
+                <Canvas>
+                  <Rectangle Canvas.Left="16" Canvas.Top="38" Width="28" Height="52" Fill="#181B1F" />
+                  <Rectangle Canvas.Left="52" Canvas.Top="16" Width="20" Height="74" Fill="#16191D" />
+                  <Rectangle Canvas.Left="80" Canvas.Top="50" Width="44" Height="40" Fill="#15181C" />
+                </Canvas>
+              </Border>
+            </Grid>
+
+            <!-- Les archives : le workspace, d'où viennent les dossiers -->
+            <Border Canvas.Left="30" Canvas.Top="118" Width="138" Height="258" CornerRadius="8" Background="#17191D" BorderBrush="#2A2D31"
+                    BorderThickness="1" Padding="10,12">
+              <UniformGrid Rows="4">
+                <Border BorderBrush="#23262B" BorderThickness="0,0,0,2" Margin="0,0,0,8">
+                  <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Bottom">
+                    <Rectangle Width="12" Height="38" RadiusX="2" RadiusY="2" Fill="#2C3035" /><Rectangle Width="14" Height="44" RadiusX="2" RadiusY="2" Fill="#363B41" />
+                    <Rectangle Width="10" Height="34" RadiusX="2" RadiusY="2" Fill="#2C3035" /><Rectangle Width="16" Height="40" RadiusX="2" RadiusY="2" Fill="#3A3F45" />
+                    <Rectangle Width="12" Height="42" RadiusX="2" RadiusY="2" Fill="#2C3035" />
+                  </StackPanel>
+                </Border>
+                <Border BorderBrush="#23262B" BorderThickness="0,0,0,2" Margin="0,0,0,8">
+                  <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Bottom">
+                    <Rectangle Width="14" Height="40" RadiusX="2" RadiusY="2" Fill="#33383E" /><Rectangle Width="18" Height="44" RadiusX="2" RadiusY="2" Fill="{StaticResource VertDeGris}" />
+                    <Rectangle Width="12" Height="38" RadiusX="2" RadiusY="2" Fill="#2C3035" /><Rectangle Width="14" Height="42" RadiusX="2" RadiusY="2" Fill="#3A3F45" />
+                    <Rectangle Width="10" Height="34" RadiusX="2" RadiusY="2" Fill="#2C3035" />
+                  </StackPanel>
+                </Border>
+                <Border BorderBrush="#23262B" BorderThickness="0,0,0,2" Margin="0,0,0,8">
+                  <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Bottom">
+                    <Rectangle Width="16" Height="42" RadiusX="2" RadiusY="2" Fill="#363B41" /><Rectangle Width="12" Height="36" RadiusX="2" RadiusY="2" Fill="#2C3035" />
+                    <Rectangle Width="14" Height="44" RadiusX="2" RadiusY="2" Fill="#3A3F45" /><Rectangle Width="12" Height="40" RadiusX="2" RadiusY="2" Fill="#2C3035" />
+                  </StackPanel>
+                </Border>
+                <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Bottom">
+                  <Rectangle Width="12" Height="40" RadiusX="2" RadiusY="2" Fill="#2C3035" /><Rectangle Width="16" Height="36" RadiusX="2" RadiusY="2" Fill="#363B41" />
+                  <Rectangle Width="14" Height="42" RadiusX="2" RadiusY="2" Fill="#2C3035" /><Rectangle Width="12" Height="38" RadiusX="2" RadiusY="2" Fill="#3A3F45" />
+                </StackPanel>
+              </UniformGrid>
+            </Border>
+            <TextBlock Classes="label" Canvas.Left="30" Canvas.Top="386" Width="138" TextAlignment="Center" Text="ARCHIVES · WORKSPACE" />
+
+            <!-- Une plante, pour que ce soit un bureau -->
+            <Canvas Canvas.Left="960" Canvas.Top="160" Width="54" Height="90">
+              <Path Data="M27,56 C25,42 13,36 5,36 C7,48 15,56 27,56 Z M27,52 C29,36 39,26 49,24 C47,38 39,50 27,52 Z M27,50 C23,36 27,22 33,14 C37,26 35,40 27,50 Z" Fill="#2F5A52" />
+              <Path Data="M14,56 L40,56 L36,86 L18,86 Z" Fill="#24272C" />
+            </Canvas>
+
+
+            <!-- Votre bureau vitré -->
+            <Border Classes="office" Classes.knocking="{Binding IsKnocking}" Canvas.Left="700" Canvas.Top="470" Width="292" Height="318"
+                    CornerRadius="12" BorderThickness="1" ClipToBounds="True">
+              <Panel>
+                <TextBlock Classes="label" Margin="14,12,0,0" Text="BUREAU · VOUS" />
+              </Panel>
+            </Border>
+
+
+          </Canvas>
+        </Viewbox>
+      </Border>
+      <!-- /region -->
+
+    </Grid>
+
+  </Grid>
+</UserControl>

@@ -23,7 +23,11 @@ public sealed partial class DeskViewModel(string role, string roleLabel) : Obser
 
     /// <summary>Vrai pendant que sa bulle s'écrit et reste affichée : la pose « parle » remplace « travaille ».</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Layer))]
     public partial bool IsSpeaking { get; set; }
+
+    /// <summary>Celui qui parle passe au premier plan : sa bulle ne se cache pas sous le bureau d'un voisin.</summary>
+    public int Layer => IsSpeaking ? 10 : 1;
 
     [ObservableProperty]
     public partial string Bubble { get; set; } = "";
@@ -76,6 +80,18 @@ public sealed partial class OfficeViewModel : ObservableObject
         Analyst = new DeskViewModel(Scene.Analyst, "ANALYSTE");
         Writer = new DeskViewModel(Scene.Writer, "RÉDACTEUR");
         Manager = new DeskViewModel(Scene.You, "RESPONSABLE") { Name = "Vous" };
+        // Après une décision, la mission se recharge : la porte se referme, et la réplique du rédacteur se joue.
+        Mission.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName != nameof(MissionViewModel.IsDecisionPending))
+                return;
+            OnPropertyChanged(nameof(IsKnocking));
+            if (!IsKnocking)
+                IsReviewing = false;
+            // Pendant le premier chargement, le journal n'est pas encore lu : LoadAsync reconstruira la scène lui-même.
+            if (!_firstLoad)
+                Rebuild();
+        };
     }
 
     /// <summary>La mission et sa décision (approuver après avoir tout relu, refuser).</summary>
@@ -120,6 +136,16 @@ public sealed partial class OfficeViewModel : ObservableObject
 
     /// <summary>Le bureau vitré passe en laiton : quelqu'un frappe à la porte.</summary>
     public bool IsKnocking => Mission.IsDecisionPending;
+
+    /// <summary>La relecture est ouverte : exactement ce qui sera écrit, avant d'approuver ou de refuser.</summary>
+    [ObservableProperty]
+    public partial bool IsReviewing { get; set; }
+
+    [RelayCommand]
+    private void OpenReview() => IsReviewing = IsKnocking;
+
+    [RelayCommand]
+    private void CloseReview() => IsReviewing = false;
 
     /// <summary>Recruter depuis l'open space : la coquille ouvre l'écran Nouveau collègue.</summary>
     public event Action<Guid>? RecruitRequested;

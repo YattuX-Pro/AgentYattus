@@ -73,13 +73,14 @@ public sealed partial class ShellViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsMissionsSection), nameof(IsAgentsSection), nameof(IsReportsSection))]
     public partial ObservableObject Current { get; set; }
 
-    public bool IsMissionsSection => Current is HomeViewModel or MissionViewModel;
+    public bool IsMissionsSection => Current is HomeViewModel or OfficeViewModel;
     public bool IsAgentsSection => Current is AgentsViewModel;
     public bool IsReportsSection => Current is ReportsViewModel;
 
+    /// <summary>Une mission s'ouvre dans l'open space de son projet (ADR 0012).</summary>
     public async Task OpenMissionAsync(MissionItem mission)
     {
-        var screen = new MissionViewModel(_api, mission);
+        var screen = new OfficeViewModel(_api, mission, UserName ?? "vous");
         Current = screen;
         await screen.LoadAsync();
     }
@@ -107,7 +108,7 @@ public sealed partial class ShellViewModel : ObservableObject
     public async Task ApplyAsync(MissionEventDto e)
     {
         Home.Apply(e);
-        if (Current is MissionViewModel mission)
-            await mission.ApplyAsync(e);
+        if (Current is OfficeViewModel office)
+            await office.ApplyAsync(e);
     }
 }
