@@ -59,6 +59,9 @@ internal sealed class CustomRole
     /// <summary>L'utilisateur à qui l'agent appartient (créé depuis « Nouveau collègue ») ; null : un agent de l'instance, pour tous.</summary>
     public string? OwnerId { get; set; }
 
+    /// <summary>Consigne recopiée d'un poste que son propriétaire ne peut pas lire (BasedOn) : elle sert aux missions, sans lui être montrée.</summary>
+    public bool InstructionsHidden { get; set; }
+
     public IReadOnlyList<string> ToolList => Tools.Split(',', StringSplitOptions.RemoveEmptyEntries);
 }
 

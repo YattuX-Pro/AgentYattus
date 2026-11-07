@@ -113,10 +113,12 @@ internal sealed class AgentCatalog(AgentsDb db, ICurrentUser me) : IAgentCatalog
     public async Task<bool> CanEditAsync(string key, CancellationToken ct) =>
         me.IsInstanceAdmin || (MeId is { } id && await OwnerOfAsync(key, ct) == id);
 
-    public async Task<HashSet<string>> MineAsync(CancellationToken ct)
+    /// <summary>Les agents de l'utilisateur, et pour chacun : peut-il lire sa consigne (faux si elle vient d'un poste caché) ?</summary>
+    public async Task<Dictionary<string, bool>> MineAsync(CancellationToken ct)
     {
         var mine = MeId;
-        return mine is null ? [] : [.. await db.CustomRoles.AsNoTracking().Where(r => r.OwnerId == mine).Select(r => r.Key).ToListAsync(ct)];
+        return mine is null ? [] : await db.CustomRoles.AsNoTracking().Where(r => r.OwnerId == mine)
+            .ToDictionaryAsync(r => r.Key, r => !r.InstructionsHidden, ct);
     }
 
     internal static AgentRole ToRole(CustomRole c) => new(c.Key, c.Name, c.Summary, c.Instructions, c.ToolList, Builtin: false);

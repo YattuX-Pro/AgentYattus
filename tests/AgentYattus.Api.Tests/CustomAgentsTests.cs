@@ -67,12 +67,24 @@ public sealed class CustomAgentsTests
         Assert.Equal(HttpStatusCode.Created, created.StatusCode);
         var nora = (await created.Content.ReadFromJsonAsync<AgentDto>(Ct))!;
         Assert.True(nora.Mine);
-        Assert.Contains("Analyste", nora.Instructions);
-
-        // Alice le voit, avec sa consigne ; Bob ne le voit pas ; l'administrateur le voit dans l'espace admin.
+        // La consigne de l'Analyste est recopiée côté serveur, mais reste cachée à Alice : elle ne la lisait pas avant.
+        Assert.Empty(nora.Instructions);
         var hers = (await alice.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!.Single(a => a.Key == nora.Key);
         Assert.True(hers.Mine);
-        Assert.NotEmpty(hers.Instructions);
+        Assert.Empty(hers.Instructions);
+
+        // Sa propre consigne, elle la relit.
+        var own = (await (await alice.PostAsJsonAsync(AgentsProtocol.Path,
+            new CreateAgentRequest("Agent de Lina", "Relit les migrations.", "Tu relis les migrations et tu signales les risques.", ["read_file"]), Ct))
+            .Content.ReadFromJsonAsync<AgentDto>(Ct))!;
+        Assert.Equal("Tu relis les migrations et tu signales les risques.",
+            (await alice.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!.Single(a => a.Key == own.Key).Instructions);
+
+        // On ne recopie que ce que l'on voit : Bob ne part pas de l'agent d'Alice.
+        Assert.Equal(HttpStatusCode.BadRequest, (await bob.PostAsJsonAsync(AgentsProtocol.Path,
+            new CreateAgentRequest("Copie", "Copie de Nora.", "", ["read_file"], BasedOn: nora.Key), Ct)).StatusCode);
+
+        // Bob ne le voit pas ; l'administrateur le voit dans l'espace admin.
         Assert.Empty((await alice.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!.Single(a => a.Key == "analyste").Instructions);
         Assert.DoesNotContain((await bob.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!, a => a.Key == nora.Key);
         var root = As(api, "root", instanceAdmin: true);

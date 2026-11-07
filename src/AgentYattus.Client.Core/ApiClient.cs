@@ -95,8 +95,9 @@ public sealed class ApiClient(HttpClient http)
     }
 
     /// <summary>Régler un agent à soi : nom, outils, consigne et modèle.</summary>
+    /// <param name="instructions">Null : garder sa consigne d'origine (une consigne héritée, cachée, reste telle quelle).</param>
     public async Task UpdateMyAgentAsync(
-        string role, UpdateAgentProfileRequest profile, string instructions, LlmSelectionDto? model, CancellationToken cancellationToken = default)
+        string role, UpdateAgentProfileRequest profile, string? instructions, LlmSelectionDto? model, CancellationToken cancellationToken = default)
     {
         using (var r = await http.PutAsJsonAsync(AgentsProtocol.Profile(role).TrimStart('/'), profile, cancellationToken))
             await EnsureOkAsync(r, cancellationToken);

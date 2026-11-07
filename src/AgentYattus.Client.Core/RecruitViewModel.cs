@@ -324,7 +324,7 @@ public sealed partial class RecruitViewModel(
             {
                 // Un agent à soi : on le règle directement.
                 await api.UpdateMyAgentAsync(role, new UpdateAgentProfileRequest(Role.Name, Role.Agent.Role, tools),
-                    instructions.Length > 0 ? instructions : _baseInstructions, model, cancellationToken);
+                    instructions.Length > 0 ? instructions : null, model, cancellationToken);
             }
             else if (IsPersonalized)
             {

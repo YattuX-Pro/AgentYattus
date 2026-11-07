@@ -119,7 +119,7 @@ public static class AgentsModule
             var agents = new List<AgentDto>();
             foreach (var role in await catalog.RolesAsync(cancellationToken, everyone: isAdmin && all == true))
             {
-                var admin = isAdmin || mine.Contains(role.Key);
+                var admin = isAdmin || mine.GetValueOrDefault(role.Key);
                 var current = await definitions.CurrentAsync(role.Key, cancellationToken);
                 agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, cancellationToken), current?.MaxIterations ?? instanceMax,
                 [
@@ -127,7 +127,7 @@ public static class AgentsModule
                         .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
                 ], role.Key, await models.GetAsync(role.Key, cancellationToken), stats.GetValueOrDefault(role.Key, new AgentStatsDto(0, 0, 0)),
                 admin ? current?.Instructions ?? role.Instructions : "", admin ? role.Instructions : "", admin ? AgentRoles.Guardrails(role) : "",
-                admin ? current?.Version ?? 0 : 0, admin ? current?.MaxIterations : null, role.Builtin, mine.Contains(role.Key)));
+                admin ? current?.Version ?? 0 : 0, admin ? current?.MaxIterations : null, role.Builtin, mine.ContainsKey(role.Key)));
             }
             return TypedResults.Ok(agents);
         });
@@ -184,9 +184,16 @@ public static class AgentsModule
         {
             var (name, summary, tools) = Clean(request.Name, request.Summary, request.Tools);
             var instructions = (request.Instructions ?? "").Trim();
-            // Une consigne vide reprend celle du poste de départ (sa version en vigueur), lue côté serveur : elle peut rester cachée.
-            if (instructions.Length == 0 && request.BasedOn is { } basedOn && await catalog.FindAsync(basedOn, cancellationToken) is { } baseRole)
+            // Une consigne vide reprend celle du poste de départ (sa version en vigueur), lue côté serveur. Seulement un poste que l'on voit ;
+            // si l'on ne peut pas lire sa consigne, la copie reste cachée (InstructionsHidden) : elle sert aux missions, sans fuiter.
+            var hidden = false;
+            if (instructions.Length == 0 && request.BasedOn is { } basedOn)
+            {
+                if ((await catalog.RolesAsync(cancellationToken)).FirstOrDefault(r => r.Key == basedOn) is not { } baseRole)
+                    return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["basedOn"] = ["Poste inconnu."] });
                 instructions = (await definitions.CurrentAsync(basedOn, cancellationToken))?.Instructions ?? baseRole.Instructions;
+                hidden = !await catalog.CanEditAsync(basedOn, cancellationToken);
+            }
             var errors = Validate(name, summary, tools);
             if (instructions.Length is < 20 or > 8000)
                 errors["instructions"] = ["La consigne fait entre 20 et 8 000 caractères."];
@@ -203,6 +210,7 @@ public static class AgentsModule
             {
                 Key = key, Name = name, Summary = summary, Instructions = instructions, Tools = string.Join(',', tools),
                 CreatedAt = DateTimeOffset.UtcNow, CreatedBy = http.User.Identity?.Name ?? "?", OwnerId = personal ? me.Id : null,
+                InstructionsHidden = hidden,
             };
             db.CustomRoles.Add(role);
             await db.SaveChangesAsync(cancellationToken);
@@ -214,9 +222,10 @@ public static class AgentsModule
                 return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["model"] = [error] });
             }
             var r = AgentCatalog.ToRole(role);
+            var shown = hidden ? "" : r.Instructions;
             return TypedResults.Created(AgentsProtocol.Role(key), new AgentDto(
                 r.Name, r.Summary, await llm.GetModelAsync(key, cancellationToken), 0, ToolsOf(r), key, await models.GetAsync(key, cancellationToken),
-                Instructions: r.Instructions, DefaultInstructions: r.Instructions, Guardrails: AgentRoles.Guardrails(r), Builtin: false, Mine: personal));
+                Instructions: shown, DefaultInstructions: shown, Guardrails: AgentRoles.Guardrails(r), Builtin: false, Mine: personal));
         });
 
         app.MapPut("/agents/{role}/profile", async Task<Results<NoContent, NotFound, ForbidHttpResult, ValidationProblem>> (
