@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
+    <ApplicationIcon>Assets/Branding/yattus.ico</ApplicationIcon>
+    <UseAppHost>true</UseAppHost>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
   </PropertyGroup>
 
@@ -11,6 +13,8 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\Fonts\*.ttf" />
+    <AvaloniaResource Include="Assets/Branding/yattus.png" />
+    <AvaloniaResource Include="Assets/Branding/yattus.ico" />
   </ItemGroup>
 
   <ItemGroup>
@@ -19,4 +23,25 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
   </ItemGroup>
 
+  <!-- Le paquet macOS porte l'identité et l'icône du logiciel, dans le Finder et le Dock. -->
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <MacBundlePath>$(MSBuildProjectDirectory)/../../artifacts/macos/$(Configuration)/Agent Yattus.app</MacBundlePath>
+  </PropertyGroup>
+  <Target Name="CreateMacAppBundle" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <ItemGroup>
+      <MacBundleFiles Include="$(TargetDir)**/*" Exclude="$(TargetDir)publish/**/*" />
+    </ItemGroup>
+    <MakeDir Directories="$(MacBundlePath)/Contents/MacOS;$(MacBundlePath)/Contents/Resources" />
+    <Copy SourceFiles="@(MacBundleFiles)" DestinationFiles="@(MacBundleFiles->'$(MacBundlePath)/Contents/MacOS/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="../../deploy/macos/Info.plist" DestinationFolder="$(MacBundlePath)/Contents" />
+    <Copy SourceFiles="Assets/Branding/yattus.icns" DestinationFolder="$(MacBundlePath)/Contents/Resources" />
+  </Target>
+  <Target Name="PublishMacAppBundle" AfterTargets="Publish" Condition="$([MSBuild]::IsOSPlatform('OSX'))">
+    <ItemGroup>
+      <MacPublishedFiles Include="$(PublishDir)**/*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(MacPublishedFiles)" DestinationFiles="@(MacPublishedFiles->'$(MacBundlePath)/Contents/MacOS/%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="../../deploy/macos/Info.plist" DestinationFolder="$(MacBundlePath)/Contents" />
+    <Copy SourceFiles="Assets/Branding/yattus.icns" DestinationFolder="$(MacBundlePath)/Contents/Resources" />
+  </Target>
 </Project>

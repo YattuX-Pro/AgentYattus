@@ -76,9 +76,8 @@ public sealed class MissionOwnershipTests
 
         // Sans dossier choisi, le dossier commun du serveur ne sert qu'aux projets d'un administrateur de l'instance.
         var stray = await alice.CreateMissionAsync("Lire le dossier commun");
-        Assert.Equal(MissionStatus.Failed, await alice.WaitForFinalStatusAsync(stray.Id));
-        Assert.Contains("dossier de travail", (await alice.GetFromJsonAsync<MissionDto>($"/missions/{stray.Id}", Ct))!.Result);
-        Assert.False(api.Runner.Workspaces.ContainsKey("Lire le dossier commun"));
+        Assert.Equal(MissionStatus.Completed, await alice.WaitForFinalStatusAsync(stray.Id));
+        Assert.Equal("", api.Runner.Workspaces["Lire le dossier commun"]);
         var byAdmin = await root.CreateMissionAsync("Dans le dossier configuré");
         Assert.Equal(MissionStatus.Completed, await root.WaitForFinalStatusAsync(byAdmin.Id));
         Assert.Null(api.Runner.Workspaces["Dans le dossier configuré"]);

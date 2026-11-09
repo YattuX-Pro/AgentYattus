@@ -31,3 +31,8 @@ export function tokens(n: number | null | undefined): string {
 export function when(iso: string): string {
   return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 }
+
+/** Le type d'une mission, en mots : Question, Revue, Développer (ADR 0016). */
+export function kindLabel(kind: string): string {
+  return kind === 'Recruitment' ? 'Recrutement RH' : kind === 'Review' ? 'Revue' : kind === 'Develop' ? 'Développer' : 'Question';
+}

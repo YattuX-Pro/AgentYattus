@@ -66,8 +66,8 @@ public sealed partial class OfficeViewModel : ObservableObject
     private readonly ApiClient _api;
     private readonly string _you;
 
-    /// <summary>L'agent qui fait la mission : l'analyste, ou celui choisi au lancement (ADR 0013), à son bureau.</summary>
-    private readonly string _worker;
+    // L'agent installé au bureau de l'analyste la dernière fois qu'on a habillé les bureaux.
+    private string? _dressedWorker;
     private readonly Dictionary<Guid, byte[]?> _images = [];
     private ProjectTeamDto? _team;
     private IReadOnlyList<SceneLine> _script = [];
@@ -80,12 +80,17 @@ public sealed partial class OfficeViewModel : ObservableObject
     {
         _api = api;
         _you = you;
-        _worker = mission.Agent ?? Scene.Analyst;
         Mission = new MissionViewModel(api, mission);
         Leader = new DeskViewModel(Scene.Leader, "CHEF D'ÉQUIPE");
         Analyst = new DeskViewModel(Scene.Analyst, "ANALYSTE");
         Writer = new DeskViewModel(Scene.Writer, "RÉDACTEUR");
         Manager = new DeskViewModel(Scene.You, "RESPONSABLE") { Name = "Vous" };
+        Conversation.Add(new ChatLine(_you, mission.Goal, mission.CreatedAt.ToLocalTime().ToString("HH:mm"), null, null, false));
+        mission.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(MissionItem.Status))
+                NotifyConversationState();
+        };
         // Après une décision, la mission se recharge : la porte se referme, et la réplique du rédacteur se joue.
         Mission.PropertyChanged += (_, e) =>
         {
@@ -107,12 +112,103 @@ public sealed partial class OfficeViewModel : ObservableObject
     /// <summary>Le projet de la mission, dans la barre : « Orders.Api » ; null pour le projet personnel.</summary>
     public string? ProjectName { get; init; }
 
+    /// <summary>Le bureau du chef d'équipe : le collègue recruté avec ce titre (leçon 129), sinon un siège libre.</summary>
     public DeskViewModel Leader { get; }
+
+    /// <summary>Le poste du chef d'équipe dans ce projet ; null s'il n'y en a pas.</summary>
+    private string? LeaderRole => _team?.Colleagues.FirstOrDefault(c => c.Leader)?.Role;
+
+    /// <summary>
+    /// L'agent au bureau de l'analyste : celui à qui le chef a confié la demande, sinon l'agent de la mission (ADR 0013),
+    /// sinon l'analyste. Le chef, lui, travaille toujours depuis son propre bureau.
+    /// </summary>
+    private string Worker =>
+        Mission.Mission.IsDevelop ? Scene.Developer
+        : Mission.Events.LastOrDefault(e => e.Type.StartsWith("delegue:", StringComparison.Ordinal)) is { } delegated ? delegated.Type["delegue:".Length..]
+        : Mission.Mission.Agent is { } agent && agent != LeaderRole ? agent
+        : Scene.Analyst;
     public DeskViewModel Analyst { get; }
     public DeskViewModel Writer { get; }
     public DeskViewModel Manager { get; }
 
     public ObservableCollection<ChatLine> Feed { get; } = [];
+
+    /// <summary>Le vrai dialogue, indépendant des répliques animées de la scène.</summary>
+    public ObservableCollection<ChatLine> Conversation { get; } = [];
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SendReplyCommand))]
+    public partial string ReplyText { get; set; } = "";
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanReply))]
+    [NotifyCanExecuteChangedFor(nameof(SendReplyCommand))]
+    public partial bool IsSending { get; set; }
+
+    public bool CanReply => Mission.Mission.IsCompleted && !IsSending;
+    public bool IsResponding => Mission.Mission.IsActive;
+    public string ConversationTitle => string.IsNullOrWhiteSpace(Author.Name) ? "Conversation" : $"Conversation avec {Author.Name}";
+    private bool CanSendReply => CanReply && !string.IsNullOrWhiteSpace(ReplyText);
+
+    private void NotifyConversationState()
+    {
+        OnPropertyChanged(nameof(CanReply));
+        OnPropertyChanged(nameof(IsResponding));
+        OnPropertyChanged(nameof(Author));
+        OnPropertyChanged(nameof(ConversationTitle));
+        SendReplyCommand.NotifyCanExecuteChanged();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSendReply))]
+    private async Task SendReplyAsync(CancellationToken cancellationToken)
+    {
+        IsSending = true;
+        var text = ReplyText.Trim();
+        try
+        {
+            await _api.ReplyAsync(Mission.Mission.Id, text, cancellationToken);
+            Conversation.Add(new ChatLine(_you, text, DateTimeOffset.Now.ToString("HH:mm"), Manager.WorkImage, null, false));
+            ReplyText = "";
+            LiveText = null;
+            Mission.Mission.Status = MissionStatus.Pending;
+            Error = null;
+        }
+        catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            IsSending = false;
+        }
+    }
+
+    private async Task LoadConversationAsync(CancellationToken ct)
+    {
+        IReadOnlyList<MissionTurnDto> turns = [];
+        try
+        {
+            turns = await _api.GetTurnsAsync(Mission.Mission.Id, ct);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
+        {
+            // Une ancienne API peut ne pas encore exposer le fil : le résultat reste disponible.
+        }
+        Conversation.Clear();
+        Conversation.Add(new ChatLine(_you, Mission.Mission.Goal, Mission.Mission.CreatedAt.ToLocalTime().ToString("HH:mm"), Manager.WorkImage, null, false));
+        foreach (var turn in turns)
+        {
+            var face = await _api.Faces.HistoricalAsync(turn.Author);
+            Conversation.Add(new ChatLine(turn.FromUser ? _you : face?.Name ?? "Agent · identité historique non disponible", turn.Text,
+                turn.At.ToLocalTime().ToString("HH:mm"), turn.FromUser ? Manager.WorkImage : face?.Talk ?? face?.Work,
+                null, !turn.FromUser && turn.Author?.Role == LeaderRole));
+        }
+        if (turns.Count == 0 && !string.IsNullOrWhiteSpace(Mission.Result))
+            Conversation.Add(new ChatLine(Author.Name, Mission.Result, "", Author.TalkImage ?? Author.WorkImage, null, Author == Leader));
+        if (!Mission.Mission.IsActive)
+            LiveText = null;
+        NotifyConversationState();
+    }
 
     [ObservableProperty]
     public partial bool CanRecruit { get; set; }
@@ -170,6 +266,7 @@ public sealed partial class OfficeViewModel : ObservableObject
     {
         "propose_skill" => "Il veut retenir une compétence pour la prochaine fois. Relisez-la avant de décider.",
         "run_command" => "Il veut lancer une commande dans le bac à sable. Relisez-la avant de décider.",
+        "git_commit" => "Il veut enregistrer un commit sur la branche de la mission. Relisez le message avant de décider.",
         _ => "Il veut écrire dans le workspace. Relisez tout avant de décider.",
     };
 
@@ -177,6 +274,7 @@ public sealed partial class OfficeViewModel : ObservableObject
     {
         "propose_skill" => $"{Asker.Name} veut retenir ceci",
         "run_command" => $"{Asker.Name} veut lancer ceci",
+        "git_commit" => $"{Asker.Name} veut enregistrer ce commit",
         _ => $"{Asker.Name} veut écrire ceci",
     };
 
@@ -191,6 +289,15 @@ public sealed partial class OfficeViewModel : ObservableObject
     private void CloseReview() => IsReviewing = false;
 
     /// <summary>Recruter depuis l'open space : la coquille ouvre l'écran Nouveau collègue.</summary>
+    public event Action<Guid>? RecruitmentOpened;
+
+    [RelayCommand]
+    private void OpenRecruitment()
+    {
+        if (Mission.RecruitmentMissionId is { } id)
+            RecruitmentOpened?.Invoke(id);
+    }
+
     public event Action<Guid>? RecruitRequested;
 
     [RelayCommand(CanExecute = nameof(CanRecruit))]
@@ -206,17 +313,21 @@ public sealed partial class OfficeViewModel : ObservableObject
     {
         try
         {
+            var dress = false;
             if (_team is null && Mission.Mission.ProjectId is { } project)
             {
                 _team = await _api.GetProjectTeamAsync(project, cancellationToken);
-                if (_team is not null)
-                    await DressDesksAsync(_team, cancellationToken);
+                dress = _team is not null;
             }
 
             await Mission.LoadAsync(cancellationToken);
+            // Après le journal : le bureau de l'analyste revient au collègue à qui le chef a confié la demande.
+            if (_team is not null && (dress || _dressedWorker != Worker))
+                await DressDesksAsync(_team, cancellationToken);
             OnPropertyChanged(nameof(IsKnocking));
             OnKnockChanged();
             Rebuild();
+            await LoadConversationAsync(cancellationToken);
             Error = Mission.Error;
         }
         catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
@@ -248,8 +359,10 @@ public sealed partial class OfficeViewModel : ObservableObject
     [ObservableProperty]
     public partial string? LiveText { get; set; }
 
-    /// <summary>Qui écrit la réponse : le rédacteur dans une revue, sinon l'agent de la mission.</summary>
-    public DeskViewModel Author => Mission.Mission.IsReview ? Writer : Analyst;
+    /// <summary>Qui écrit la réponse : le rédacteur dans une revue, sinon le collègue à qui le chef l'a confiée, sinon l'agent de la mission.</summary>
+    public DeskViewModel Author => Mission.Mission.IsReview ? DeskOf(Scene.Writer) ?? Writer
+        : Mission.Events.Any(e => e.Type.StartsWith("delegue:", StringComparison.Ordinal)) ? DeskOf(Worker) ?? Analyst
+        : DeskOf(Mission.Mission.Agent ?? Scene.Analyst) ?? Analyst;
 
     public void ApplyText(MissionTextDto e)
     {
@@ -260,15 +373,17 @@ public sealed partial class OfficeViewModel : ObservableObject
     private async Task DressDesksAsync(ProjectTeamDto team, CancellationToken ct)
     {
         CanRecruit = team.CanRecruit;
-        Leader.Name = team.LeaderName;
-        await DressAsync(Leader, team.LeaderPortraitId, ct);
+        var leader = team.Colleagues.FirstOrDefault(c => c.Leader);
+        Leader.Name = leader?.Name ?? "Siège libre";
+        await DressAsync(Leader, leader?.PortraitId, ct);
         await DressAsync(Manager, team.ManagerPortraitId, ct);
-        if (_worker != Scene.Analyst)
-            Analyst.RoleLabel = _worker.Replace('-', ' ').ToUpperInvariant();
+        var worker = _dressedWorker = Worker;
+        Analyst.RoleLabel = worker == Scene.Analyst ? "ANALYSTE" : worker.Replace('-', ' ').ToUpperInvariant();
         foreach (var desk in new[] { Analyst, Writer })
         {
-            var role = desk == Analyst ? _worker : desk.Role;
-            var colleague = team.Colleagues.FirstOrDefault(c => c.Role == role);
+            // Le chef a son bureau : son siège de poste reste libre, chacun n'apparaît qu'une fois.
+            var role = desk == Analyst ? worker : desk.Role;
+            var colleague = role == leader?.Role ? null : team.Colleagues.FirstOrDefault(c => c.Role == role);
             desk.Name = colleague?.Name ?? "Siège libre";
             await DressAsync(desk, colleague?.PortraitId, ct);
         }
@@ -308,7 +423,7 @@ public sealed partial class OfficeViewModel : ObservableObject
         if (_team is null)
             return;
         var file = Mission.PendingApproval.FirstOrDefault()?.Target;
-        _script = Scene.From(Mission.Events, _team, Mission.Mission.Goal, _you, file, _worker);
+        _script = Scene.From(Mission.Events, _team, Mission.Mission.Goal, _you, file, Worker);
         if (_firstLoad)
         {
             _firstLoad = false;
@@ -365,7 +480,7 @@ public sealed partial class OfficeViewModel : ObservableObject
     {
         var desk = DeskOf(line.Speaker);
         Feed.Add(new ChatLine(desk?.Name ?? line.Speaker, line.Text, line.At.ToLocalTime().ToString("HH:mm"), desk?.WorkImage,
-            line.Carries == SceneObject.None ? null : line.File, line.Speaker == Scene.Leader));
+            line.Carries == SceneObject.None ? null : line.File, desk == Leader));
         foreach (var (role, status) in line.Statuses)
             if (DeskOf(role) is { } d)
                 d.Status = status;
@@ -373,8 +488,9 @@ public sealed partial class OfficeViewModel : ObservableObject
 
     private IEnumerable<DeskViewModel> Desks => [Leader, Analyst, Writer, Manager];
 
-    // L'agent choisi au lancement parle depuis le bureau de l'analyste.
-    private DeskViewModel? DeskOf(string speaker) => speaker == _worker ? Analyst : Desks.FirstOrDefault(d => d.Role == speaker);
+    // Le chef d'équipe parle depuis son bureau, quel que soit son poste ; l'agent de la mission, depuis celui de l'analyste.
+    private DeskViewModel? DeskOf(string speaker) =>
+        speaker == LeaderRole ? Leader : speaker == Worker ? Analyst : Desks.FirstOrDefault(d => d.Role == speaker);
 
     // Une courbe de Bézier cubique, avec une accélération douce au départ et à l'arrivée.
     private void Move(SceneObject what, double t)

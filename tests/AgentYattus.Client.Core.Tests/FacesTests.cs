@@ -8,16 +8,17 @@ namespace AgentYattus.Client.Core.Tests;
 public sealed class FacesTests
 {
     private static readonly Guid Project = Guid.NewGuid();
-    private static readonly Guid Leon = Guid.NewGuid(), Ines = Guid.NewGuid(), Malik = Guid.NewGuid(), You = Guid.NewGuid();
+    private static readonly Guid Ines = Guid.NewGuid(), Malik = Guid.NewGuid(), You = Guid.NewGuid();
 
-    private static ProjectTeamDto Team() => new(Project,
+    /// <summary>Inès (Analyste) et Malik (Rédacteur), recrutés ; <paramref name="leader"/> : le poste du chef d'équipe.</summary>
+    private static ProjectTeamDto Team(string? leader) => new(Project,
         [
-            new(Guid.NewGuid(), Project, "analyste", Ines, "Inès", [], null, DateTimeOffset.UtcNow, true, null),
-            new(Guid.NewGuid(), Project, "redacteur", Malik, "Malik", [], null, DateTimeOffset.UtcNow, true, null),
+            new(Guid.NewGuid(), Project, "analyste", Ines, "Inès", [], null, DateTimeOffset.UtcNow, true, null, Leader: leader == "analyste"),
+            new(Guid.NewGuid(), Project, "redacteur", Malik, "Malik", [], null, DateTimeOffset.UtcNow, true, null, Leader: leader == "redacteur"),
         ],
-        "Léon", Leon, You, 38, 1800, new Dictionary<string, string>(), true);
+        You, 38, 1800, new Dictionary<string, string>(), true);
 
-    private static (ApiClient Api, List<string> Calls) Api(AgentDto[]? agents = null)
+    private static (ApiClient Api, List<string> Calls) Api(AgentDto[]? agents = null, string? leader = "redacteur")
     {
         var calls = new List<string>();
         var api = new ApiClient(new HttpClient(new StubHandler(request =>
@@ -28,7 +29,7 @@ public sealed class FacesTests
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([1, 2, 3]) };
             object? body = path switch
             {
-                _ when path.EndsWith("/team", StringComparison.Ordinal) => Team(),
+                _ when path.EndsWith("/team", StringComparison.Ordinal) => Team(leader),
                 "/agents" => agents ?? [],
                 "/missions" => Array.Empty<MissionDto>(),
                 "/projects" => Array.Empty<ProjectDto>(),
@@ -93,30 +94,51 @@ public sealed class FacesTests
     [Fact]
     public async Task Clicking_a_face_on_home_picks_who_does_the_mission()
     {
-        AgentDto[] agents = [new("Analyste", "Explore.", "m", 10, [], "analyste"), new("Rédacteur", "Écrit.", "m", 10, [], "redacteur")];
+        AgentDto[] agents = [new("Analyste", "Explore.", "m", 10, [], "analyste"), new("Rédacteur", "Écrit.", "m", 10, [], "redacteur"),
+                             new("Testeur", "Teste.", "m", 10, [], "testeur")];
         var (api, _) = Api(agents);
         api.Faces.DefaultProject = Project;
         var vm = new HomeViewModel(api);
 
         await vm.LoadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(["chef", "analyste", "redacteur"], vm.Crew.Select(m => m.Key));
-        Assert.Equal("Quelle mission pour Inès ?", vm.Title);
-        Assert.Equal("Inès", Assert.Single(vm.Chosen).Name);
+        // Seulement les collègues recrutés (le Testeur n'a pas de bureau), le chef d'équipe en premier (leçon 129).
+        Assert.Equal(["redacteur", "analyste"], vm.Crew.Select(m => m.Key));
+        Assert.Equal(("CHEF D’ÉQUIPE", "ANALYSTE"), (vm.Crew[0].Role, vm.Crew[1].Role));
+        // Par défaut, on parle au chef d'équipe : il est choisi, et répartit le travail.
+        Assert.Equal("Quelle mission pour l’équipe ?", vm.Title);
+        Assert.Equal("Malik", Assert.Single(vm.Chosen, m => m.IsLeader).Name);
+        Assert.False(vm.Crew[0].IsDimmed);
 
-        // Le chef d'équipe ne prend pas de mission seul ; Malik, si.
-        vm.PickCommand.Execute(vm.Crew[0]);
+        // Inès, en direct : le chef se met en retrait ; un clic sur le chef le rappelle.
+        vm.PickCommand.Execute(vm.Crew[1]);
         Assert.Equal("analyste", vm.SelectedAgent!.Key);
-        vm.PickCommand.Execute(vm.Crew[2]);
-        Assert.Equal("redacteur", vm.SelectedAgent!.Key);
-        Assert.True(vm.Crew[2].IsSelected);
-        Assert.False(vm.Crew[1].IsSelected);
+        Assert.Equal("Quelle mission pour Inès ?", vm.Title);
+        Assert.True(vm.Crew[1].IsSelected);
+        Assert.True(vm.Crew[0].IsDimmed);
+        vm.PickCommand.Execute(vm.Crew[0]);
+        Assert.Null(vm.SelectedAgent);
 
         // Une revue : Inès puis Malik, toujours.
         vm.WriteReport = true;
         Assert.Equal("Inès analyse, Malik rédige.", vm.Title);
         Assert.Equal(["Inès", "Malik"], vm.Chosen.Select(m => m.Name));
         Assert.Equal("Vous", vm.Me!.Name);
+    }
+
+    [Fact]
+    public async Task Without_a_leader_the_first_colleague_answers_by_default()
+    {
+        AgentDto[] agents = [new("Analyste", "Explore.", "m", 10, [], "analyste"), new("Rédacteur", "Écrit.", "m", 10, [], "redacteur")];
+        var (api, _) = Api(agents, leader: null);
+        api.Faces.DefaultProject = Project;
+        var vm = new HomeViewModel(api);
+
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(vm.Crew, m => m.IsLeader);
+        Assert.Equal("Quelle mission pour Inès ?", vm.Title);
+        Assert.Equal("Inès", Assert.Single(vm.Chosen).Name);
     }
 
     [Fact]

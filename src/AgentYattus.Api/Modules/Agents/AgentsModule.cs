@@ -9,6 +9,13 @@ using Microsoft.Extensions.Options;
 
 namespace AgentYattus.Api.Modules.Agents;
 
+/// <summary>Le recrutement confirme sa demande d'origine sans accéder au stockage des conversations.</summary>
+public interface IRecruitmentCompletion
+{
+    Task<bool> CanCompleteAsync(Guid source, Guid mission, Guid project, string owner, CancellationToken ct);
+    Task CompleteAsync(Guid source, Guid mission, Guid project, string owner, Guid colleague, string name, CancellationToken ct);
+}
+
 public interface IAgentRunner
 {
     /// <param name="resume">La conversation mise en pause et la décision humaine, ou null pour un premier passage.</param>
@@ -17,14 +24,28 @@ public interface IAgentRunner
     /// <param name="agent">L'agent qui fait une mission « Question » (ADR 0013) ; null : l'Analyste.</param>
     /// <param name="launchedBy">Qui a lancé la mission : ses compétences à lui, et celles de l'instance, sont les seules chargées.</param>
     /// <param name="onText">Reçoit la réponse finale au fur et à mesure qu'elle s'écrit (leçon 119) ; null : pas de direct.</param>
+    /// <param name="skills">Les compétences choisies par l'humain pour la mission (leçon 132) : indexées, puis chargées à la demande.</param>
     Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
         IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken,
-        Func<string, Task>? onText = null);
+        Func<string, Task>? onText = null, IReadOnlyList<string>? skills = null);
 }
 
-/// <summary>Le collègue qui occupe un rôle dans le projet : « Tu t'appelles Inès… », et les clés de ses compétences.</summary>
-public sealed record AgentSeat(string Style, IReadOnlyList<string> Skills);
+/// <summary>
+/// Une mission qui ne peut pas partir pour une raison que l'humain peut corriger (aucun modèle connecté, mode branche requis,
+/// agent retiré). Son message est écrit pour lui et ne contient rien de sensible : il est affiché tel quel comme résultat.
+/// </summary>
+public class MissionBlockedException(string message) : InvalidOperationException(message);
+
+/// <summary>Arrêt d'un garde-fou : la consommation déjà facturée reste enregistrée, même sans réponse finale.</summary>
+public sealed class AgentBudgetExceededException(string message, AgentUsage usage) : MissionBlockedException(message)
+{
+    public AgentUsage Usage { get; } = usage;
+}
+
+/// <summary>Le collègue qui occupe un rôle dans le projet : « Tu t'appelles Inès… », les clés de ses compétences, et s'il est le chef.</summary>
+/// <param name="Leader">Le chef d'équipe (leçon 129) : il peut confier une question à un autre collègue du projet.</param>
+public sealed record AgentSeat(string Style, IReadOnlyList<string> Skills, bool Leader = false, string? Name = null, Guid? ColleagueId = null, Guid? PortraitId = null, double MouthX = 0.56, double MouthY = 0.37);
 
 /// <summary>
 /// Soit l'agent a fini (<see cref="Answer"/>), soit il attend une décision humaine (<see cref="Approval"/>).
@@ -34,16 +55,27 @@ public sealed record AgentSeat(string Style, IReadOnlyList<string> Skills);
 /// <param name="Learned">Les compétences approuvées pendant cette exécution, à ranger sur le collègue (leçon 106).</param>
 public sealed record AgentOutcome(
     string? Answer, AgentApproval? Approval = null, string? Conversation = null, AgentUsage? Usage = null,
-    IReadOnlyList<AgentLearned>? Learned = null);
+    IReadOnlyList<AgentLearned>? Learned = null, string? RecruitmentBrief = null, string? AuthorRole = null, bool NeedsReply = false, IReadOnlyList<AgentContribution>? Contributions = null);
+
+public sealed record AgentContribution(string Role, string Text);
+
+/// <summary>Un seul contexte par exécution, partagé avec le transport du flux.</summary>
+public sealed class AgentLiveContext
+{
+    public string? GroupContext { get; set; }
+    public Func<string, Task>? RoleStarted { get; set; }
+    public Task StartAsync(string role) => RoleStarted?.Invoke(role) ?? Task.CompletedTask;
+}
 
 /// <summary>Une compétence qu'un agent a proposée et qu'un humain a acceptée : elle rejoint le collègue de ce rôle.</summary>
 public sealed record AgentLearned(string Role, string Skill);
 
 /// <summary>Ce qu'a consommé une exécution : tokens et coût estimé en micro-dollars (ADR 0010).</summary>
-public sealed record AgentUsage(long InputTokens, long OutputTokens, long CostMicros)
+/// <param name="PersonalCostMicros">La part payée par une clé personnelle (leçon 134) : hors du budget de l'instance.</param>
+public sealed record AgentUsage(long InputTokens, long OutputTokens, long CostMicros, long PersonalCostMicros = 0)
 {
     public static AgentUsage operator +(AgentUsage a, AgentUsage b) =>
-        new(a.InputTokens + b.InputTokens, a.OutputTokens + b.OutputTokens, a.CostMicros + b.CostMicros);
+        new(a.InputTokens + b.InputTokens, a.OutputTokens + b.OutputTokens, a.CostMicros + b.CostMicros, a.PersonalCostMicros + b.PersonalCostMicros);
 }
 
 /// <summary>Les actions que l'agent veut faire et qui attendent une décision humaine.</summary>
@@ -52,21 +84,45 @@ public sealed record AgentApproval(IReadOnlyList<AgentToolCall> ToolCalls);
 public sealed record AgentToolCall(string Tool, string Arguments);
 
 /// <param name="FollowUp">Une réponse de l'humain à une mission terminée (leçon 117) ; sinon, c'est une décision.</param>
-public sealed record AgentResume(string Conversation, bool Approved, string? FollowUp = null);
+public sealed record AgentResume(string Conversation, bool Approved, string? FollowUp = null, long SpentTokens = 0);
 
 public static class AgentsModule
 {
-    /// <summary>Les rôles qui travaillent sur une mission de ce type : ceux dont le modèle peut coûter.</summary>
-    public static IReadOnlyList<string> RolesFor(MissionKind kind, string? agent = null) =>
-        kind == MissionKind.Review ? [AgentRoles.Analyst.Key, AgentRoles.Writer.Key] : [agent ?? AgentRoles.Analyst.Key];
+    /// <summary>
+    /// Les rôles qui peuvent travailler sur une mission de ce type : ceux dont le modèle peut coûter.
+    /// Une question au chef d'équipe (leçon 129) compte aussi chaque collègue du projet : il peut leur confier la demande.
+    /// </summary>
+    public static IReadOnlyList<string> RolesFor(MissionKind kind, string? agent = null, IReadOnlyDictionary<string, AgentSeat>? seats = null) =>
+        kind == MissionKind.Review ? [AgentRoles.Analyst.Key, AgentRoles.Writer.Key]
+        : kind == MissionKind.Develop ? [AgentRoles.Developer.Key, AgentRoles.Reviewer.Key]
+        : kind == MissionKind.Recruitment ? ["_rh"]
+        : agent is not null && seats?.GetValueOrDefault(agent) is { Leader: true } ? [agent, .. seats.Keys.Where(k => k != agent)]
+        : [agent ?? AgentRoles.Analyst.Key];
 
     public static IServiceCollection AddAgentsModule(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddOptions<AgentsOptions>().BindConfiguration(AgentsOptions.Section);
+        services.AddScoped<AgentLiveContext>();
+        services.AddOptions<AgentsOptions>().BindConfiguration(AgentsOptions.Section)
+            .Validate(o => o.TokenEconomy.IsValid, "Les limites Agents:TokenEconomy sont incohérentes.")
+            .ValidateOnStart();
+        // Sans redirection automatique (chacune est revérifiée), sans proxy (il contournerait la vérification des adresses),
+        // et une connexion qui ne part que vers une adresse publique.
+        services.AddHttpClient(DocumentationReader.ClientName).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            UseProxy = false,
+            ConnectTimeout = TimeSpan.FromSeconds(10),
+            AutomaticDecompression = System.Net.DecompressionMethods.All,
+            ConnectCallback = DocumentationReader.ConnectToPublicAddressAsync,
+        });
         // Le modèle et sa clé viennent du module Llm (choisis dans l'application) ; voir ILlmClientProvider.
         return services
             .AddScoped<IAgentRunner, AgentFrameworkRunner>()
             .AddSingleton<ICommandSandbox, DockerSandbox>()
+            // Un lecteur par mission : il retient les pages consultées, que le résultat cite (leçon 133).
+            .AddScoped<DocumentationReader>()
+            .AddSingleton<IMissionWorktrees, MissionWorktrees>()
             .AddScoped<AgentDefinitions>()
             .AddScoped<AgentCatalog>()
             .AddScoped<IAgentCatalog>(sp => sp.GetRequiredService<AgentCatalog>())
@@ -102,7 +158,8 @@ public static class AgentsModule
 
     /// <summary>Tous les outils qu'on peut donner à un agent : ceux du dossier (et des commandes), puis ceux de git.</summary>
     internal static IReadOnlyList<(string Name, string Description, bool RequiresApproval)> AllTools { get; } =
-        [.. WorkspaceTools.Catalog, .. GitTools.Catalog.Select(t => (t.Name, t.Description, false))];
+        [.. WorkspaceTools.Catalog, .. GitTools.Catalog.Select(t => (t.Name, t.Description, t.Name == "git_commit")),
+         (DocumentationReader.ToolName, DocumentationReader.Description, false)];
 
     private static List<ToolInfoDto> ToolsOf(AgentRole role) =>
         [.. AllTools.Where(t => role.Tools.Contains(t.Name)).Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval))];
@@ -126,7 +183,7 @@ public static class AgentsModule
     {
         app.MapGet(AgentsProtocol.Path, async (
             IOptions<AgentsOptions> options, ILlmClientProvider llm, ILlmAgentModels models, AuditLog audit, AgentDefinitions definitions,
-            AgentCatalog catalog, IInstanceSettings instance, HttpContext http, bool? all, CancellationToken cancellationToken) =>
+            AgentCatalog catalog, IInstanceSettings instance, HttpContext http, ICurrentUser me, bool? all, CancellationToken cancellationToken) =>
         {
             // Les consignes (qui peuvent contenir des règles internes) et leur version : administrateurs seulement,
             // comme l'historique. Les autres voient le rôle, son modèle et ses outils ; et la consigne de leurs propres agents.
@@ -140,7 +197,8 @@ public static class AgentsModule
             {
                 var admin = isAdmin || mine.GetValueOrDefault(role.Key);
                 var current = await definitions.CurrentAsync(role.Key, cancellationToken);
-                agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, cancellationToken), current?.MaxIterations ?? instanceMax,
+                // Le modèle que ses missions à lui utiliseraient : ses clés personnelles comprises (leçon 134).
+                agents.Add(new(role.Name, role.Summary, await llm.GetModelAsync(role.Key, me.Id, cancellationToken), current?.MaxIterations ?? instanceMax,
                 [
                     .. AllTools.Where(t => role.Tools.Contains(t.Name))
                         .Select(t => new ToolInfoDto(t.Name, t.Description, t.RequiresApproval)),
@@ -182,15 +240,19 @@ public static class AgentsModule
                 : TypedResults.NotFound())
             .RequireAuthorization(Authentication.LlmAdminPolicy);
 
-        // Choisir le modèle d'un rôle : llm-admin, ou le propriétaire d'un agent à soi (parmi les connexions de l'instance).
+        // Choisir le modèle d'un rôle : llm-admin, ou le propriétaire d'un agent à soi (parmi les connexions de l'instance, et ses clés
+        // personnelles pour son agent à lui : leçon 134).
         app.MapPut("/agents/{role}/model", async Task<Results<NoContent, NotFound, ForbidHttpResult, ValidationProblem>> (
-            string role, UpdateAgentModelRequest request, ILlmAgentModels models, AgentCatalog catalog, HttpContext http, CancellationToken cancellationToken) =>
+            string role, UpdateAgentModelRequest request, ILlmAgentModels models, AgentCatalog catalog, HttpContext http, ICurrentUser me,
+            CancellationToken cancellationToken) =>
         {
             if (await catalog.FindAsync(role, cancellationToken) is null)
                 return TypedResults.NotFound();
             if (!await catalog.CanEditAsync(role, cancellationToken))
                 return TypedResults.Forbid();
-            return await models.SetAsync(role, request.Model, http.User.Identity?.Name ?? "?", cancellationToken) is { } error
+            var owner = await catalog.OwnerOfAsync(role, cancellationToken);
+            return await models.SetAsync(role, request.Model, http.User.Identity?.Name ?? "?", cancellationToken,
+                       personalOwner: owner is not null && owner == me.Id ? me.Id : null) is { } error
                 ? TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["model"] = [error] })
                 : TypedResults.NoContent();
         });
@@ -236,7 +298,7 @@ public static class AgentsModule
             db.CustomRoles.Add(role);
             await db.SaveChangesAsync(cancellationToken);
             // Son modèle : refusé (connexion inconnue, modèle absent), l'agent n'est pas créé.
-            if (request.Model is { } model && await models.SetAsync(key, model, me.Username, cancellationToken) is { } error)
+            if (request.Model is { } model && await models.SetAsync(key, model, me.Username, cancellationToken, personalOwner: personal ? me.Id : null) is { } error)
             {
                 db.CustomRoles.Remove(role);
                 await db.SaveChangesAsync(cancellationToken);
@@ -245,7 +307,7 @@ public static class AgentsModule
             var r = AgentCatalog.ToRole(role);
             var shown = hidden ? "" : r.Instructions;
             return TypedResults.Created(AgentsProtocol.Role(key), new AgentDto(
-                r.Name, r.Summary, await llm.GetModelAsync(key, cancellationToken), 0, ToolsOf(r), key, await models.GetAsync(key, cancellationToken),
+                r.Name, r.Summary, await llm.GetModelAsync(key, me.Id, cancellationToken), 0, ToolsOf(r), key, await models.GetAsync(key, cancellationToken),
                 Instructions: shown, DefaultInstructions: shown, Guardrails: AgentRoles.Guardrails(r), Builtin: false, Mine: personal));
         });
 

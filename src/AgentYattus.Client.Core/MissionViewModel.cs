@@ -12,6 +12,9 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
     public MissionItem Mission { get; } = mission;
 
     [ObservableProperty]
+    public partial Guid? RecruitmentMissionId { get; set; } = mission.RecruitmentMissionId;
+
+    [ObservableProperty]
     public partial string? Result { get; set; }
 
     [ObservableProperty]
@@ -64,6 +67,7 @@ public sealed partial class MissionViewModel(ApiClient api, MissionItem mission)
         {
             if (await api.GetMissionAsync(Mission.Id, cancellationToken) is { } dto)
             {
+                RecruitmentMissionId = dto.RecruitmentMissionId;
                 Mission.Status = dto.Status;
                 Result = dto.Result;
                 // Une nouvelle demande doit être relue en entier, même si la précédente l'avait été.
@@ -202,6 +206,14 @@ public sealed record ApprovalItem(
             var lines = command.Split('\n').Select(Visible).ToList();
             return new ApprovalItem(call.Tool, "Lancer cette commande ?", null, [.. lines.Take(PreviewLines)], lines,
                 "Dans un conteneur isolé, sans réseau. Elle peut modifier les fichiers du projet.");
+        }
+
+        // Un commit (leçon 127) : son message, sur la branche de la mission.
+        if (call.Tool == "git_commit" && Text("message") is { } message)
+        {
+            var lines = message.Split('\n').Select(Visible).ToList();
+            return new ApprovalItem(call.Tool, "Enregistrer ce commit ?", null, [.. lines.Take(PreviewLines)], lines,
+                null);
         }
 
         // Une compétence à retenir (leçon 106) : son nom, quand s'en servir, puis toute la procédure, comme un fichier.

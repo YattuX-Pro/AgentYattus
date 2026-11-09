@@ -23,6 +23,67 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AgentYattus.Api.Modules.Missions.ConversationDraft", b =>
+                {
+                    b.Property<string>("Scope")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OwnerId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Scope", "OwnerId");
+
+                    b.ToTable("Drafts", "missions");
+                });
+
+            modelBuilder.Entity("AgentYattus.Api.Modules.Missions.ConversationNotice", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AuthorJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("MissionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("OwnerId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<long?>("TurnId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TurnId");
+
+                    b.HasIndex("OwnerId", "ReadAt");
+
+                    b.ToTable("Notices", "missions");
+                });
+
             modelBuilder.Entity("AgentYattus.Api.Modules.Missions.Mission", b =>
                 {
                     b.Property<Guid>("Id")
@@ -35,6 +96,10 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
 
                     b.Property<Guid?>("ApprovalId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Branch")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
 
                     b.Property<string>("Conversation")
                         .HasColumnType("text");
@@ -56,6 +121,9 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.Property<bool?>("Decision")
                         .HasColumnType("boolean");
 
+                    b.Property<Guid?>("ExecutionId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("FollowUp")
                         .HasColumnType("text");
 
@@ -66,11 +134,20 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.Property<long>("InputTokens")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("InterlocutorJson")
+                        .HasColumnType("text");
+
                     b.Property<string>("Kind")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("text")
                         .HasDefaultValue("Question");
+
+                    b.Property<bool>("NeedsReply")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("OnBranch")
+                        .HasColumnType("boolean");
 
                     b.Property<long>("OutputTokens")
                         .HasColumnType("bigint");
@@ -78,18 +155,38 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.Property<string>("PendingApproval")
                         .HasColumnType("text");
 
+                    b.Property<long>("PersonalCostMicros")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RecruitmentMissionId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("Result")
                         .HasColumnType("text");
 
+                    b.Property<bool>("ResultAccepted")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("RetryOf")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("Skills")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(220)
+                        .HasColumnType("character varying(220)")
+                        .HasDefaultValue("");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<string>("Worktree")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.HasKey("Id");
 
@@ -109,6 +206,9 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.Property<DateTimeOffset>("At")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("AuthorJson")
+                        .HasColumnType("text");
+
                     b.Property<bool>("FromUser")
                         .HasColumnType("boolean");
 
@@ -124,6 +224,15 @@ namespace AgentYattus.Api.Modules.Missions.Migrations
                     b.HasIndex("MissionId");
 
                     b.ToTable("Turns", "missions");
+                });
+
+            modelBuilder.Entity("AgentYattus.Api.Modules.Missions.ConversationNotice", b =>
+                {
+                    b.HasOne("AgentYattus.Api.Modules.Missions.MissionTurn", "Turn")
+                        .WithMany()
+                        .HasForeignKey("TurnId");
+
+                    b.Navigation("Turn");
                 });
 #pragma warning restore 612, 618
         }

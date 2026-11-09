@@ -65,6 +65,10 @@ namespace AgentYattus.Api.Modules.Llm.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("OwnerId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("ProtectedKey")
                         .HasColumnType("text");
 
@@ -79,6 +83,8 @@ namespace AgentYattus.Api.Modules.Llm.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("OwnerId");
 
                     b.ToTable("Credentials", "llm");
                 });
@@ -112,6 +118,38 @@ namespace AgentYattus.Api.Modules.Llm.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Settings", "llm");
+                });
+
+            modelBuilder.Entity("AgentYattus.Api.Modules.Llm.LlmUserModel", b =>
+                {
+                    b.Property<string>("OwnerId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("ConnectionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Model")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("OwnerId");
+
+                    b.ToTable("UserModels", "llm");
+                });
+
+            modelBuilder.Entity("AgentYattus.Api.Modules.Llm.LlmUserPreference", b =>
+                {
+                    b.Property<string>("OwnerId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<bool>("FreeMode")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("OwnerId");
+
+                    b.ToTable("UserPreferences", "llm");
                 });
 #pragma warning restore 612, 618
         }

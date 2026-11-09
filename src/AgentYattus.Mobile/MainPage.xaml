@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:core="clr-namespace:AgentYattus.Client.Core;assembly=AgentYattus.Client.Core"
+             x:Class="AgentYattus.Mobile.MainPage"
+             x:DataType="core:HomeViewModel"
+             BackgroundColor="{StaticResource Obsidienne}"
+             Shell.NavBarIsVisible="False">
+
+  <Grid RowDefinitions="Auto,*,Auto,Auto">
+
+    <!-- En-tête -->
+    <Grid Grid.Row="0" ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="10" Padding="20,18,20,0">
+      <Border WidthRequest="28" HeightRequest="28" Stroke="#2B2F34" StrokeThickness="1" StrokeShape="RoundRectangle 7">
+        <Grid>
+          <Path Data="M13 13.5V19.5M13 13.5L7.5 7.5M13 13.5L18.5 7.5" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6"
+                StrokeLineCap="Round" TranslationX="-1" TranslationY="-1" />
+          <Ellipse Fill="{StaticResource Laiton}" WidthRequest="3.8" HeightRequest="3.8" TranslationY="6" />
+        </Grid>
+      </Border>
+      <Label Grid.Column="1" Text="Agent Yattus" FontSize="15" FontAttributes="Bold"
+             TextColor="{StaticResource Parchemin}" VerticalOptions="Center" />
+      <Ellipse Grid.Column="2" WidthRequest="7" HeightRequest="7" VerticalOptions="Center" Fill="{StaticResource Cinabre}">
+        <Ellipse.Triggers>
+          <DataTrigger TargetType="Ellipse" Binding="{Binding IsBackendConnected}" Value="True">
+            <Setter Property="Fill" Value="{StaticResource VertDeGris}" />
+          </DataTrigger>
+        </Ellipse.Triggers>
+      </Ellipse>
+    </Grid>
+
+    <ScrollView Grid.Row="1">
+      <VerticalStackLayout Padding="20,24,20,24" Spacing="24">
+
+        <!-- ponytail: orbes décoratives, comme le desktop, jusqu'à ce que le module Agents expose ses agents. -->
+        <HorizontalStackLayout Spacing="22">
+          <VerticalStackLayout Spacing="8">
+            <Border WidthRequest="50" HeightRequest="50" StrokeShape="Ellipse" StrokeThickness="1.5"
+                    Stroke="{StaticResource VertDeGris}" BackgroundColor="{StaticResource Graphite}">
+              <Path Data="M5 14L10 5l5 9z" Stroke="{StaticResource VertDeGris}" StrokeThickness="1.3" Aspect="Uniform"
+                    WidthRequest="18" HeightRequest="16" HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+            <Label Text="Analyste" FontSize="12" TextColor="{StaticResource Parchemin}" HorizontalOptions="Center" />
+          </VerticalStackLayout>
+          <VerticalStackLayout Spacing="8">
+            <Border WidthRequest="50" HeightRequest="50" StrokeShape="Ellipse" StrokeThickness="1.5" StrokeDashArray="3,2"
+                    Stroke="{StaticResource Laiton}" BackgroundColor="{StaticResource Graphite}">
+              <Path Data="M4 6h12M4 10h12M4 14h7" Stroke="{StaticResource Parchemin}" StrokeThickness="1.4" StrokeLineCap="Round"
+                    Aspect="Uniform" WidthRequest="16" HeightRequest="14" HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+            <Label Text="Rédacteur" FontSize="12" TextColor="{StaticResource Parchemin}" HorizontalOptions="Center" />
+          </VerticalStackLayout>
+          <VerticalStackLayout Spacing="8">
+            <Border WidthRequest="50" HeightRequest="50" StrokeShape="Ellipse" StrokeThickness="1.5" StrokeDashArray="3,2"
+                    Stroke="#3A3F45">
+              <Ellipse WidthRequest="5" HeightRequest="5" Fill="{StaticResource Pierre}"
+                       HorizontalOptions="Center" VerticalOptions="Center" />
+            </Border>
+            <Label Text="Chercheur" FontSize="12" TextColor="{StaticResource Pierre}" HorizontalOptions="Center" />
+          </VerticalStackLayout>
+        </HorizontalStackLayout>
+
+        <!-- En cours -->
+        <VerticalStackLayout Spacing="10" IsVisible="{Binding Missions.Count}">
+          <Label Text="EN COURS" FontFamily="{StaticResource Mono}" FontSize="10.5" CharacterSpacing="1.5"
+                 TextColor="{StaticResource Cendre}" />
+          <VerticalStackLayout Spacing="10" BindableLayout.ItemsSource="{Binding Missions}">
+            <BindableLayout.ItemTemplate>
+              <DataTemplate x:DataType="core:MissionItem">
+                <Border Padding="16,14" StrokeShape="RoundRectangle 18" StrokeThickness="1"
+                        Stroke="{StaticResource Filet}" BackgroundColor="{StaticResource Graphite}">
+                  <Border.Triggers>
+                    <DataTrigger TargetType="Border" Binding="{Binding IsFailed}" Value="True">
+                      <Setter Property="Stroke" Value="#66D9654B" />
+                      <Setter Property="BackgroundColor" Value="#14D9654B" />
+                    </DataTrigger>
+                    <DataTrigger TargetType="Border" Binding="{Binding IsCompleted}" Value="True">
+                      <Setter Property="BackgroundColor" Value="Transparent" />
+                    </DataTrigger>
+                  </Border.Triggers>
+                  <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="14">
+                    <Grid WidthRequest="36" HeightRequest="36">
+                      <Border StrokeShape="Ellipse" StrokeThickness="1.5" Stroke="{StaticResource VertDeGris}" IsVisible="{Binding IsActive}">
+                        <Ellipse WidthRequest="8" HeightRequest="8" Fill="{StaticResource VertDeGris}"
+                                 HorizontalOptions="Center" VerticalOptions="Center" />
+                      </Border>
+                      <Border StrokeShape="Ellipse" StrokeThickness="0" BackgroundColor="#14ECE6D8" IsVisible="{Binding IsCompleted}">
+                        <Path Data="M5 12.5l4.5 4.5L19 7.5" Stroke="{StaticResource Parchemin}" StrokeThickness="2.4"
+                              StrokeLineCap="Round" Aspect="Uniform" WidthRequest="13" HeightRequest="13"
+                              HorizontalOptions="Center" VerticalOptions="Center" />
+                      </Border>
+                      <Border StrokeShape="Ellipse" StrokeThickness="1.5" Stroke="{StaticResource Cinabre}" IsVisible="{Binding IsFailed}">
+                        <Path Data="M7 7l10 10M17 7L7 17" Stroke="{StaticResource Cinabre}" StrokeThickness="2" StrokeLineCap="Round"
+                              Aspect="Uniform" WidthRequest="10" HeightRequest="10" HorizontalOptions="Center" VerticalOptions="Center" />
+                      </Border>
+                    </Grid>
+                    <Label Grid.Column="1" Text="{Binding Goal}" FontSize="14.5" TextColor="{StaticResource Parchemin}"
+                           LineBreakMode="TailTruncation" VerticalOptions="Center" />
+                    <Label Grid.Column="2" Text="{Binding StatusLabel}" FontSize="12" TextColor="{StaticResource Cendre}"
+                           VerticalOptions="Center" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </BindableLayout.ItemTemplate>
+          </VerticalStackLayout>
+        </VerticalStackLayout>
+
+        <Label Text="{Binding Error}" TextColor="{StaticResource Cinabre}" FontSize="12.5" />
+      </VerticalStackLayout>
+    </ScrollView>
+
+    <!-- Composer flottant -->
+    <Border Grid.Row="2" Margin="16,0,16,14" Padding="20,0,7,0" HeightRequest="58"
+            StrokeShape="RoundRectangle 29" StrokeThickness="1" Stroke="#2B2F34" BackgroundColor="{StaticResource Graphite}">
+      <Border.Shadow>
+        <Shadow Brush="Black" Offset="0,20" Radius="50" Opacity="0.55" />
+      </Border.Shadow>
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+        <Entry Text="{Binding Goal}" Placeholder="Nouvelle mission…" PlaceholderColor="#6F6B63"
+               TextColor="{StaticResource Parchemin}" FontSize="15" BackgroundColor="Transparent"
+               VerticalOptions="Center" ReturnType="Send" ReturnCommand="{Binding LaunchMissionCommand}" />
+        <Button Grid.Column="1" Command="{Binding LaunchMissionCommand}" WidthRequest="44" HeightRequest="44"
+                CornerRadius="22" Padding="0" BackgroundColor="{StaticResource VertDeGris}"
+                Text="↑" FontSize="20" FontAttributes="Bold" TextColor="{StaticResource Obsidienne}"
+                SemanticProperties.Description="Lancer la mission">
+          <Button.Triggers>
+            <Trigger TargetType="Button" Property="IsEnabled" Value="False">
+              <Setter Property="BackgroundColor" Value="{StaticResource Filet}" />
+            </Trigger>
+          </Button.Triggers>
+        </Button>
+      </Grid>
+    </Border>
+
+    <!-- Barre d'état -->
+    <Grid Grid.Row="3" HeightRequest="30" Padding="20,0" BackgroundColor="{StaticResource Obsidienne}">
+      <BoxView HeightRequest="1" Color="#1F2226" VerticalOptions="Start" Margin="-20,0" />
+      <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+        <Label Text="Backend" FontFamily="{StaticResource Mono}" FontSize="10.5" TextColor="{StaticResource Cendre}" />
+        <Label Text="localhost:5080" FontFamily="{StaticResource Mono}" FontSize="10.5" TextColor="{StaticResource Cendre}" />
+      </HorizontalStackLayout>
+      <Label Text="v0.1.0" FontFamily="{StaticResource Mono}" FontSize="10.5" TextColor="{StaticResource Cendre}"
+             HorizontalOptions="End" VerticalOptions="Center" />
+    </Grid>
+  </Grid>
+</ContentPage>

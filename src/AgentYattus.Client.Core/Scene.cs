@@ -29,9 +29,14 @@ public sealed record SceneLine(string Speaker, string Text, SceneObject Carries,
 /// </summary>
 public static partial class Scene
 {
+    /// <summary>Le bureau du chef d'équipe, qui annonce le début et la fin : le collègue recruté avec ce titre (leçon 129).</summary>
     public const string Leader = "chef";
     public const string Analyst = "analyste";
     public const string Writer = "redacteur";
+
+    /// <summary>Les postes d'une mission Développer (ADR 0016).</summary>
+    public const string Developer = "developpeur";
+    public const string Reviewer = "relecteur";
     public const string You = "vous";
 
     /// <param name="you">Le prénom de la personne connectée, pour {vous}.</param>
@@ -42,12 +47,14 @@ public static partial class Scene
     {
         var names = new Dictionary<string, string>
         {
-            [Leader] = team.LeaderName,
+            [Leader] = team.Colleagues.FirstOrDefault(c => c.Leader)?.Name ?? "le chef d'équipe",
             [You] = you,
             [Analyst] = team.Colleagues.FirstOrDefault(c => c.Role == worker)?.Name ?? "l'analyste",
             [Writer] = team.Colleagues.FirstOrDefault(c => c.Role == Writer)?.Name ?? "le rédacteur",
         };
         var lines = new List<SceneLine>();
+        // Sans chef d'équipe recruté (leçon 129), personne n'annonce le début ni la fin : le bureau du chef reste libre.
+        var hasLeader = team.Colleagues.Any(c => c.Leader);
         var statuses = new Dictionary<string, string> { [Leader] = "disponible", [Analyst] = "disponible", [Writer] = "disponible" };
         var lastActor = Analyst;
         var folderBrought = false;
@@ -57,7 +64,7 @@ public static partial class Scene
 
         void Say(string speaker, string @event, DateTimeOffset at, SceneObject carries = SceneObject.None, string? file = null, string? goalText = null)
         {
-            if (!team.Lines.TryGetValue(@event, out var template))
+            if (!team.Lines.TryGetValue(@event, out var template) || speaker == Leader && !hasLeader)
                 return;
             var values = new Dictionary<string, string>(names) { ["fichier"] = file ?? "", ["objectif"] = goalText ?? "" };
             lines.Add(new SceneLine(speaker, Fill(template, values), carries, new Dictionary<string, string>(statuses), at, file));
@@ -89,7 +96,7 @@ public static partial class Scene
                 case "action":
                 {
                     var parts = rest.Split(':', 3);
-                    if (parts.Length < 3 || parts[1] is "write_file" or "write_document" or "edit_file" or "propose_skill")
+                    if (parts.Length < 3 || parts[1] is "write_file" or "write_document" or "edit_file" or "git_commit" or "propose_skill")
                         break; // l'écriture et l'apprentissage se racontent avec la décision humaine
                     var (role, tool, path) = (parts[0], parts[1], parts[2]);
                     lastActor = role;

@@ -1,3 +1,4 @@
+using AgentYattus.Api.Modules.Identity;
 using AgentYattus.Contracts;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -7,7 +8,8 @@ using Microsoft.Extensions.AI;
 namespace AgentYattus.Api.Modules.Llm;
 
 /// <summary>Un client de modèle prêt à servir, et le modèle qu'il utilise (« fournisseur/modèle »).</summary>
-public sealed record LlmClient(IChatClient Client, string Model);
+/// <param name="Personal">Payé par la clé personnelle de qui a lancé la mission (leçon 134) : hors du budget de l'instance.</param>
+public sealed record LlmClient(IChatClient Client, string Model, bool Personal = false);
 
 /// <summary>Le prix d'un modèle (« fournisseur/modèle »), au catalogue models.dev (ADR 0010). Inconnu ou gratuit : 0.</summary>
 public interface ILlmPricing
@@ -23,10 +25,12 @@ public interface ILlmPricing
 public interface ILlmClientProvider
 {
     /// <param name="role">La clé du rôle d'agent (« analyste ») : il peut avoir son propre modèle.</param>
+    /// <param name="user">Qui lance la mission : ses clés personnelles passent avant celles de l'instance (leçon 134) ;
+    /// celles d'un autre ne servent jamais. Null : l'instance seulement.</param>
     /// <returns>Null si aucun modèle n'est utilisable.</returns>
-    Task<LlmClient?> GetAsync(string role, CancellationToken cancellationToken);
+    Task<LlmClient?> GetAsync(string role, string? user, CancellationToken cancellationToken);
 
-    Task<string> GetModelAsync(string role, CancellationToken cancellationToken);
+    Task<string> GetModelAsync(string role, string? user, CancellationToken cancellationToken);
 }
 
 /// <summary>Le modèle propre à un rôle d'agent, à la place du modèle par défaut. Le module Agents connaît les rôles, pas celui-ci.</summary>
@@ -35,8 +39,10 @@ public interface ILlmAgentModels
     Task<LlmSelectionDto?> GetAsync(string role, CancellationToken cancellationToken);
 
     /// <param name="selection">Null pour revenir au modèle par défaut.</param>
+    /// <param name="personalOwner">Le propriétaire d'un agent personnel : ses clés personnelles sont permises (leçon 134).
+    /// Null : seulement les connexions de l'instance.</param>
     /// <returns>Null si tout va bien, sinon la raison du refus.</returns>
-    Task<string?> SetAsync(string role, LlmSelectionDto? selection, string user, CancellationToken cancellationToken);
+    Task<string?> SetAsync(string role, LlmSelectionDto? selection, string user, CancellationToken cancellationToken, string? personalOwner = null);
 }
 
 public static class LlmModule
@@ -75,27 +81,100 @@ public static class LlmModule
         llm.MapDelete("/connections/{id:guid}", RevokeAsync);
         llm.MapPut("/settings", UpdateSettingsAsync);
         llm.MapPut("/free", UpdateFreeModeAsync);
-        // Pour « Nouveau collègue » : n'importe quel utilisateur choisit le modèle de ses agents parmi ceux de l'instance.
-        app.MapGet(LlmProtocol.Choices, GetModelsAsync);
+        // Pour « Nouveau collègue » : n'importe quel utilisateur choisit le modèle de ses agents parmi ceux de l'instance, et ses clés.
+        app.MapGet(LlmProtocol.Choices, async (LlmDb db, ModelCatalog catalog, IDataProtectionProvider protection, IHttpClientFactory http,
+            ICurrentUser me, CancellationToken ct) =>
+            TypedResults.Ok(await ListModelsAsync(await db.Connections.Where(c => c.RevokedAt == null && (c.OwnerId == null || c.OwnerId == me.Id))
+                .OrderBy(c => c.Id).ToListAsync(ct), catalog, protection, http, ct)));
+
+        // Mes clés (leçon 134) : tout utilisateur connecté gère les siennes. Elles ne servent qu'à ses missions.
+        var mine = app.MapGroup(LlmProtocol.Mine);
+        mine.MapGet("/", GetMineAsync);
+        mine.MapGet("/models", async (LlmDb db, ModelCatalog catalog, IDataProtectionProvider protection, IHttpClientFactory http,
+            ICurrentUser me, CancellationToken ct) =>
+            TypedResults.Ok(await ListModelsAsync(await db.Connections.Where(c => c.RevokedAt == null && c.OwnerId == me.Id)
+                .OrderBy(c => c.Id).ToListAsync(ct), catalog, protection, http, ct)));
+        mine.MapPost("/connections", (AddLlmConnectionRequest request, LlmDb db, IDataProtectionProvider protection, HttpContext http,
+            ICurrentUser me, ILogger<LlmDb> logger, CancellationToken ct) => CreateAsync(request, me.Id, db, protection, http, logger, ct));
+        mine.MapDelete("/connections/{id:guid}", async Task<Results<NoContent, NotFound>> (Guid id, LlmDb db, HttpContext http, ICurrentUser me,
+            ILogger<LlmDb> logger, CancellationToken ct) =>
+            // Celle d'un autre n'existe pas pour nous (404), comme ses agents et ses compétences.
+            await db.Connections.FindAsync([id], ct) is { } connection && connection.OwnerId == me.Id
+                ? await RevokeCoreAsync(connection, db, http, logger, ct)
+                : TypedResults.NotFound());
+        mine.MapPut("/default", UpdateMyDefaultAsync);
+        mine.MapPut("/free", async (UpdateMyFreeModeRequest request, LlmDb db, ICurrentUser me, CancellationToken ct) =>
+        {
+            var preference = await db.UserPreferences.FindAsync([me.Id], ct);
+            if (preference is null)
+            {
+                preference = new LlmUserPreference { OwnerId = me.Id };
+                db.UserPreferences.Add(preference);
+            }
+            preference.FreeMode = request.Enabled;
+            await db.SaveChangesAsync(ct);
+            return TypedResults.NoContent();
+        });
         return app;
+    }
+
+    private static async Task<Ok<MyLlmDto>> GetMineAsync(LlmDb db, ModelCatalog catalog, ICurrentUser me, CancellationToken cancellationToken)
+    {
+        var connections = await db.Connections.Where(c => c.OwnerId == me.Id).OrderByDescending(c => c.Id).ToListAsync(cancellationToken);
+        var mine = await db.UserModels.FindAsync([me.Id], cancellationToken);
+        // Seulement les fournisseurs à clé : un serveur local ou une adresse au choix ferait appeler par le serveur une adresse
+        // que l'utilisateur choisit (un service interne, par exemple). C'est une décision d'administrateur.
+        return TypedResults.Ok(new MyLlmDto(
+            [.. LlmProviders.All.Where(p => p.Kind == LlmConnectionKind.ApiKey)
+                .Select(p => new LlmProviderDto(p.Id, p.Name, p.Kind, p.BaseUrl, catalog.ModelsOf(p.Id).Count, p.Notice))],
+            [.. connections.Select(c => c.ToDto())],
+            mine is null ? null : new LlmSelectionDto(mine.ConnectionId, mine.Model),
+            (await db.UserPreferences.FindAsync([me.Id], cancellationToken))?.FreeMode ?? false));
+    }
+
+    /// <summary>Mon modèle par défaut : sur une de mes connexions seulement ; null pour revenir à celui de l'instance.</summary>
+    private static async Task<Results<NoContent, ValidationProblem>> UpdateMyDefaultAsync(
+        UpdateMyDefaultRequest request, LlmDb db, ModelCatalog catalog, ICurrentUser me, CancellationToken cancellationToken)
+    {
+        if (request.Default is { } selection)
+        {
+            var error = await ValidateAsync(selection, db, catalog, cancellationToken, owner: me.Id);
+            if (error is null && (await db.Connections.FindAsync([selection.ConnectionId], cancellationToken))!.OwnerId != me.Id)
+                error = "Votre modèle par défaut passe par une de vos clés.";
+            if (error is not null)
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["default"] = [error] });
+        }
+        if (await db.UserModels.FindAsync([me.Id], cancellationToken) is { } current)
+            db.UserModels.Remove(current);
+        if (request.Default is { } chosen)
+            db.UserModels.Add(new LlmUserModel { OwnerId = me.Id, ConnectionId = chosen.ConnectionId, Model = chosen.Model });
+        await db.SaveChangesAsync(cancellationToken);
+        return TypedResults.NoContent();
     }
 
     private static async Task<Ok<LlmStatusDto>> GetAsync(LlmDb db, ModelCatalog catalog, CancellationToken cancellationToken)
     {
         var settings = await db.Settings.FindAsync([LlmSettings.SingletonId], cancellationToken);
         // Identifiants v7 : trier par Id, c'est trier par date de création (SQLite ne trie pas un DateTimeOffset).
-        var connections = await db.Connections.OrderByDescending(c => c.Id).ToListAsync(cancellationToken);
+        // Les connexions de l'instance seulement : les clés personnelles ne regardent que leur propriétaire (leçon 134).
+        var connections = await db.Connections.Where(c => c.OwnerId == null).OrderByDescending(c => c.Id).ToListAsync(cancellationToken);
         return TypedResults.Ok(new LlmStatusDto(
             [.. LlmProviders.All.Select(p => new LlmProviderDto(p.Id, p.Name, p.Kind, p.BaseUrl, catalog.ModelsOf(p.Id).Count, p.Notice))],
             [.. connections.Select(c => c.ToDto())],
             settings?.Default, settings?.FreeMode ?? false, settings?.Chain ?? []));
     }
 
-    /// <summary>Les modèles de chaque fournisseur connecté : le catalogue, ou ce que le serveur local annonce.</summary>
+    /// <summary>Les modèles des connexions de l'instance (espace admin).</summary>
     private static async Task<Ok<LlmModelsDto>> GetModelsAsync(
-        LlmDb db, ModelCatalog catalog, IDataProtectionProvider protection, IHttpClientFactory http, CancellationToken cancellationToken)
+        LlmDb db, ModelCatalog catalog, IDataProtectionProvider protection, IHttpClientFactory http, CancellationToken cancellationToken) =>
+        TypedResults.Ok(await ListModelsAsync(await db.Connections.Where(c => c.RevokedAt == null && c.OwnerId == null)
+            .OrderBy(c => c.Id).ToListAsync(cancellationToken), catalog, protection, http, cancellationToken));
+
+    /// <summary>Les modèles de chaque connexion donnée : le catalogue, ou ce que le serveur local annonce.</summary>
+    private static async Task<LlmModelsDto> ListModelsAsync(
+        List<LlmConnection> connections, ModelCatalog catalog, IDataProtectionProvider protection, IHttpClientFactory http,
+        CancellationToken cancellationToken)
     {
-        var connections = await db.Connections.Where(c => c.RevokedAt == null).OrderBy(c => c.Id).ToListAsync(cancellationToken);
         var lists = await Task.WhenAll(connections.Select(async connection =>
         {
             var provider = LlmProviders.Find(connection.Provider)!;
@@ -113,12 +192,18 @@ public static class LlmModule
                 return ([], new LlmConnectionErrorDto(connection.Id, $"{connection.Label} : serveur injoignable ou réponse invalide."));
             }
         }));
-        return TypedResults.Ok(new LlmModelsDto(
-            [.. lists.SelectMany(l => l.Models)], [.. lists.Select(l => l.Error).OfType<LlmConnectionErrorDto>()]));
+        return new LlmModelsDto(
+            [.. lists.SelectMany(l => l.Models)], [.. lists.Select(l => l.Error).OfType<LlmConnectionErrorDto>()]);
     }
 
-    private static async Task<Results<Created<LlmConnectionDto>, ValidationProblem>> ConnectAsync(
+    private static Task<Results<Created<LlmConnectionDto>, ValidationProblem>> ConnectAsync(
         AddLlmConnectionRequest request, LlmDb db, IDataProtectionProvider protection, HttpContext http,
+        ILogger<LlmDb> logger, CancellationToken cancellationToken) =>
+        CreateAsync(request, owner: null, db, protection, http, logger, cancellationToken);
+
+    /// <param name="owner">Null : une connexion de l'instance (administrateur) ; sinon une clé personnelle, à fournisseur à clé seulement.</param>
+    private static async Task<Results<Created<LlmConnectionDto>, ValidationProblem>> CreateAsync(
+        AddLlmConnectionRequest request, string? owner, LlmDb db, IDataProtectionProvider protection, HttpContext http,
         ILogger<LlmDb> logger, CancellationToken cancellationToken)
     {
         var apiKey = request.ApiKey?.Trim() ?? "";
@@ -127,6 +212,9 @@ public static class LlmModule
         var errors = new Dictionary<string, string[]>();
         if (provider is null)
             errors["provider"] = ["Fournisseur inconnu."];
+        else if (owner is not null && provider.Kind != LlmConnectionKind.ApiKey)
+            // Un serveur local ou une adresse au choix : le serveur appellerait l'adresse donnée. Réservé à l'administrateur.
+            errors["provider"] = ["Une clé personnelle passe par un fournisseur en ligne ; un serveur local se connecte dans l'espace admin."];
         if (string.IsNullOrWhiteSpace(request.Label) || request.Label.Trim().Length > 60)
             errors["label"] = ["Le libellé est obligatoire et fait au plus 60 caractères."];
         // Une clé est obligatoire chez un fournisseur en ligne ; facultative sur un serveur local ou personnalisé.
@@ -151,19 +239,27 @@ public static class LlmModule
             BaseUrl = provider.Kind == LlmConnectionKind.ApiKey ? null : baseUrl ?? provider.BaseUrl,
             CreatedAt = DateTimeOffset.UtcNow,
             CreatedBy = http.User.Identity?.Name ?? "?",
+            OwnerId = owner,
         };
         db.Connections.Add(connection);
         await db.SaveChangesAsync(cancellationToken);
 
-        logger.LogInformation("Fournisseur {Provider} « {Label} » connecté par {User}", connection.Provider, connection.Label, connection.CreatedBy);
-        return TypedResults.Created($"{LlmProtocol.Connections}/{connection.Id}", connection.ToDto());
+        logger.LogInformation("Fournisseur {Provider} « {Label} » connecté par {User} ({Scope})", connection.Provider, connection.Label,
+            connection.CreatedBy, owner is null ? "instance" : "personnelle");
+        return TypedResults.Created($"{(owner is null ? LlmProtocol.Connections : LlmProtocol.MineConnections)}/{connection.Id}", connection.ToDto());
     }
 
     private static async Task<Results<NoContent, NotFound>> RevokeAsync(
-        Guid id, LlmDb db, HttpContext http, ILogger<LlmDb> logger, CancellationToken cancellationToken)
+        Guid id, LlmDb db, HttpContext http, ILogger<LlmDb> logger, CancellationToken cancellationToken) =>
+        // L'espace admin ne voit ni ne révoque les clés personnelles : seulement celles de l'instance.
+        await db.Connections.FindAsync([id], cancellationToken) is { OwnerId: null } connection
+            ? await RevokeCoreAsync(connection, db, http, logger, cancellationToken)
+            : TypedResults.NotFound();
+
+    private static async Task<Results<NoContent, NotFound>> RevokeCoreAsync(
+        LlmConnection connection, LlmDb db, HttpContext http, ILogger<LlmDb> logger, CancellationToken cancellationToken)
     {
-        if (await db.Connections.FindAsync([id], cancellationToken) is not { } connection)
-            return TypedResults.NotFound();
+        var id = connection.Id;
         if (connection.RevokedAt is null)
         {
             // Révoquer, c'est effacer la clé chiffrée : même avec le trousseau, plus rien à déchiffrer.
@@ -174,8 +270,9 @@ public static class LlmModule
             if (settings.DefaultConnectionId == id)
                 settings.DefaultConnectionId = null;
             settings.Chain = [.. settings.Chain.Where(c => c.ConnectionId != id)];
-            // Les rôles qui utilisaient cette connexion reviennent au modèle par défaut.
+            // Les rôles qui utilisaient cette connexion reviennent au modèle par défaut, et son propriétaire à celui de l'instance.
             db.AgentModels.RemoveRange(await db.AgentModels.Where(a => a.ConnectionId == id).ToListAsync(cancellationToken));
+            db.UserModels.RemoveRange(await db.UserModels.Where(u => u.ConnectionId == id).ToListAsync(cancellationToken));
             await db.SaveChangesAsync(cancellationToken);
             logger.LogInformation("Fournisseur « {Label} » révoqué par {User}", connection.Label, connection.RevokedBy);
         }
@@ -205,10 +302,17 @@ public static class LlmModule
     private static async Task<Results<NoContent, ValidationProblem>> UpdateFreeModeAsync(
         UpdateFreeModeRequest request, LlmDb db, ModelCatalog catalog, HttpContext http, CancellationToken cancellationToken)
     {
-        string? error = request.Chain.Count > 10 ? "La chaîne compte au plus 10 modèles."
-            : request.Enabled && request.Chain.Count == 0 ? "Ajoute au moins un modèle gratuit à la chaîne."
+        var chain = request.Chain.ToList();
+        if (request.Enabled && chain.Count == 0)
+        {
+            var connections = await db.Connections.Where(c => c.RevokedAt == null && c.OwnerId == null).OrderBy(c => c.Id).ToListAsync(cancellationToken);
+            chain = [.. connections.SelectMany(c => catalog.ModelsOf(c.Provider).Where(m => m.Free)
+                .Select(m => new LlmSelectionDto(c.Id, m.Id))).Take(10)];
+        }
+        string? error = chain.Count > 10 ? "La chaîne compte au plus 10 modèles."
+            : request.Enabled && chain.Count == 0 ? "Aucun modèle gratuit disponible : connecte un fournisseur proposant des modèles gratuits, ou ajoute un modèle local à la chaîne."
             : null;
-        foreach (var selection in request.Chain)
+        foreach (var selection in chain)
         {
             if (error is not null)
                 break;
@@ -222,7 +326,7 @@ public static class LlmModule
 
         var settings = await LlmSettings.GetOrCreateAsync(db, cancellationToken);
         settings.FreeMode = request.Enabled;
-        settings.Chain = [.. request.Chain.DistinctBy(c => (c.ConnectionId, c.Model))];
+        settings.Chain = [.. chain.DistinctBy(c => (c.ConnectionId, c.Model))];
         settings.UpdatedBy = http.User.Identity?.Name ?? "?";
         settings.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
@@ -237,11 +341,16 @@ public static class LlmModule
             || catalog.Find(connection.Provider, selection.Model)?.Free == true;
     }
 
-    /// <summary>Un choix est valable si la connexion existe, n'est pas révoquée, et propose ce modèle.</summary>
-    internal static async Task<string?> ValidateAsync(LlmSelectionDto selection, LlmDb db, ModelCatalog catalog, CancellationToken cancellationToken)
+    /// <summary>
+    /// Un choix est valable si la connexion existe, n'est pas révoquée, propose ce modèle, et appartient à l'instance ou à
+    /// <paramref name="owner"/> (leçon 134). Le défaut de l'instance et la chaîne Gratuite passent null : jamais une clé personnelle.
+    /// </summary>
+    internal static async Task<string?> ValidateAsync(
+        LlmSelectionDto selection, LlmDb db, ModelCatalog catalog, CancellationToken cancellationToken, string? owner = null)
     {
         var connection = await db.Connections.FindAsync([selection.ConnectionId], cancellationToken);
-        if (connection is null || connection.RevokedAt is not null)
+        // La clé personnelle d'un autre est traitée comme inconnue : on ne révèle pas qu'elle existe.
+        if (connection is null || connection.RevokedAt is not null || (connection.OwnerId is not null && connection.OwnerId != owner))
             return "Fournisseur inconnu ou révoqué.";
         // Les modèles d'un serveur local changent sans prévenir : on vérifie seulement la forme de l'identifiant.
         var known = LlmProviders.Find(connection.Provider)!.Kind == LlmConnectionKind.ApiKey
@@ -252,15 +361,32 @@ public static class LlmModule
 }
 
 /// <summary>
-/// Le client du modèle d'un rôle : son modèle propre, sinon le modèle par défaut choisi dans l'application,
-/// sinon la clé Anthropic de la configuration (user-secrets, pratique en développement), sinon rien.
+/// Le client du modèle d'un rôle, dans cet ordre (leçon 134) :
+/// 1. les clés de qui lance la mission : le modèle du rôle s'il passe par une de ses clés, puis son modèle par défaut ;
+/// 2. le mode Gratuit de l'instance ;
+/// 3. le modèle du rôle sur une connexion de l'instance, puis le modèle par défaut de l'instance ;
+/// 4. la clé Anthropic de la configuration (user-secrets, pratique en développement) ; sinon rien.
+/// La clé personnelle d'un autre ne sert jamais, même dans un projet partagé.
 /// </summary>
-internal sealed class LlmClientProvider(LlmDb db, IDataProtectionProvider protection, IConfiguration configuration) : ILlmClientProvider
+internal sealed class LlmClientProvider(LlmDb db, IDataProtectionProvider protection, IConfiguration configuration, ModelCatalog catalog) : ILlmClientProvider
 {
-    public async Task<LlmClient?> GetAsync(string role, CancellationToken cancellationToken)
+    public async Task<LlmClient?> GetAsync(string role, string? user, CancellationToken cancellationToken)
     {
-        if (await FreeChainAsync(role, cancellationToken) is { Count: > 0 } chain)
+        if (await PersonalFreeChainAsync(user, cancellationToken) is { } personalChain)
         {
+            if (personalChain.Count == 0)
+                throw new InvalidOperationException("Mode Gratuit : aucun modèle gratuit disponible parmi vos fournisseurs connectés. Connectez un fournisseur proposant des modèles gratuits.");
+            var links = personalChain.Select(link => Create(link.Connection, link.Model, personal: true)).ToList();
+            return new LlmClient(new FallbackChatClient(links), links[0].Model, true);
+        }
+
+        if (await PersonalAsync(role, user, cancellationToken) is ({ } mine, var myModel))
+            return Create(mine, myModel, personal: true);
+
+        if (await FreeChainAsync(cancellationToken) is { } chain)
+        {
+            if (chain.Count == 0)
+                throw new InvalidOperationException("Mode Gratuit : aucun modèle gratuit disponible parmi les fournisseurs connectés.");
             var links = chain.Select(link => Create(link.Connection, link.Model)).ToList();
             return new LlmClient(new FallbackChatClient(links), links[0].Model);
         }
@@ -274,46 +400,91 @@ internal sealed class LlmClientProvider(LlmDb db, IDataProtectionProvider protec
         return new LlmClient(LlmProviders.CreateClient(LlmProviders.Anthropic, apiKey, "", configured), $"anthropic/{configured}");
     }
 
-    public async Task<string> GetModelAsync(string role, CancellationToken cancellationToken)
+    public async Task<string> GetModelAsync(string role, string? user, CancellationToken cancellationToken)
     {
-        if (await FreeChainAsync(role, cancellationToken) is { Count: > 0 } chain)
-            return $"gratuit : {chain[0].Connection.Provider}/{chain[0].Model}" + (chain.Count > 1 ? $" (+{chain.Count - 1})" : "");
+        if (await PersonalFreeChainAsync(user, cancellationToken) is { } personalChain)
+        {
+            return personalChain.Count == 0 ? "gratuit : aucun modèle personnel disponible"
+                : $"gratuit : {personalChain[0].Connection.Provider}/{personalChain[0].Model}" + (personalChain.Count > 1 ? $" (+{personalChain.Count - 1})" : "");
+        }
+
+        if (await PersonalAsync(role, user, cancellationToken) is ({ } mine, var myModel))
+            return $"{mine.Provider}/{myModel}";
+        if (await FreeChainAsync(cancellationToken) is { } chain)
+            return chain.Count == 0 ? "gratuit : aucun modèle disponible"
+                : $"gratuit : {chain[0].Connection.Provider}/{chain[0].Model}" + (chain.Count > 1 ? $" (+{chain.Count - 1})" : "");
         return await ResolveAsync(role, cancellationToken) is ({ } connection, var model) ? $"{connection.Provider}/{model}" : $"anthropic/{ConfiguredModel}";
     }
 
-    private LlmClient Create(LlmConnection connection, string model)
+    private LlmClient Create(LlmConnection connection, string model, bool personal = false)
     {
         var provider = LlmProviders.Find(connection.Provider)!;
         return new LlmClient(
             LlmProviders.CreateClient(provider, connection.ApiKey(protection), connection.BaseUrlOf(provider), model),
-            $"{provider.Id}/{model}");
+            $"{provider.Id}/{model}", personal);
     }
 
-    /// <summary>
-    /// La chaîne gratuite, si le mode Gratuit est actif et que le rôle n'a pas son propre modèle
-    /// (un modèle choisi exprès pour un rôle l'emporte). Les connexions révoquées sont sautées.
-    /// </summary>
-    private async Task<List<(LlmConnection Connection, string Model)>> FreeChainAsync(string role, CancellationToken cancellationToken)
+    /// <summary>Les clés de <paramref name="user"/> : le modèle du rôle s'il passe par l'une d'elles, sinon son modèle par défaut.</summary>
+    private async Task<(LlmConnection? Connection, string Model)> PersonalAsync(string role, string? user, CancellationToken cancellationToken)
+    {
+        if (user is null)
+            return (null, "");
+        if (await db.AgentModels.FindAsync([role], cancellationToken) is { } own
+            && await db.Connections.FindAsync([own.ConnectionId], cancellationToken) is { RevokedAt: null } ownConnection
+            && ownConnection.OwnerId == user)
+            return (ownConnection, own.Model);
+        if (await db.UserModels.FindAsync([user], cancellationToken) is { } mine
+            && await db.Connections.FindAsync([mine.ConnectionId], cancellationToken) is { RevokedAt: null } connection
+            && connection.OwnerId == user)
+            return (connection, mine.Model);
+        return (null, "");
+    }
+
+    /// <summary>Le mode Gratuit s'applique à tous les rôles, sans repli vers un modèle payant.</summary>
+    private async Task<List<(LlmConnection Connection, string Model)>?> FreeChainAsync(CancellationToken cancellationToken)
     {
         var settings = await db.Settings.FindAsync([LlmSettings.SingletonId], cancellationToken);
-        if (settings is not { FreeMode: true } || await db.AgentModels.FindAsync([role], cancellationToken) is not null)
-            return [];
-        var chain = new List<(LlmConnection, string)>();
+        if (settings is not { FreeMode: true })
+            return null;
+        // Les connexions de l'instance seulement : une clé personnelle n'entre jamais dans la chaîne commune.
+        var connections = await db.Connections.Where(c => c.RevokedAt == null && c.OwnerId == null).OrderBy(c => c.Id).ToListAsync(cancellationToken);
+        var chain = new List<(LlmConnection Connection, string Model)>();
+        // Les choix enregistrés restent prioritaires. On revérifie le prix au moment de l'utilisation.
         foreach (var link in settings.Chain)
-            if (await db.Connections.FindAsync([link.ConnectionId], cancellationToken) is { RevokedAt: null } connection)
+            if (connections.FirstOrDefault(c => c.Id == link.ConnectionId) is { } connection
+                && (LlmProviders.Find(connection.Provider)?.Kind == LlmConnectionKind.Local
+                    || catalog.Find(connection.Provider, link.Model)?.Free == true))
                 chain.Add((connection, link.Model));
+        // Complète automatiquement les secours des fournisseurs connectés, même si la chaîne n'avait qu'un modèle.
+        foreach (var connection in connections)
+            foreach (var model in catalog.ModelsOf(connection.Provider).Where(m => m.Free))
+                if (chain.Count < 10 && !chain.Any(c => c.Connection.Id == connection.Id && c.Model == model.Id))
+                    chain.Add((connection, model.Id));
         return chain;
+    }
+
+    private async Task<List<(LlmConnection Connection, string Model)>?> PersonalFreeChainAsync(string? user, CancellationToken ct)
+    {
+        if (user is null || (await db.UserPreferences.FindAsync([user], ct)) is not { FreeMode: true })
+            return null;
+        var connections = await db.Connections.Where(c => c.OwnerId == user && c.RevokedAt == null).OrderBy(c => c.Id).ToListAsync(ct);
+        // Répartit les dix essais entre les fournisseurs avant d'ajouter leurs autres modèles.
+        var models = connections.Select(c => (Connection: c, Models: catalog.ModelsOf(c.Provider).Where(m => m.Free).ToList())).ToList();
+        return Enumerable.Range(0, models.Count == 0 ? 0 : models.Max(c => c.Models.Count))
+            .SelectMany(i => models.Where(c => c.Models.Count > i).Select(c => (c.Connection, c.Models[i].Id)))
+            .Take(10).ToList();
     }
 
     private string ConfiguredModel => configuration["Agents:Model"] ?? "claude-haiku-5-5";
 
+    /// <summary>L'instance : le modèle du rôle, puis le défaut ; jamais une clé personnelle (même celle de l'administrateur).</summary>
     private async Task<(LlmConnection? Connection, string Model)> ResolveAsync(string role, CancellationToken cancellationToken)
     {
         if (await db.AgentModels.FindAsync([role], cancellationToken) is { } own
-            && await db.Connections.FindAsync([own.ConnectionId], cancellationToken) is { RevokedAt: null } ownConnection)
+            && await db.Connections.FindAsync([own.ConnectionId], cancellationToken) is { RevokedAt: null, OwnerId: null } ownConnection)
             return (ownConnection, own.Model);
         var settings = await db.Settings.FindAsync([LlmSettings.SingletonId], cancellationToken);
-        if (settings?.DefaultConnectionId is { } id && await db.Connections.FindAsync([id], cancellationToken) is { RevokedAt: null } connection)
+        if (settings?.DefaultConnectionId is { } id && await db.Connections.FindAsync([id], cancellationToken) is { RevokedAt: null, OwnerId: null } connection)
             return (connection, settings.Model);
         return (null, "");
     }
@@ -324,9 +495,9 @@ internal sealed class LlmAgentModels(LlmDb db, ModelCatalog catalog, ILogger<Llm
     public async Task<LlmSelectionDto?> GetAsync(string role, CancellationToken cancellationToken) =>
         await db.AgentModels.FindAsync([role], cancellationToken) is { } own ? new LlmSelectionDto(own.ConnectionId, own.Model) : null;
 
-    public async Task<string?> SetAsync(string role, LlmSelectionDto? selection, string user, CancellationToken cancellationToken)
+    public async Task<string?> SetAsync(string role, LlmSelectionDto? selection, string user, CancellationToken cancellationToken, string? personalOwner = null)
     {
-        if (selection is not null && await LlmModule.ValidateAsync(selection, db, catalog, cancellationToken) is { } error)
+        if (selection is not null && await LlmModule.ValidateAsync(selection, db, catalog, cancellationToken, personalOwner) is { } error)
             return error;
         var own = await db.AgentModels.FindAsync([role], cancellationToken);
         if (own is not null)
@@ -349,6 +520,24 @@ internal sealed class LlmAgentModel
     public required string Model { get; set; }
 }
 
+/// <summary>Le modèle par défaut d'un utilisateur, sur une de ses clés (leçon 134) : il passe avant celui de l'instance, pour ses missions.</summary>
+internal sealed class LlmUserModel
+{
+    [System.ComponentModel.DataAnnotations.Key]
+    [System.ComponentModel.DataAnnotations.MaxLength(64)]
+    public required string OwnerId { get; set; }
+    public Guid ConnectionId { get; set; }
+    public required string Model { get; set; }
+}
+
+internal sealed class LlmUserPreference
+{
+    [System.ComponentModel.DataAnnotations.Key]
+    [System.ComponentModel.DataAnnotations.MaxLength(64)]
+    public required string OwnerId { get; set; }
+    public bool FreeMode { get; set; }
+}
+
 /// <summary>Un fournisseur connecté (table historique « Credentials »).</summary>
 internal sealed class LlmConnection
 {
@@ -369,6 +558,9 @@ internal sealed class LlmConnection
     public DateTimeOffset? RevokedAt { get; set; }
     public string? RevokedBy { get; set; }
 
+    /// <summary>Null : une connexion de l'instance. Sinon, la clé personnelle de cet utilisateur (leçon 134).</summary>
+    public string? OwnerId { get; set; }
+
     // Le « purpose » isole ces données : une donnée protégée pour un autre usage ne se déchiffre pas ici.
     public static IDataProtector Protector(IDataProtectionProvider protection) => protection.CreateProtector("AgentYattus.Llm.ApiKey.v1");
 
@@ -377,13 +569,14 @@ internal sealed class LlmConnection
     public string BaseUrlOf(LlmProvider provider) => BaseUrl ?? provider.BaseUrl ?? "";
 
     public LlmConnectionDto ToDto() => new(Id, Provider, LlmProviders.Find(Provider)?.Name ?? Provider, Label,
-        Last4.Length > 0 ? Last4 : null, BaseUrl, CreatedAt, CreatedBy, RevokedAt);
+        Last4.Length > 0 ? Last4 : null, BaseUrl, CreatedAt, CreatedBy, RevokedAt, OwnerId is not null);
 }
 
 internal static class CatalogModelExtensions
 {
     public static LlmModelDto ToDto(this CatalogModel m, LlmConnection connection) =>
-        new(connection.Id, connection.Provider, m.Id, m.Name, m.ContextWindow, m.InputPrice, m.OutputPrice, m.Reasoning, m.Free);
+        new(connection.Id, connection.Provider, m.Id, m.Name, m.ContextWindow, m.InputPrice, m.OutputPrice, m.Reasoning, m.Free,
+            connection.OwnerId is not null);
 }
 
 internal sealed class LlmSettings
@@ -429,12 +622,17 @@ internal sealed class LlmDb(DbContextOptions<LlmDb> options) : DbContext(options
     public DbSet<LlmConnection> Connections => Set<LlmConnection>();
     public DbSet<LlmSettings> Settings => Set<LlmSettings>();
     public DbSet<LlmAgentModel> AgentModels => Set<LlmAgentModel>();
+    public DbSet<LlmUserPreference> UserPreferences => Set<LlmUserPreference>();
+    public DbSet<LlmUserModel> UserModels => Set<LlmUserModel>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.HasDefaultSchema(Schema);
         // Les noms en base restent ceux de la leçon 32 : renommer une table coûte une migration pour rien.
         modelBuilder.Entity<LlmConnection>().ToTable("Credentials");
+        modelBuilder.Entity<LlmConnection>().Property(c => c.OwnerId).HasMaxLength(64);
+        modelBuilder.Entity<LlmConnection>().HasIndex(c => c.OwnerId);
+        modelBuilder.Entity<LlmUserModel>().ToTable("UserModels");
         modelBuilder.Entity<LlmSettings>().Property(s => s.Id).ValueGeneratedNever();
         modelBuilder.Entity<LlmSettings>().Property(s => s.DefaultConnectionId).HasColumnName("ActiveCredentialId");
     }

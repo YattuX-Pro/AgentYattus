@@ -8,8 +8,13 @@ namespace AgentYattus.Client.Core;
 public sealed partial class MissionItem(MissionDto mission) : ObservableObject
 {
     public Guid Id { get; } = mission.Id;
+    public Guid? RecruitmentMissionId { get; } = mission.RecruitmentMissionId;
     public string Goal { get; } = mission.Goal;
     public bool IsReview { get; } = mission.Kind == MissionKind.Review;
+
+    /// <summary>Une mission Développer (ADR 0016) : le Développeur, puis le Relecteur.</summary>
+    public bool IsDevelop { get; } = mission.Kind == MissionKind.Develop;
+    public bool IsRecruitment { get; } = mission.Kind == MissionKind.Recruitment;
     public DateTimeOffset CreatedAt { get; } = mission.CreatedAt;
 
     /// <summary>Coût estimé, en dollars (ADR 0010).</summary>
@@ -34,11 +39,16 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
     public Guid? ProjectId { get; } = mission.ProjectId;
 
     /// <summary>L'agent qui fait la mission (ADR 0013) ; null : l'Analyste.</summary>
-    public string? Agent { get; } = mission.Agent;
+    public string? Agent { get; } = mission.Kind == MissionKind.Recruitment ? "rh" : mission.Agent;
+
+    /// <summary>La branche git de la mission (mode branche, leçon 127) ; null sinon.</summary>
+    public string? Branch { get; } = mission.Branch;
 
     /// <summary>Qui y travaille : l'agent choisi, ou l'Analyste puis le Rédacteur pour une revue.</summary>
     public IReadOnlyList<string> Roles { get; } =
-        mission.Kind == MissionKind.Review ? [Scene.Analyst, Scene.Writer] : [mission.Agent ?? Scene.Analyst];
+        mission.Kind == MissionKind.Review ? [Scene.Analyst, Scene.Writer]
+        : mission.Kind == MissionKind.Develop ? [Scene.Developer, Scene.Reviewer]
+        : [mission.Kind == MissionKind.Recruitment ? "rh" : mission.Agent ?? Scene.Analyst];
 
     /// <summary>Leurs visages, dans l'ordre de <see cref="Roles"/> ; un siège libre n'a pas de photo, seulement un nom.</summary>
     public ObservableCollection<Face> Faces { get; } = [];
@@ -49,7 +59,7 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
     public partial string? Who { get; set; }
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(StatusLabel), nameof(IsActive), nameof(IsCompleted), nameof(IsFailed), nameof(IsAwaitingApproval), nameof(AgentLabel), nameof(Line))]
+    [NotifyPropertyChangedFor(nameof(StatusLabel), nameof(IsActive), nameof(IsCompleted), nameof(IsFailed), nameof(IsAwaitingApproval), nameof(AgentLabel), nameof(Line), nameof(ShortLine), nameof(Ago))]
     public partial MissionStatus Status { get; set; } = mission.Status;
 
     public bool IsActive => Status is MissionStatus.Pending or MissionStatus.Running;
@@ -95,6 +105,33 @@ public sealed partial class MissionItem(MissionDto mission) : ObservableObject
                 _ => Who is null ? "Échec" : $"Échec · {Who}",
             };
         }
+    }
+
+    /// <summary>La ligne du panneau des missions, sans prénom : le visage dit déjà qui.</summary>
+    public string ShortLine => Status switch
+    {
+        MissionStatus.Pending => "En attente",
+        MissionStatus.Running => "En cours…",
+        MissionStatus.AwaitingApproval => "Attend votre accord",
+        MissionStatus.Completed => "Terminée",
+        MissionStatus.Cancelled => "Arrêtée",
+        _ => "Échec",
+    };
+
+    /// <summary>« en cours », « 2 min », « 3 h », « hier », sinon « 3 nov. ».</summary>
+    public string Ago => Elapsed(IsActive, CreatedAt, DateTimeOffset.Now);
+
+    public static string Elapsed(bool active, DateTimeOffset at, DateTimeOffset now)
+    {
+        if (active)
+            return "en cours";
+        var elapsed = now - at;
+        var days = (now.LocalDateTime.Date - at.LocalDateTime.Date).Days;
+        return elapsed.TotalMinutes < 1 ? "à l’instant"
+            : elapsed.TotalMinutes < 60 ? $"{(int)elapsed.TotalMinutes} min"
+            : days == 0 ? $"{(int)elapsed.TotalHours} h"
+            : days == 1 ? "hier"
+            : at.ToLocalTime().ToString("d MMM", System.Globalization.CultureInfo.GetCultureInfo("fr-FR"));
     }
 
     /// <summary>Va chercher les visages de ceux qui travaillent sur la mission.</summary>

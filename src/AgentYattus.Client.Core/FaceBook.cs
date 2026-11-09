@@ -28,10 +28,6 @@ public sealed class FaceBook(ApiClient api)
         return colleague is null ? null : await FaceAsync(colleague.Name, colleague.PortraitId);
     }
 
-    /// <summary>Le chef d'équipe (Léon par défaut).</summary>
-    public async Task<Face?> LeaderAsync(Guid? project) =>
-        await TeamAsync(project) is { LeaderPortraitId: { } id } team ? await FaceAsync(team.LeaderName, id) : null;
-
     /// <summary>« Vous » : le portrait du responsable, qui décide.</summary>
     public async Task<Face?> ManagerAsync(Guid? project) =>
         await TeamAsync(project) is { ManagerPortraitId: { } id } ? await FaceAsync("Vous", id) : null;
@@ -49,6 +45,12 @@ public sealed class FaceBook(ApiClient api)
         if (!_teams.TryGetValue(id, out var team))
             _teams[id] = team = OrNull(() => api.GetProjectTeamAsync(id));
         return team;
+    }
+
+    public async Task<Face?> HistoricalAsync(MessageAuthorDto? author)
+    {
+        if (author is null) return null;
+        return author.PortraitId is { } portrait ? await FaceAsync(author.Name, portrait) : new Face(author.Name, null, null);
     }
 
     private async Task<Face> FaceAsync(string name, Guid portrait) =>

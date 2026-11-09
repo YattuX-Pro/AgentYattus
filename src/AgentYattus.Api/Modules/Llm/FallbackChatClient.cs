@@ -9,7 +9,7 @@ namespace AgentYattus.Api.Modules.Llm;
 /// Le mode Gratuit : une chaîne de modèles gratuits. Quand l'un répond « quota épuisé » (ou ne répond plus),
 /// on passe au suivant, et on y reste pour la suite de la mission. Jamais vers un modèle hors de la chaîne.
 /// </summary>
-public sealed class FallbackChatClient(IReadOnlyList<LlmClient> chain) : IChatClient
+public sealed class FallbackChatClient(IReadOnlyList<LlmClient> chain, TimeSpan? firstUpdateTimeout = null) : IChatClient
 {
     private int _current;
 
@@ -36,9 +36,50 @@ public sealed class FallbackChatClient(IReadOnlyList<LlmClient> chain) : IChatCl
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages, ChatOptions? options = null, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        // ponytail: bascule seulement avant le premier morceau ; les agents n'utilisent pas le streaming.
-        var response = await GetResponseAsync(messages, options, cancellationToken);
-        foreach (var update in response.ToChatResponseUpdates())
+        var history = messages as IList<ChatMessage> ?? [.. messages];
+        while (true)
+        {
+            var emitted = false;
+            var retry = false;
+            using var initialWait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            initialWait.CancelAfter(firstUpdateTimeout ?? TimeSpan.FromSeconds(20));
+            await using var stream = StreamCurrent(history, options, initialWait.Token).GetAsyncEnumerator(initialWait.Token);
+            while (true)
+            {
+                ChatResponseUpdate update;
+                try
+                {
+                    if (!await stream.MoveNextAsync())
+                        break;
+                    update = stream.Current;
+                }
+                catch (OperationCanceledException) when (!emitted && !cancellationToken.IsCancellationRequested && initialWait.IsCancellationRequested)
+                {
+                    if (!Next())
+                        throw new TimeoutException("Les modèles gratuits ne répondent pas assez vite. Réessayez ou connectez un autre fournisseur gratuit.");
+                    retry = true;
+                    break;
+                }
+                catch (Exception ex) when (!emitted && IsExhausted(ex, cancellationToken) && Next())
+                {
+                    retry = true;
+                    break;
+                }
+                // Dès qu'un morceau est transmis, aucun autre modèle ne reprend ce même appel.
+                // Cela protège aussi les appels d'outils partiels et les compteurs de consommation.
+                initialWait.CancelAfter(Timeout.InfiniteTimeSpan);
+                emitted = true;
+                yield return update;
+            }
+            if (!retry)
+                yield break;
+        }
+    }
+
+    private async IAsyncEnumerable<ChatResponseUpdate> StreamCurrent(IEnumerable<ChatMessage> messages, ChatOptions? options,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await foreach (var update in chain[_current].Client.GetStreamingResponseAsync(messages, options, cancellationToken))
             yield return update;
     }
 

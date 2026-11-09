@@ -153,15 +153,7 @@
       <!-- Répondre à l'agent (leçon 117) : sous le fil, comme un message. -->
       <Border DockPanel.Dock="Bottom" Margin="40,0,40,24" Padding="14,10,10,10" CornerRadius="16" Background="{StaticResource Graphite}"
               BorderBrush="{StaticResource Filet}" BorderThickness="1" IsVisible="{Binding Selected.IsCompleted, FallbackValue=False}">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
-          <TextBox Classes="composer" Text="{Binding ReplyText}" PlaceholderText="Répondre à l’agent…" AcceptsReturn="True" TextWrapping="Wrap"
-                   MaxHeight="120" FontSize="14" IsEnabled="{Binding CanReply}" VerticalAlignment="Center" />
-          <Button Grid.Column="1" Classes="send" Command="{Binding SendReplyCommand}" Width="38" Height="38" Padding="0" HotKey="Ctrl+Enter"
-                  ToolTip.Tip="Envoyer (Ctrl+Entrée)" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
-            <Path Data="M12 19V5M6 11l6-6 6 6" Stroke="{StaticResource Obsidienne}" StrokeThickness="2.2" StrokeLineCap="Round" StrokeJoin="Round"
-                  Width="16" Height="16" Stretch="Uniform" />
-          </Button>
-        </Grid>
+        <Button Classes="primary" Content="Discuter de ce résultat dans la conversation" Command="{Binding OpenConversationCommand}" HorizontalAlignment="Left" />
       </Border>
 
       <ScrollViewer>

@@ -7,6 +7,28 @@ namespace AgentYattus.Client.Core.Tests;
 
 public sealed class SettingsViewModelTests
 {
+    [Fact]
+    public async Task Server_free_mode_is_accessible_to_an_administrator_without_replacing_personal_settings()
+    {
+        var calls = 0;
+        var api = new ApiClient(new HttpClient(new Stub(_ =>
+        {
+            calls++;
+            return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+        })) { BaseAddress = new Uri("http://api/") });
+        var oidc = new OidcClient(new HttpClient(), new OidcSettings(new Uri("http://auth/"), "desktop"));
+        var login = new LoginViewModel(oidc, new TokenStore(oidc), _ => Task.CompletedTask);
+        var shell = new ShellViewModel(api, new HomeViewModel(api), login);
+        await shell.ShowInstanceModelsCommand.ExecuteAsync(null);
+        Assert.Same(login, shell.Current);
+        Assert.Equal(0, calls);
+        shell.IsLlmAdmin = true;
+        await shell.ShowInstanceModelsCommand.ExecuteAsync(null);
+        Assert.True(Assert.IsType<SettingsViewModel>(shell.Current).IsInstance);
+        await shell.ShowSettingsCommand.ExecuteAsync(null);
+        Assert.True(Assert.IsType<SettingsViewModel>(shell.Current).IsPersonal);
+    }
+
     private static readonly Guid AnthropicId = Guid.NewGuid();
     private static readonly Guid OllamaId = Guid.NewGuid();
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -62,6 +84,61 @@ public sealed class SettingsViewModelTests
             };
         });
         return (new SettingsViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") })), calls);
+    }
+
+    [Fact]
+    public async Task My_keys_only_talk_to_the_personal_routes_and_hide_the_instance_settings()
+    {
+        var calls = new List<(HttpMethod Method, string Path, string? Body)>();
+        LlmSelectionDto? myDefault = new(AnthropicId, "claude-haiku-5-5");
+        var freeMode = false;
+        var handler = new Stub(request =>
+        {
+            var body = request.Content?.ReadAsStringAsync().GetAwaiter().GetResult();
+            calls.Add((request.Method, request.RequestUri!.AbsolutePath, body));
+            if (request.RequestUri.AbsolutePath == LlmProtocol.MineFree && request.Method == HttpMethod.Put)
+                freeMode = JsonSerializer.Deserialize<UpdateMyFreeModeRequest>(body!, new JsonSerializerOptions(JsonSerializerDefaults.Web))!.Enabled;
+            if (request.Method == HttpMethod.Put)
+                myDefault = body!.Contains("\"default\":null") ? null : myDefault;
+            if (request.Method != HttpMethod.Get)
+                return new HttpResponseMessage(request.Method == HttpMethod.Post ? HttpStatusCode.Created : HttpStatusCode.NoContent);
+            object content = request.RequestUri.AbsolutePath == LlmProtocol.MineModels
+                ? new LlmModelsDto([new LlmModelDto(AnthropicId, "anthropic", "claude-haiku-5-5", "Claude Haiku 5.5", 200_000, 0.10m, 0.50m, true, false, Personal: true)], [])
+                : new MyLlmDto([Providers[0]],
+                    [new LlmConnectionDto(AnthropicId, "anthropic", "Anthropic", "Ma clé", "WXYZ", null, DateTimeOffset.UtcNow, "alice", null, Personal: true)], myDefault, freeMode);
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(content, content.GetType()) };
+        });
+        var vm = new SettingsViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }), personal: true);
+
+        await vm.LoadAsync(Ct);
+
+        // Mes clés : le titre et le modèle personnel ; pas de modèle par agent de l’instance.
+        Assert.Equal(("Mes clés", "Claude Haiku 5.5", false), (vm.Heading, vm.DefaultLabel, vm.IsInstance));
+        Assert.Equal("anthropic", Assert.Single(vm.Providers).Id);
+        Assert.Empty(vm.Agents);
+
+        await vm.ChooseCommand.ExecuteAsync(vm.FilteredModels[0]);
+        vm.PickCommand.Execute(vm.Providers[0]);
+        vm.NewKey = "sk-ant-alice-0123456789abcdef";
+        await vm.ConnectCommand.ExecuteAsync(null);
+        Assert.False(vm.IsPickerOpen);
+        vm.FreeMode = true;
+        Assert.True(freeMode);
+        Assert.Contains(calls, c => c.Method == HttpMethod.Put && c.Path == LlmProtocol.MineFree);
+        vm.AskRevokeCommand.Execute(vm.Connections[0]);
+        await vm.ConfirmRevokeCommand.ExecuteAsync(null);
+        Assert.True(vm.CanUseInstanceModel);
+        Assert.Equal("Sélection automatique · modèles gratuits", vm.DefaultLabel);
+        vm.FreeMode = false;
+        await vm.UseInstanceModelCommand.ExecuteAsync(null);
+        Assert.Equal("Celui de l'instance", vm.DefaultLabel);
+
+        // Jamais une route de l'instance ; seulement /llm/mine.
+        Assert.All(calls, c => Assert.StartsWith(LlmProtocol.Mine, c.Path));
+        Assert.Contains(calls, c => c.Method == HttpMethod.Put && c.Path == LlmProtocol.MineDefault && c.Body!.Contains("claude-haiku-5-5"));
+        Assert.Contains(calls, c => c.Method == HttpMethod.Post && c.Path == LlmProtocol.MineConnections);
+        Assert.Contains(calls, c => c.Method == HttpMethod.Delete && c.Path == $"{LlmProtocol.MineConnections}/{AnthropicId}");
+        Assert.Contains(calls, c => c.Method == HttpMethod.Put && c.Body!.Contains("\"default\":null"));
     }
 
     [Fact]

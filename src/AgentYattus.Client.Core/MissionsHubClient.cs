@@ -24,9 +24,13 @@ public sealed class MissionsHubClient : IAsyncDisposable
             .Build();
         _connection.On<MissionEventDto>(MissionsHubProtocol.MissionEvent, e => MissionEventReceived?.Invoke(e));
         _connection.On<MissionTextDto>(MissionsHubProtocol.MissionText, e => MissionTextReceived?.Invoke(e));
+        _connection.On<MissionActivityDto>(MissionsHubProtocol.MissionActivity, e => MissionActivityReceived?.Invoke(e));
+        _connection.Reconnected += _ => { Reconnected?.Invoke(); return Task.CompletedTask; };
     }
 
     public event Action<MissionEventDto>? MissionEventReceived;
+    public event Action<MissionActivityDto>? MissionActivityReceived;
+    public event Action? Reconnected;
 
     /// <summary>Un morceau de réponse en train de s'écrire (leçon 120).</summary>
     public event Action<MissionTextDto>? MissionTextReceived;

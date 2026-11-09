@@ -67,23 +67,36 @@ public sealed class OidcClient(HttpClient backchannel, OidcSettings settings)
         var context = await listener.GetContextAsync().WaitAsync(TimeSpan.FromMinutes(5), cancellationToken);
         var callback = context.Request.QueryString;
         var error = callback["error"];
-        var ok = error is null && callback["state"] == state && callback["code"] is not null;
-        await RespondAsync(context, ok);
-
-        if (error is not null)
-            throw new InvalidOperationException($"Connexion refusée : {callback["error_description"] ?? error}");
-        // Un « state » différent : la réponse ne vient pas de notre demande (attaque CSRF, ou onglet périmé).
-        if (callback["state"] != state)
-            throw new InvalidOperationException("Réponse de connexion inattendue (state différent) : connexion annulée.");
-
-        return await TokenAsync(discovery, new Dictionary<string, string>
+        if (error is not null || callback["state"] != state || string.IsNullOrEmpty(callback["code"]))
         {
-            ["grant_type"] = "authorization_code",
-            ["client_id"] = settings.ClientId,
-            ["code"] = callback["code"]!,
-            ["redirect_uri"] = redirectUri,
-            ["code_verifier"] = verifier,
-        }, cancellationToken);
+            await RespondAsync(context, false);
+            if (error is not null)
+                throw new InvalidOperationException($"Connexion refusée : {callback["error_description"] ?? error}");
+            if (callback["state"] != state)
+                throw new InvalidOperationException("Réponse de connexion inattendue (state différent) : connexion annulée.");
+            throw new InvalidOperationException("Réponse de connexion sans code : connexion annulée.");
+        }
+
+        OidcSession session;
+        try
+        {
+            session = await TokenAsync(discovery, new Dictionary<string, string>
+            {
+                ["grant_type"] = "authorization_code",
+                ["client_id"] = settings.ClientId,
+                ["code"] = callback["code"]!,
+                ["redirect_uri"] = redirectUri,
+                ["code_verifier"] = verifier,
+            }, cancellationToken);
+        }
+        catch
+        {
+            await RespondAsync(context, false);
+            throw;
+        }
+        // Ne ferme l'onglet et n'annonce la réussite qu'après l'échange effectif du jeton.
+        await RespondAsync(context, true);
+        return session;
     }
 
     public async Task<OidcSession> RefreshAsync(OidcSession session, CancellationToken cancellationToken = default) =>
@@ -133,10 +146,20 @@ public sealed class OidcClient(HttpClient backchannel, OidcSettings settings)
 
     private static async Task RespondAsync(HttpListenerContext context, bool ok)
     {
-        var html = ok
-            ? "<html><body style=\"font-family:sans-serif;background:#0E0F11;color:#ECE6D8\"><h2>Connexion réussie</h2><p>Tu peux fermer cet onglet et revenir à Agent Yattus.</p></body></html>"
-            : "<html><body style=\"font-family:sans-serif;background:#0E0F11;color:#ECE6D8\"><h2>Connexion échouée</h2><p>Reviens à Agent Yattus pour réessayer.</p></body></html>";
+        var title = ok ? "Connexion réussie" : "Connexion échouée";
+        var message = ok ? "Vous êtes connecté. Retour à Agent Yattus…" : "Revenez à Agent Yattus pour réessayer.";
+        // Certains navigateurs refusent de fermer un onglet qu'ils n'ont pas ouvert par script.
+        var script = ok ? "<script>history.replaceState(null, '', '/'); setTimeout(() => window.close(), 300);</script>" : "";
+        var fallback = ok ? "<p>Si cet onglet reste ouvert, vous pouvez le fermer. Le logiciel est prêt.</p>" : "";
+        var html = $$"""
+            <!doctype html><html lang="fr"><head><meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1"><title>{{title}} · Agent Yattus</title>
+            <style>body{font-family:system-ui,sans-serif;background:#0E0F11;color:#ECE6D8;display:grid;place-items:center;min-height:100vh;margin:0}main{max-width:440px;padding:32px}h1{font-size:26px}p{line-height:1.6;color:#BDB8AC}</style>
+            </head><body><main><h1>{{title}}</h1><p>{{message}}</p>{{fallback}}</main>{{script}}</body></html>
+            """;
         var bytes = Encoding.UTF8.GetBytes(html);
+        context.Response.Headers["Cache-Control"] = "no-store";
+        context.Response.Headers["Referrer-Policy"] = "no-referrer";
         context.Response.ContentType = "text/html; charset=utf-8";
         context.Response.ContentLength64 = bytes.Length;
         await context.Response.OutputStream.WriteAsync(bytes);

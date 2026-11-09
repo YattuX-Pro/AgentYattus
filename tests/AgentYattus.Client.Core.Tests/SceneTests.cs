@@ -5,10 +5,11 @@ namespace AgentYattus.Client.Core.Tests;
 /// <summary>Le journal d'une mission devient une suite de répliques, avec les textes réglés dans l'admin.</summary>
 public sealed class SceneTests
 {
+    /// <summary>Une équipe dont le premier collègue est le chef d'équipe (leçon 129).</summary>
     internal static ProjectTeamDto Team(params (string Role, string Name)[] colleagues) => new(
         Guid.NewGuid(),
-        [.. colleagues.Select(c => new ColleagueDto(Guid.NewGuid(), Guid.Empty, c.Role, Guid.NewGuid(), c.Name, [], null, DateTimeOffset.UtcNow, true, null))],
-        "Léon", null, null, 38, 1800,
+        [.. colleagues.Select((c, i) => new ColleagueDto(Guid.NewGuid(), Guid.Empty, c.Role, Guid.NewGuid(), c.Name, [], null, DateTimeOffset.UtcNow, true, null, Leader: i == 0))],
+        null, 38, 1800,
         new Dictionary<string, string>
         {
             ["mission:debut"] = "On démarre : {objectif}",
@@ -110,8 +111,11 @@ public sealed class SceneTests
     public void An_event_without_a_line_is_silent_and_unknown_variables_stay_visible()
     {
         // « mission:echec » n'a pas de réplique dans cette équipe : rien n'est dit, rien ne plante.
-        var lines = Scene.From([E("Running"), E("Failed")], Team(), "But", "Yatt");
+        var lines = Scene.From([E("Running"), E("Failed")], Team(("analyste", "Inès")), "But", "Yatt");
         Assert.Single(lines);
+
+        // Sans chef d'équipe, personne n'annonce le début (leçon 129).
+        Assert.Empty(Scene.From([E("Running")], Team() with { Colleagues = [] }, "But", "Yatt"));
 
         Assert.Equal("Bonjour {inconnu}, Yatt", Scene.Fill("Bonjour {inconnu}, {vous}", new Dictionary<string, string> { ["vous"] = "Yatt" }));
     }

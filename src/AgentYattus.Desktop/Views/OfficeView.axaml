@@ -201,7 +201,7 @@
     </Grid>
   </Border>
 
-  <Grid ColumnDefinitions="*,352" ColumnSpacing="24" Margin="24,8,24,24">
+  <Grid ColumnDefinitions="*,420" ColumnSpacing="24" Margin="24,8,24,24">
 
     <Grid>
       <!-- region:decor -->
@@ -419,8 +419,8 @@
         <Border BorderBrush="#1F2226" BorderThickness="0,0,0,1" Padding="16,0">
           <Grid ColumnDefinitions="*,Auto">
             <StackPanel VerticalAlignment="Center" Spacing="2">
-              <TextBlock Text="Fil de l'équipe" FontSize="13.5" FontWeight="SemiBold" />
-              <TextBlock Classes="mono" Text="{Binding Feed.Count, StringFormat='{}{0} messages'}" FontSize="10.5" Foreground="#8A857B" />
+              <TextBlock Text="{Binding ConversationTitle}" FontSize="13.5" FontWeight="SemiBold" />
+              <TextBlock Classes="mono" Text="Vos messages et les réponses" FontSize="10.5" Foreground="#8A857B" />
             </StackPanel>
             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
               <Ellipse Classes="pulse" Width="6" Height="6" Fill="{StaticResource VertDeGris}" VerticalAlignment="Center" />
@@ -429,7 +429,8 @@
           </Grid>
         </Border>
         <ScrollViewer Grid.Row="1" x:Name="FeedScroll" Padding="16,12">
-          <ItemsControl ItemsSource="{Binding Feed}">
+          <StackPanel Spacing="14">
+          <ItemsControl ItemsSource="{Binding Conversation}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate><StackPanel Spacing="14" /></ItemsPanelTemplate>
             </ItemsControl.ItemsPanel>
@@ -448,7 +449,7 @@
                         <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" />
                         <TextBlock Classes="mono" Text="{Binding Time}" FontSize="10" Foreground="#8A857B" VerticalAlignment="Center" />
                       </StackPanel>
-                      <TextBlock Text="{Binding Text}" FontSize="13" LineHeight="19" Foreground="#D9D3C5" TextWrapping="Wrap" />
+                      <SelectableTextBlock Text="{Binding Text}" FontSize="13" LineHeight="19" Foreground="#D9D3C5" TextWrapping="Wrap" />
                       <Border IsVisible="{Binding File, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" HorizontalAlignment="Left"
                               Padding="10,5" CornerRadius="7" Background="#16181B" BorderBrush="#2A2D31" BorderThickness="1">
                         <TextBlock Classes="mono" Text="{Binding File}" FontSize="11" Foreground="{StaticResource VertDeGris}" />
@@ -459,11 +460,8 @@
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
-        </ScrollViewer>
-        <!-- La réponse en train de s'écrire (leçon 120) : elle s'allonge morceau par morceau, en bas du fil. -->
-        <StackPanel Grid.Row="2">
         <Border Margin="12,0,12,10" Padding="12,10" CornerRadius="12" Background="#16181B" BorderBrush="#2A2D31" BorderThickness="1"
-                IsVisible="{Binding LiveText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" MaxHeight="260">
+                IsVisible="{Binding LiveText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
           <ScrollViewer>
             <StackPanel Spacing="4">
               <TextBlock Classes="label" Text="{Binding Author.Name, StringFormat='{}RÉPONSE DE {0}'}" Foreground="{StaticResource VertDeGris}" />
@@ -471,8 +469,31 @@
             </StackPanel>
           </ScrollViewer>
         </Border>
-        <TextBlock Margin="16,0,16,14" FontSize="12" Foreground="#8A857B"
-                   Text="{Binding Typing, StringFormat='{}{0} écrit…'}" IsVisible="{Binding Typing, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          </StackPanel>
+        </ScrollViewer>
+        <!-- La réponse en train de s'écrire (leçon 120) : elle s'allonge morceau par morceau, en bas du fil. -->
+        <StackPanel Grid.Row="2">
+          <Button Classes="outline" Content="Suivre la demande avec le RH" Command="{Binding OpenRecruitmentCommand}"
+                  IsVisible="{Binding Mission.RecruitmentMissionId, Converter={x:Static ObjectConverters.IsNotNull}}"
+                  Margin="12,0,12,10" HorizontalAlignment="Stretch" />
+
+          <Border Margin="12,0,12,10" Padding="10" CornerRadius="10" Background="#242015" IsVisible="{Binding IsKnocking}">
+            <StackPanel Spacing="8">
+              <TextBlock Text="L’agent attend votre accord." Foreground="{StaticResource Laiton}" FontSize="12.5" />
+              <Button Classes="outline" Content="Relire et décider" Command="{Binding OpenReviewCommand}" />
+            </StackPanel>
+          </Border>
+          <TextBlock Margin="16,0,16,10" Text="{Binding Author.Name, StringFormat='{}{0} prépare sa réponse…'}"
+                     IsVisible="{Binding IsResponding}" FontSize="12" Foreground="{StaticResource Pierre}" />
+          <TextBlock Margin="12,0,12,10" Text="{Binding Error}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Cinabre}"
+                     IsVisible="{Binding Error, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+          <Border Margin="12,0,12,12" Padding="10" CornerRadius="12" Background="#1A1C20" BorderBrush="#30343A" BorderThickness="1">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <TextBox Classes="composer" Text="{Binding ReplyText}" views:ChatInput.Send="{Binding SendReplyCommand}" ToolTip.Tip="Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne" PlaceholderText="Continuer la conversation…"
+                       IsEnabled="{Binding CanReply}" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="58" MaxHeight="140" FontSize="13" />
+              <Button Grid.Column="1" Classes="primary" Content="Envoyer" Command="{Binding SendReplyCommand}" VerticalAlignment="Bottom" />
+            </Grid>
+          </Border>
         </StackPanel>
       </Grid>
     </Border>

@@ -42,9 +42,9 @@ public static partial class TeamModule
             if (!(all == true && me.IsInstanceAdmin))
                 query = query.Where(p => p.Active);
             var rows = await query.OrderBy(p => p.Slug)
-                .Select(p => new { p.Id, p.Slug, p.SuggestedName, p.Active, HasTalk = p.Talk != null })
+                .Select(p => new { p.Id, p.Slug, p.SuggestedName, p.Active, p.MouthX, p.MouthY, HasTalk = p.Talk != null })
                 .ToListAsync(ct);
-            return TypedResults.Ok(rows.Select(p => ToDto(p.Id, p.Slug, p.SuggestedName, p.Active, p.HasTalk)).ToList());
+            return TypedResults.Ok(rows.Select(p => ToDto(p.Id, p.Slug, p.SuggestedName, p.Active, p.HasTalk, p.MouthX, p.MouthY)).ToList());
         });
 
         // Les images sont des illustrations, pas des données : lisibles sans jeton, pour qu'une balise <img> les affiche.
@@ -119,6 +119,11 @@ public static partial class TeamModule
             var portrait = await db.Portraits.FindAsync([id], ct);
             if (portrait is null)
                 return TypedResults.NotFound();
+            if (request.MouthX is { } x && (!double.IsFinite(x) || x < 0 || x > 1)
+                || request.MouthY is { } y && (!double.IsFinite(y) || y < 0 || y > 1))
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["mouth"] = ["Le point de la bouche doit être compris entre 0 et 1."] });
+            portrait.MouthX = request.MouthX ?? portrait.MouthX;
+            portrait.MouthY = request.MouthY ?? portrait.MouthY;
             portrait.SuggestedName = name;
             portrait.Active = request.Active;
             await db.SaveChangesAsync(ct);
@@ -133,7 +138,7 @@ public static partial class TeamModule
                 return TypedResults.NotFound();
             var settings = await db.Settings.AsNoTracking().FirstOrDefaultAsync(ct);
             var used = await db.Colleagues.AnyAsync(c => c.PortraitId == id, ct)
-                       || settings?.LeaderPortraitId == id || settings?.ManagerPortraitId == id
+                       || settings?.ManagerPortraitId == id
                        || (settings?.DefaultTeam?.Contains(id.ToString(), StringComparison.OrdinalIgnoreCase) ?? false);
             if (used)
                 return TypedResults.Conflict("Ce portrait est utilisé : désactive-le plutôt.");
@@ -143,8 +148,8 @@ public static partial class TeamModule
         });
     }
 
-    internal static PortraitDto ToDto(Guid id, string slug, string name, bool active, bool hasTalk) => new(
-        id, slug, name, active, hasTalk, TeamProtocol.Image(id, "travail"), TeamProtocol.Image(id, hasTalk ? "parle" : "travail"));
+    internal static PortraitDto ToDto(Guid id, string slug, string name, bool active, bool hasTalk, double mouthX = 0.56, double mouthY = 0.37) => new(
+        id, slug, name, active, hasTalk, TeamProtocol.Image(id, "travail"), TeamProtocol.Image(id, hasTalk ? "parle" : "travail"), mouthX, mouthY);
 
     internal static bool ValidName(string name) => NamePattern().IsMatch(name);
 

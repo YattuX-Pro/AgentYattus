@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AgentYattus.Mobile.App"
+             UserAppTheme="Dark">
+  <Application.Resources>
+    <!-- Palette « observatoire », mêmes noms que Desktop/Theme/Tokens.axaml. -->
+    <Color x:Key="Obsidienne">#0E0F11</Color>
+    <Color x:Key="Nuit">#121316</Color>
+    <Color x:Key="Graphite">#16181B</Color>
+    <Color x:Key="Filet">#24272B</Color>
+    <Color x:Key="Parchemin">#ECE6D8</Color>
+    <Color x:Key="Pierre">#A7A196</Color>
+    <Color x:Key="Cendre">#938E83</Color>
+    <Color x:Key="VertDeGris">#5E9E92</Color>
+    <Color x:Key="Laiton">#D8B86E</Color>
+    <Color x:Key="Cinabre">#D9654B</Color>
+    <OnPlatform x:Key="Mono" x:TypeArguments="x:String">
+      <On Platform="iOS" Value="Menlo" />
+      <On Platform="Android" Value="monospace" />
+    </OnPlatform>
+  </Application.Resources>
+</Application>

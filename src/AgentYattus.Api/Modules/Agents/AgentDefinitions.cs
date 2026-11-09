@@ -1,3 +1,4 @@
+using AgentYattus.Contracts;
 using Microsoft.EntityFrameworkCore;
 
 namespace AgentYattus.Api.Modules.Agents;
@@ -72,6 +73,7 @@ internal sealed class AgentsDb(DbContextOptions<AgentsDb> options) : DbContext(o
     public DbSet<RoleVersion> Versions => Set<RoleVersion>();
     public DbSet<CustomRole> CustomRoles => Set<CustomRole>();
     public DbSet<Skill> Skills => Set<Skill>();
+    public DbSet<SkillVersion> SkillVersions => Set<SkillVersion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -103,6 +105,21 @@ internal sealed class AgentsDb(DbContextOptions<AgentsDb> options) : DbContext(o
             e.Property(s => s.Body).HasMaxLength(8000);
             e.Property(s => s.OwnerId).HasMaxLength(64);
             e.Property(s => s.CreatedBy).HasMaxLength(100);
+            e.Property(s => s.Version).HasDefaultValue(1);
+            e.Property(s => s.Status).HasConversion<string>().HasMaxLength(20).HasDefaultValue(SkillStatus.Approved);
+            e.Property(s => s.Sources).HasMaxLength(4000).HasDefaultValue("");
+            e.Ignore(s => s.SourceList);
+        });
+        modelBuilder.Entity<SkillVersion>(e =>
+        {
+            e.ToTable("SkillVersions");
+            e.HasKey(v => new { v.Key, v.Version });
+            e.Property(v => v.Key).HasMaxLength(40);
+            e.Property(v => v.Name).HasMaxLength(40);
+            e.Property(v => v.Description).HasMaxLength(200);
+            e.Property(v => v.Body).HasMaxLength(8000);
+            e.Property(v => v.Sources).HasMaxLength(4000);
+            e.Property(v => v.CreatedBy).HasMaxLength(100);
         });
     }
 }

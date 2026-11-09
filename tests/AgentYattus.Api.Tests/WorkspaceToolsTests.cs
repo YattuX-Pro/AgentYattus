@@ -63,6 +63,21 @@ public sealed class WorkspaceToolsTests : IDisposable
     }
 
     [Fact]
+    public async Task A_large_file_is_read_in_targeted_passages_with_a_correct_continuation()
+    {
+        File.WriteAllLines(Path.Combine(_workspace, "long.txt"), Enumerable.Range(1, 400).Select(i => $"ligne {i}"));
+        var tools = new WorkspaceTools(_workspace);
+        var first = await tools.ReadFile("long.txt", Ct);
+        Assert.Contains("ligne 120\n", first);
+        Assert.DoesNotContain("ligne 121\n", first);
+        Assert.Contains("startLine=121", first);
+        var next = await tools.ReadFile("long.txt", Ct, startLine: 121, lineCount: 2);
+        Assert.Contains("ligne 121\nligne 122", next);
+        Assert.DoesNotContain("ligne 123\n", next);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => tools.ReadFile("long.txt", Ct, startLine: 0));
+    }
+
+    [Fact]
     public async Task Excluded_files_and_folders_are_invisible_and_refused()
     {
         File.WriteAllText(Path.Combine(_workspace, ".env"), "API_KEY=secret");

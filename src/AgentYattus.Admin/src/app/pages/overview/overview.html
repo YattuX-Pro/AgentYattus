@@ -90,7 +90,7 @@
       <a class="hover:bg-accent flex items-center gap-3 border-b px-3.5 py-2.5 last:border-b-0" [routerLink]="['/missions']" [queryParams]="{ q: m.id }">
         <div class="min-w-0 flex-1">
           <div class="truncate font-medium">{{ m.goal }}</div>
-          <div class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }} · {{ m.kind === 'Review' ? 'Revue' : 'Question' }}</div>
+          <div class="text-muted-foreground font-mono text-xs">{{ m.id.slice(0, 8) }} · {{ kindLabel(m.kind) }}</div>
         </div>
         <span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span>
       </a>

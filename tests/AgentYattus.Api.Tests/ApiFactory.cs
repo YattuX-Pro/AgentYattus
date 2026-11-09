@@ -159,7 +159,7 @@ public sealed class FakeAgentRunner : IAgentRunner
     public Task<AgentOutcome> RunAsync(
         Guid missionId, string goal, MissionKind kind, AgentResume? resume, string? workspace,
         IReadOnlyDictionary<string, AgentSeat>? seats, string? agent, string? launchedBy, CancellationToken cancellationToken,
-        Func<string, Task>? onText = null)
+        Func<string, Task>? onText = null, IReadOnlyList<string>? skills = null)
     {
         Goals.Enqueue(goal);
         Workspaces[goal] = workspace;
@@ -177,12 +177,13 @@ public sealed class FakeAgentRunner : IAgentRunner
 }
 
 /// <summary>Un fournisseur de modèle figé : le faux modèle des tests, ou aucun (« pas de clé »).</summary>
-public sealed class FixedLlmClientProvider(IChatClient? client, string model = "claude-haiku-5-5") : ILlmClientProvider
+/// <param name="personal">Le modèle passe par une clé personnelle (leçon 134) : hors du budget de l'instance.</param>
+public sealed class FixedLlmClientProvider(IChatClient? client, string model = "claude-haiku-5-5", bool personal = false) : ILlmClientProvider
 {
-    public Task<LlmClient?> GetAsync(string role, CancellationToken cancellationToken) =>
-        Task.FromResult(client is null ? null : new LlmClient(client, model));
+    public Task<LlmClient?> GetAsync(string role, string? user, CancellationToken cancellationToken) =>
+        Task.FromResult(client is null ? null : new LlmClient(client, model, personal));
 
-    public Task<string> GetModelAsync(string role, CancellationToken cancellationToken) => Task.FromResult(model);
+    public Task<string> GetModelAsync(string role, string? user, CancellationToken cancellationToken) => Task.FromResult(model);
 }
 
 /// <summary>Le vrai exécuteur Agent Framework, branché sur un faux modèle et un workspace temporaire.</summary>
@@ -193,11 +194,28 @@ public sealed class ScriptedModelApiFactory(IChatClient? model, bool withWorkspa
 
     public string Workspace => _workspace;
 
+    /// <summary>Le faux modèle passe par une clé personnelle (leçon 134).</summary>
+    public bool PersonalKey { get; init; }
+
+    /// <summary>Un faux bac à sable à la place de Docker ; null : le vrai (absent sur la plupart des machines de test).</summary>
+    internal ICommandSandbox? Sandbox { get; init; }
+
+    /// <summary>De fausses pages web pour read_documentation ; null : aucune page n'est servie (jamais d'appel réel pendant les tests).</summary>
+    public HttpMessageHandler? Documentation { get; init; }
+
     protected override void ConfigureAgents(IServiceCollection services)
     {
         File.WriteAllText(Path.Combine(_workspace, "a.txt"), "contenu A");
         services.RemoveAll<ILlmClientProvider>();
-        services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(model, modelName));
+        services.AddSingleton<ILlmClientProvider>(new FixedLlmClientProvider(model, modelName, PersonalKey));
+        if (Sandbox is not null)
+        {
+            services.RemoveAll<ICommandSandbox>();
+            services.AddSingleton(Sandbox);
+        }
+        // Jamais de vraie requête web pendant les tests : de fausses pages, ou un refus.
+        var pages = Documentation ?? new StubPages(_ => new HttpResponseMessage(System.Net.HttpStatusCode.ServiceUnavailable));
+        services.AddHttpClient(DocumentationReader.ClientName).ConfigurePrimaryHttpMessageHandler(() => pages);
         // Enregistré après la lecture de la configuration : ces valeurs l'emportent sur les user-secrets.
         services.Configure<AgentsOptions>(options =>
         {
@@ -210,5 +228,17 @@ public sealed class ScriptedModelApiFactory(IChatClient? model, bool withWorkspa
     {
         await base.DisposeAsync();
         Directory.Delete(_workspace, recursive: true);
+    }
+}
+
+/// <summary>Un faux site web : chaque requête reçoit la réponse calculée par le test.</summary>
+public sealed class StubPages(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler
+{
+    public List<Uri> Requested { get; } = [];
+
+    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    {
+        Requested.Add(request.RequestUri!);
+        return Task.FromResult(respond(request));
     }
 }

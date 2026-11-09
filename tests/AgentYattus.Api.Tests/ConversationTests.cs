@@ -14,6 +14,38 @@ public sealed class ConversationTests
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
     [Fact]
+    public async Task The_first_piece_is_sent_to_the_hub_while_the_model_is_still_generating()
+    {
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var firstPiece = new TaskCompletionSource<MissionTextDto>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var chain = new AgentYattus.Api.Modules.Llm.FallbackChatClient([
+            new(new StreamingFallbackTests.StreamingClient(release.Task), "streaming-test")]);
+        await using var api = new ScriptedModelApiFactory(chain);
+        var root = As(api, "root", instanceAdmin: true);
+        await using var hub = new HubConnectionBuilder()
+            .WithUrl(new Uri(api.Server.BaseAddress, MissionsHubProtocol.Path), options =>
+            {
+                options.HttpMessageHandlerFactory = _ => api.Server.CreateHandler();
+                options.Headers[TestAuthHandler.UserHeader] = "root";
+                options.Headers[TestAuthHandler.RolesHeader] = "llm-admin";
+            }).Build();
+        hub.On<MissionTextDto>(MissionsHubProtocol.MissionText, piece => firstPiece.TrySetResult(piece));
+        await hub.StartAsync(Ct);
+        var mission = await root.CreateMissionAsync("Bonjour");
+        try
+        {
+            var piece = await firstPiece.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+            Assert.Equal(mission.Id, piece.MissionId);
+            Assert.Equal("Bon", piece.Text);
+            var running = (await root.GetFromJsonAsync<MissionDto>($"/missions/{mission.Id}", Ct))!;
+            Assert.Equal(MissionStatus.Running, running.Status);
+        }
+        finally { release.TrySetResult(); }
+        var final = await root.WaitForStatusAsync(mission.Id, MissionStatus.Completed);
+        Assert.Equal("Bonjour", final.Result);
+    }
+
+    [Fact]
     public async Task A_reply_continues_the_same_conversation_and_every_turn_is_kept()
     {
         var model = new ScriptedChatClient(Text("Le README décrit l'API."), Text("Oui : trois routes, POST et deux GET."));

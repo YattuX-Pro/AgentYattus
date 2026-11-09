@@ -193,9 +193,9 @@ public sealed class LlmTests
         IConfiguration Config(string? key) => new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Anthropic:ApiKey"] = key }).Build();
 
-        Assert.Null(await new LlmClientProvider(db, protection, Config(null)).GetAsync("analyste", Ct));
+        Assert.Null(await new LlmClientProvider(db, protection, Config(null), new ModelCatalog()).GetAsync("analyste", null, Ct));
         Assert.Equal("anthropic/claude-haiku-5-5",
-            (await new LlmClientProvider(db, protection, Config("sk-ant-config-0123456789")).GetAsync("analyste", Ct))!.Model);
+            (await new LlmClientProvider(db, protection, Config("sk-ant-config-0123456789"), new ModelCatalog()).GetAsync("analyste", null, Ct))!.Model);
 
         var client = api.CreateClient();
         var groq = await ConnectAsync(client, "groq");
@@ -203,7 +203,7 @@ public sealed class LlmTests
         await client.PutAsJsonAsync(LlmProtocol.Settings, new UpdateLlmSettingsRequest(new(groq.Id, model)), Ct);
         db.ChangeTracker.Clear();
 
-        var chosen = (await new LlmClientProvider(db, protection, Config(null)).GetAsync("analyste", Ct))!;
+        var chosen = (await new LlmClientProvider(db, protection, Config(null), new ModelCatalog()).GetAsync("analyste", null, Ct))!;
         Assert.Equal($"groq/{model}", chosen.Model);
         // Groq parle le protocole d'OpenAI, à sa propre adresse.
         var metadata = chosen.Client.GetService<ChatClientMetadata>()!;
@@ -232,9 +232,9 @@ public sealed class LlmTests
         {
             // ApiFactory remplace le fournisseur des agents par un faux : on teste ici le vrai.
             var real = new LlmClientProvider(scope.ServiceProvider.GetRequiredService<LlmDb>(),
-                scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(), new ConfigurationBuilder().Build());
-            Assert.Equal("ollama/qwen3:8b", (await real.GetAsync("analyste", Ct))!.Model);
-            Assert.Equal("anthropic/claude-sonnet-5-5", (await real.GetAsync("redacteur", Ct))!.Model);
+                scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(), new ConfigurationBuilder().Build(), scope.ServiceProvider.GetRequiredService<ModelCatalog>());
+            Assert.Equal("ollama/qwen3:8b", (await real.GetAsync("analyste", null, Ct))!.Model);
+            Assert.Equal("anthropic/claude-sonnet-5-5", (await real.GetAsync("redacteur", null, Ct))!.Model);
         }
 
         // Révoquer la connexion d'un agent le ramène au modèle par défaut.

@@ -119,17 +119,15 @@ public sealed class TeamTests
         var root = As(api, "root", instanceAdmin: true);
         var ines = await PortraitAsync(root, "ines", "Inès");
         var nora = await PortraitAsync(root, "nora", "Nora");
-        var leon = await PortraitAsync(root, "leon", "Léon");
         var settings = (await root.GetFromJsonAsync<TeamSettingsDto>(TeamProtocol.Settings, Ct))!;
-        await root.PutAsJsonAsync(TeamProtocol.Settings,
-            settings with { LeaderName = "Léon", LeaderPortraitId = leon.Id, DefaultTeam = [new("analyste", ines.Id, "Inès")] }, Ct);
+        await root.PutAsJsonAsync(TeamProtocol.Settings, settings with { DefaultTeam = [new("analyste", ines.Id, "Inès", Leader: true)] }, Ct);
 
         var alice = As(api, "alice");
         var project = (await (await alice.PostAsJsonAsync(ProjectsProtocol.Path, new CreateProjectRequest("Orders", null, ProjectVisibility.Shared), Ct))
             .Content.ReadFromJsonAsync<ProjectDto>(Ct))!;
 
         var team = (await alice.GetFromJsonAsync<ProjectTeamDto>(TeamProtocol.ProjectTeam(project.Id), Ct))!;
-        Assert.Equal(("Inès", "analyste", "Léon", true), (Assert.Single(team.Colleagues).Name, team.Colleagues[0].Role, team.LeaderName, team.CanRecruit));
+        Assert.Equal(("Inès", "analyste", true, true), (Assert.Single(team.Colleagues).Name, team.Colleagues[0].Role, team.Colleagues[0].Leader, team.CanRecruit));
         Assert.Equal("Je lis {fichier}.", team.Lines["outil:read_file"]);
 
         var hired = await alice.PostAsJsonAsync(TeamProtocol.ProjectColleagues(project.Id), new RecruitRequest("analyste", nora.Id, "Nora", ["rigueur"]), Ct);
@@ -148,6 +146,37 @@ public sealed class TeamTests
         Assert.Contains("role", problem);
         Assert.Contains("traits", problem);
         Assert.Contains("name", problem);
+    }
+
+    [Fact]
+    public async Task The_leader_is_chosen_when_recruiting_and_there_is_only_one_per_project()
+    {
+        await using var api = new ApiFactory();
+        var root = As(api, "root", instanceAdmin: true);
+        var ines = await PortraitAsync(root, "ines", "Inès");
+        var settings = (await root.GetFromJsonAsync<TeamSettingsDto>(TeamProtocol.Settings, Ct))!;
+        await root.PutAsJsonAsync(TeamProtocol.Settings, settings with { DefaultTeam = [new("analyste", ines.Id, "Inès", Leader: true)] }, Ct);
+        // Deux chefs dans l'équipe de départ : refusé.
+        var twoLeaders = await root.PutAsJsonAsync(TeamProtocol.Settings,
+            settings with { DefaultTeam = [new("analyste", ines.Id, "Inès", true), new("redacteur", ines.Id, "Malik", true)] }, Ct);
+        Assert.Equal(HttpStatusCode.BadRequest, twoLeaders.StatusCode);
+
+        var alice = As(api, "alice");
+        var project = (await (await alice.PostAsJsonAsync(ProjectsProtocol.Path, new CreateProjectRequest("Orders"), Ct))
+            .Content.ReadFromJsonAsync<ProjectDto>(Ct))!;
+        await alice.GetAsync(TeamProtocol.ProjectTeam(project.Id), Ct);
+
+        // Malik, recruté comme chef : Inès garde son siège, sans le titre.
+        var hired = await alice.PostAsJsonAsync(TeamProtocol.ProjectColleagues(project.Id), new RecruitRequest("redacteur", ines.Id, "Malik", [], Leader: true), Ct);
+        Assert.Equal(HttpStatusCode.Created, hired.StatusCode);
+        var team = (await alice.GetFromJsonAsync<ProjectTeamDto>(TeamProtocol.ProjectTeam(project.Id), Ct))!;
+        Assert.Equal(["Malik"], team.Colleagues.Where(c => c.Leader).Select(c => c.Name));
+        Assert.Equal(2, team.Colleagues.Count);
+
+        // Remplacer le chef sans cocher la case : le projet n'a plus de chef.
+        await alice.PostAsJsonAsync(TeamProtocol.ProjectColleagues(project.Id), new RecruitRequest("redacteur", ines.Id, "Nora", []), Ct);
+        team = (await alice.GetFromJsonAsync<ProjectTeamDto>(TeamProtocol.ProjectTeam(project.Id), Ct))!;
+        Assert.DoesNotContain(team.Colleagues, c => c.Leader);
     }
 
     [Fact]
@@ -175,7 +204,7 @@ public sealed class TeamTests
     }
 
     [Fact]
-    public async Task The_gallery_folder_is_imported_with_its_leader_and_default_team()
+    public async Task The_gallery_folder_is_imported_with_its_default_team_and_leader()
     {
         await using var api = new ApiFactory();
         var folder = Directory.CreateTempSubdirectory("galerie").FullName;
@@ -184,8 +213,8 @@ public sealed class TeamTests
         await File.WriteAllBytesAsync(Path.Combine(folder, "leon.webp"), Webp, Ct);
         await File.WriteAllTextAsync(Path.Combine(folder, "portraits.json"), """
             { "portraits": [ { "slug": "ines", "name": "Inès" }, { "slug": "leon", "name": "Léon" } ],
-              "leader": { "slug": "leon", "name": "Léon" }, "manager": "ines",
-              "defaultTeam": [ { "role": "analyste", "slug": "ines", "name": "Inès" } ] }
+              "manager": "ines",
+              "defaultTeam": [ { "role": "analyste", "slug": "ines", "name": "Inès", "leader": true } ] }
             """, Ct);
 
         await using (var scope = api.Services.CreateAsyncScope())
@@ -197,8 +226,8 @@ public sealed class TeamTests
         Assert.Equal(["ines", "leon"], portraits.Select(p => p.Slug));
         Assert.False(portraits.Single(p => p.Slug == "leon").HasTalk);
         var settings = (await root.GetFromJsonAsync<TeamSettingsDto>(TeamProtocol.Settings, Ct))!;
-        Assert.Equal(("Léon", "Inès"), (settings.LeaderName, Assert.Single(settings.DefaultTeam).Name));
-        Assert.Equal(portraits.Single(p => p.Slug == "leon").Id, settings.LeaderPortraitId);
+        Assert.Equal(("Inès", true), (Assert.Single(settings.DefaultTeam).Name, settings.DefaultTeam[0].Leader));
+        Assert.Equal(portraits.Single(p => p.Slug == "ines").Id, settings.ManagerPortraitId);
     }
 
     [Fact]

@@ -32,18 +32,35 @@ public sealed partial class OfficeView : UserControl
         base.OnAttachedToVisualTree(e);
         _elapsed.Restart();
         _clock.Start();
-        if (DataContext is OfficeViewModel office && this.FindControl<ScrollViewer>("FeedScroll") is { } scroll)
-            // Chaque nouvelle réplique : le fil descend jusqu'à elle.
-            office.Feed.CollectionChanged += (_, args) =>
-            {
-                if (args.Action == NotifyCollectionChangedAction.Add)
-                    Dispatcher.UIThread.Post(scroll.ScrollToEnd, DispatcherPriority.Background);
-            };
+        if (DataContext is OfficeViewModel office)
+        {
+            office.Conversation.CollectionChanged += ConversationChanged;
+            office.PropertyChanged += OfficeChanged;
+        }
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _clock.Stop();
+        if (DataContext is OfficeViewModel office)
+        {
+            office.Conversation.CollectionChanged -= ConversationChanged;
+            office.PropertyChanged -= OfficeChanged;
+        }
         base.OnDetachedFromVisualTree(e);
     }
+    private void ConversationChanged(object? sender, NotifyCollectionChangedEventArgs e) => ScrollConversation();
+
+    private void OfficeChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(OfficeViewModel.LiveText))
+            ScrollConversation();
+    }
+
+    private void ScrollConversation()
+    {
+        if (this.FindControl<ScrollViewer>("FeedScroll") is { } scroll)
+            Dispatcher.UIThread.Post(scroll.ScrollToEnd, DispatcherPriority.Background);
+    }
+
 }

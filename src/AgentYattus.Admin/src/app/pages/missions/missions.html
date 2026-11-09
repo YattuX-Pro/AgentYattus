@@ -53,7 +53,7 @@
             <td hlmTd class="max-w-[420px] truncate">{{ m.goal }}</td>
             <td hlmTd class="text-muted-foreground">{{ m.projectName ?? '—' }}</td>
             <td hlmTd class="text-muted-foreground">{{ m.createdBy ?? '—' }}</td>
-            <td hlmTd>{{ m.kind === 'Review' ? 'Revue' : 'Question' }}</td>
+            <td hlmTd>{{ kindLabel(m.kind) }}</td>
             <td hlmTd><span hlmBadge [variant]="STATUS[m.status].tone">{{ STATUS[m.status].label }}</span></td>
             <td hlmTd class="num text-right">{{ tokens((m.inputTokens ?? 0) + (m.outputTokens ?? 0)) }}</td>
             <td hlmTd class="num text-right">{{ usd(m.cost) }}</td>
@@ -79,7 +79,7 @@
     @if (selected(); as m) {
       <hlm-sheet-header class="border-b p-4">
         <div class="text-muted-foreground font-mono text-xs">
-          {{ m.id.slice(0, 8) }} · {{ m.kind === 'Review' ? 'Revue' : 'Question' }} · {{ when(m.createdAt) }} · {{ m.projectName ?? 'sans projet' }} · {{ m.createdBy ?? '—' }}
+          {{ m.id.slice(0, 8) }} · {{ kindLabel(m.kind) }} · {{ when(m.createdAt) }} · {{ m.projectName ?? 'sans projet' }} · {{ m.createdBy ?? '—' }}
           @if (m.retryOf) { · relance de {{ m.retryOf.slice(0, 8) }} }
         </div>
         <h3 hlmSheetTitle class="pr-6 text-[15px] leading-snug">{{ m.goal }}</h3>

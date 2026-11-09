@@ -9,6 +9,8 @@ internal sealed class Portrait
     public required string Slug { get; set; }
     public required string SuggestedName { get; set; }
     public bool Active { get; set; } = true;
+    public double MouthX { get; set; } = 0.56;
+    public double MouthY { get; set; } = 0.37;
     public required byte[] Work { get; set; }
     public required string WorkType { get; set; }
     public byte[]? Talk { get; set; }
@@ -21,6 +23,7 @@ internal sealed class Portrait
 /// <summary>Un collègue d'un projet : un siège par rôle. Remplacé, il reste dans l'historique (Active = false).</summary>
 internal sealed class Colleague
 {
+    public Guid? RecruitmentSource { get; set; }
     public Guid Id { get; set; }
     public Guid ProjectId { get; set; }
     public required string Role { get; set; }
@@ -34,6 +37,10 @@ internal sealed class Colleague
     public string Skills { get; set; } = "";
 
     public bool Active { get; set; } = true;
+
+    /// <summary>Le chef d'équipe (leçon 129) : on s'adresse à lui par défaut. Un seul par projet, choisi au recrutement.</summary>
+    public bool Leader { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
     public required string CreatedBy { get; set; }
     public DateTimeOffset? RemovedAt { get; set; }
@@ -66,11 +73,9 @@ internal sealed class TeamSettingsRow
     public const int SingletonId = 1;
 
     public int Id { get; set; }
-    public Guid? LeaderPortraitId { get; set; }
-    public string? LeaderName { get; set; }
     public Guid? ManagerPortraitId { get; set; }
 
-    /// <summary>L'équipe de départ, en JSON : [{ role, portraitId, name }].</summary>
+    /// <summary>L'équipe de départ, en JSON : [{ role, portraitId, name, leader }].</summary>
     public string? DefaultTeam { get; set; }
 
     public int? TypingMs { get; set; }
@@ -94,6 +99,8 @@ internal sealed class TeamDb(DbContextOptions<TeamDb> options) : DbContext(optio
         modelBuilder.HasDefaultSchema(Schema);
         modelBuilder.Entity<Portrait>(e =>
         {
+            e.Property(p => p.MouthX).HasDefaultValue(0.56);
+            e.Property(p => p.MouthY).HasDefaultValue(0.37);
             e.Property(p => p.Slug).HasMaxLength(40);
             e.Property(p => p.SuggestedName).HasMaxLength(24);
             e.Property(p => p.WorkType).HasMaxLength(20);
@@ -103,6 +110,7 @@ internal sealed class TeamDb(DbContextOptions<TeamDb> options) : DbContext(optio
         });
         modelBuilder.Entity<Colleague>(e =>
         {
+            e.HasIndex(c => c.RecruitmentSource).IsUnique();
             e.Property(c => c.Role).HasMaxLength(40);
             e.Property(c => c.Name).HasMaxLength(24);
             e.Property(c => c.Traits).HasMaxLength(200);
@@ -112,6 +120,8 @@ internal sealed class TeamDb(DbContextOptions<TeamDb> options) : DbContext(optio
             e.HasIndex(c => c.ProjectId, "IX_Colleagues_ProjectId");
             // Un seul collègue actif par rôle et par projet : deux recrutements simultanés ne créent pas deux sièges.
             e.HasIndex(c => new { c.ProjectId, c.Role }, "IX_Colleagues_Seat").IsUnique().HasFilter("\"Active\"");
+            // Un seul chef d'équipe actif par projet : la base le garantit, même si deux recrutements se croisent.
+            e.HasIndex(c => c.ProjectId, "IX_Colleagues_Leader").IsUnique().HasFilter("\"Active\" AND \"Leader\"");
         });
         modelBuilder.Entity<Trait>(e =>
         {
@@ -132,7 +142,6 @@ internal sealed class TeamDb(DbContextOptions<TeamDb> options) : DbContext(optio
             // « TeamSettings » et non « Instance » : SQLite (tests) ignore les schémas, et Settings a déjà une table Instance.
             e.ToTable("TeamSettings");
             e.Property(s => s.Id).ValueGeneratedNever();
-            e.Property(s => s.LeaderName).HasMaxLength(24);
             e.Property(s => s.DefaultTeam).HasMaxLength(4000);
             e.Property(s => s.UpdatedBy).HasMaxLength(100);
         });

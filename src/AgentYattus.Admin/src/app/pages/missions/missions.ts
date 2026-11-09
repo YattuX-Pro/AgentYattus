@@ -15,7 +15,7 @@ import { STATUS, argumentsOf, describe, timeline } from '../../core/events';
 import { LiveService } from '../../core/live';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { debounceTime } from 'rxjs';
-import { tokens, usd, when } from '../../core/format';
+import { tokens, usd, kindLabel, when } from '../../core/format';
 import { PageHeader } from '../../shell/page-header';
 import { FILTERS, MissionFilter, countBy, filterMissions } from './filter';
 
@@ -63,6 +63,7 @@ export class Missions {
   protected readonly describe = describe;
   protected readonly argumentsOf = argumentsOf;
   protected readonly when = when;
+  protected readonly kindLabel = kindLabel;
   protected readonly usd = usd;
   protected readonly tokens = tokens;
 

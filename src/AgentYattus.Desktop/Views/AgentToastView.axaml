@@ -1,0 +1,16 @@
+<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="using:AgentYattus.Client.Core" xmlns:views="using:AgentYattus.Desktop.Views"
+             xmlns:conv="using:AgentYattus.Desktop.Converters" x:Class="AgentYattus.Desktop.Views.AgentToastView"
+             x:DataType="core:ConversationInbox" IsVisible="{Binding Toast, Converter={x:Static ObjectConverters.IsNotNull}}"
+             AutomationProperties.Name="Nouvelle réponse d’un agent">
+  <Grid ColumnDefinitions="96,*" MaxWidth="430">
+    <Panel Width="100" Height="110" VerticalAlignment="Top">
+      <Image Source="{Binding Toast.Avatar, Converter={x:Static conv:BytesToBitmapConverter.Instance}}" Stretch="Uniform" VerticalAlignment="Top" />
+      <views:Avatar IsVisible="{Binding Toast.Avatar, Converter={x:Static ObjectConverters.IsNull}}" Label="{Binding Toast.Name}" Size="68" RingWidth="0" VerticalAlignment="Top" Margin="8,0,0,0" />
+    </Panel>
+    <Border Grid.Column="1" Background="#222B2C" CornerRadius="26,30,26,20" Padding="18,12" BoxShadow="0 6 18 0 #50000000">
+      <StackPanel Spacing="5"><Grid ColumnDefinitions="*,Auto"><TextBlock Text="{Binding Toast.Name}" Foreground="{StaticResource Parchemin}" FontWeight="SemiBold" VerticalAlignment="Center" /><Button Grid.Column="1" Classes="bare" Content="×" Command="{Binding DismissToastCommand}" Width="28" Height="28" AutomationProperties.Name="Fermer la notification sans lire la réponse" /></Grid><TextBlock Text="{Binding Toast.Text}" TextWrapping="Wrap" Foreground="{StaticResource Parchemin}" FontSize="14" /><TextBlock Text="{Binding Toast.Project}" FontSize="11" Foreground="{StaticResource Pierre}" /><Button Classes="link" Content="{Binding Toast.Action}" Command="{Binding OpenToastCommand}" HorizontalAlignment="Left" /></StackPanel>
+    </Border>
+    <Polygon x:Name="SpeechTail" Points="58,38 97,30 97,48" Fill="#222B2C" IsHitTestVisible="False" VerticalAlignment="Top" />
+  </Grid>
+</UserControl>

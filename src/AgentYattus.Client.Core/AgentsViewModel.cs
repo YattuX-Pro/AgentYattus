@@ -37,7 +37,12 @@ public sealed partial class AgentCard(AgentDto agent) : ObservableObject
     public partial bool IsSelected { get; set; }
 
     /// <summary>Le collègue qui occupe ce poste dans le projet ; null : siège libre.</summary>
-    public ColleagueDto? Colleague { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLeader))]
+    public partial ColleagueDto? Colleague { get; set; }
+
+    /// <summary>Le chef d'équipe du projet (leçon 129) : on s'adresse à lui par défaut.</summary>
+    public bool IsLeader => Colleague?.Leader == true;
 
     /// <summary>Ses traits, en mots : « Rigoureuse », « Pédagogue ».</summary>
     [ObservableProperty]

@@ -1,0 +1,48 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="using:AgentYattus.Client.Core"
+        x:Class="AgentYattus.Desktop.BackendSelectionWindow"
+        x:DataType="core:BackendSelectionViewModel"
+        Title="Agent Yattus · Choisir mes données" Width="700" Height="740" MinWidth="600" MinHeight="640"
+        Background="{StaticResource Obsidienne}" Foreground="{StaticResource Parchemin}"
+        FontFamily="{StaticResource Sans}" WindowStartupLocation="CenterScreen">
+  <Grid RowDefinitions="*,Auto">
+  <ScrollViewer Grid.Row="0">
+    <StackPanel Margin="40" Spacing="20">
+      <TextBlock Text="Où sont vos données ?" FontSize="28" FontWeight="SemiBold" />
+      <TextBlock Text="Choisissez la base à ouvrir. Le dernier choix est mémorisé ; aucune donnée n'est déplacée entre les deux modes."
+                 TextWrapping="Wrap" Foreground="{StaticResource Pierre}" />
+      <Border Padding="20" CornerRadius="12" BorderBrush="{StaticResource Filet}" BorderThickness="1">
+        <StackPanel Spacing="10">
+          <RadioButton GroupName="backend" IsChecked="{Binding IsLocal, Mode=TwoWay}" Content="Sur cet ordinateur" />
+          <TextBlock Text="Vos projets, collègues et missions restent dans la base locale du Mac ou du PC."
+                     TextWrapping="Wrap" Foreground="{StaticResource Pierre}" />
+          <TextBlock Text="{Binding LocalDatabase}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Pierre}" />
+        </StackPanel>
+      </Border>
+      <Border Padding="20" CornerRadius="12" BorderBrush="{StaticResource Filet}" BorderThickness="1">
+        <StackPanel Spacing="10">
+          <RadioButton GroupName="backend" IsChecked="{Binding IsServer, Mode=TwoWay}" Content="Sur un serveur" />
+          <TextBlock Text="Les données appartiennent au serveur choisi et au compte avec lequel vous vous connectez."
+                     TextWrapping="Wrap" Foreground="{StaticResource Pierre}" />
+          <StackPanel Spacing="8" IsVisible="{Binding IsServer}">
+            <TextBlock Text="Adresse du logiciel sur le serveur" />
+            <TextBox Text="{Binding ApiUrl, Mode=TwoWay}" PlaceholderText="https://mon-serveur/" />
+            <TextBlock Text="Adresse du service de connexion" />
+            <TextBox Text="{Binding Authority, Mode=TwoWay}" />
+            <TextBlock Text="Adresse de l'administration" />
+            <TextBox Text="{Binding AdminUrl, Mode=TwoWay}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+      <TextBlock Text="Si une base semble vide, vérifiez le mode et le compte choisis. Une connexion indisponible ne provoque jamais de bascule automatique."
+                 TextWrapping="Wrap" Foreground="{StaticResource Pierre}" FontSize="12" />
+
+    </StackPanel>
+  </ScrollViewer>
+    <StackPanel Grid.Row="1" Margin="40,0,40,28" Spacing="10">
+      <TextBlock Text="{Binding Error}" TextWrapping="Wrap" Foreground="{StaticResource Cinabre}" />
+      <Button Classes="primary" Content="Ouvrir cette base" Command="{Binding ContinueCommand}" HorizontalAlignment="Stretch" />
+    </StackPanel>
+  </Grid>
+</Window>

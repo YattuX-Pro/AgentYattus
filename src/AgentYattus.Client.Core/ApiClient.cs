@@ -23,15 +23,51 @@ public sealed class ApiClient(HttpClient http)
     /// <param name="agent">L'agent qui fait une mission Question (ADR 0013) ; null : l'Analyste.</param>
     public async Task<MissionDto> CreateMissionAsync(
         string goal, CancellationToken cancellationToken = default, MissionKind kind = MissionKind.Question, Guid? projectId = null,
-        string? agent = null)
+        string? agent = null, bool onBranch = false, IReadOnlyList<string>? skills = null)
     {
-        using var response = await http.PostAsJsonAsync("missions", new CreateMissionRequest(goal, kind, projectId, agent), cancellationToken);
-        response.EnsureSuccessStatusCode();
+        using var response = await http.PostAsJsonAsync("missions", new CreateMissionRequest(goal, kind, projectId, agent, onBranch, skills), cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
         return (await response.Content.ReadFromJsonAsync<MissionDto>(cancellationToken))!;
     }
 
-    public async Task<IReadOnlyList<MissionDto>> ListMissionsAsync(int limit = 50, CancellationToken cancellationToken = default) =>
-        await http.GetFromJsonAsync<MissionDto[]>($"missions?limit={limit}", cancellationToken) ?? [];
+    public async Task<IReadOnlyList<MissionDto>> ListMissionsAsync(int limit = 50, CancellationToken cancellationToken = default, Guid? projectId = null, Guid? before = null) =>
+        await http.GetFromJsonAsync<MissionDto[]>($"missions?limit={limit}" + (projectId is { } project ? $"&projectId={project}" : "") + (before is { } cursor ? $"&before={cursor}" : ""), cancellationToken) ?? [];
+
+    public async Task<IReadOnlyList<ProjectGroupMessageDto>> GetGroupMessagesAsync(Guid project, int limit = 100, CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<ProjectGroupMessageDto[]>($"projects/{project}/group-messages?limit={limit}", ct) ?? [];
+
+    public async Task AcceptResultAsync(Guid mission, long turnId, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"missions/{mission}/accept-result", new AcceptResultRequest(turnId), ct);
+        await EnsureOkAsync(response, ct);
+    }
+
+    public async Task<IReadOnlyList<ConversationNoticeDto>> GetNoticesAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<ConversationNoticeDto[]>("conversations/notifications", ct) ?? [];
+
+    public async Task ReadNoticeAsync(Guid id, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsync($"conversations/notifications/{id}/read", null, ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<string> GetContactDraftAsync(Guid project, string contact, CancellationToken ct = default) =>
+        (await http.GetFromJsonAsync<ConversationDraftDto>($"projects/{project}/conversation-drafts/{Uri.EscapeDataString(contact)}", ct))?.Text ?? "";
+
+    public async Task SaveContactDraftAsync(Guid project, string contact, string text, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"projects/{project}/conversation-drafts/{Uri.EscapeDataString(contact)}", new ConversationDraftDto(text), ct);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<string> GetConversationDraftAsync(Guid mission, CancellationToken ct = default) =>
+        (await http.GetFromJsonAsync<ConversationDraftDto>($"missions/{mission}/draft", ct))?.Text ?? "";
+
+    public async Task SaveConversationDraftAsync(Guid mission, string text, CancellationToken ct = default)
+    {
+        using var response = await http.PutAsJsonAsync($"missions/{mission}/draft", new ConversationDraftDto(text), ct);
+        response.EnsureSuccessStatusCode();
+    }
 
     public async Task<IReadOnlyList<AuditEntryDto>> GetEventsAsync(Guid missionId, CancellationToken cancellationToken = default) =>
         await http.GetFromJsonAsync<AuditEntryDto[]>($"missions/{missionId}/events", cancellationToken) ?? [];
@@ -154,6 +190,12 @@ public sealed class ApiClient(HttpClient http)
         return await ErrorOrNullAsync(response, cancellationToken);
     }
 
+    public async Task<string?> UpdateMyFreeModeAsync(bool enabled, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PutAsJsonAsync(LlmProtocol.MineFree.TrimStart('/'), new UpdateMyFreeModeRequest(enabled), cancellationToken);
+        return await ErrorOrNullAsync(response, cancellationToken);
+    }
+
     public async Task<string?> UpdateFreeModeAsync(UpdateFreeModeRequest request, CancellationToken cancellationToken = default)
     {
         using var response = await http.PutAsJsonAsync(LlmProtocol.Free.TrimStart('/'), request, cancellationToken);
@@ -163,6 +205,34 @@ public sealed class ApiClient(HttpClient http)
     public async Task<string?> UpdateLlmSettingsAsync(UpdateLlmSettingsRequest request, CancellationToken cancellationToken = default)
     {
         using var response = await http.PutAsJsonAsync(LlmProtocol.Settings.TrimStart('/'), request, cancellationToken);
+        return await ErrorOrNullAsync(response, cancellationToken);
+    }
+
+    // ── Mes clés (leçon 134) : pour tout utilisateur ; elles ne servent qu'à ses missions ──
+
+    public async Task<MyLlmDto> GetMyLlmAsync(CancellationToken cancellationToken = default) =>
+        (await http.GetFromJsonAsync<MyLlmDto>(LlmProtocol.Mine.TrimStart('/'), cancellationToken))!;
+
+    public async Task<LlmModelsDto> GetMyLlmModelsAsync(CancellationToken cancellationToken = default) =>
+        (await http.GetFromJsonAsync<LlmModelsDto>(LlmProtocol.MineModels.TrimStart('/'), cancellationToken))!;
+
+    /// <returns>Null si tout va bien, sinon le message d'erreur renvoyé par l'API.</returns>
+    public async Task<string?> ConnectMyLlmAsync(AddLlmConnectionRequest request, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync(LlmProtocol.MineConnections.TrimStart('/'), request, cancellationToken);
+        return await ErrorOrNullAsync(response, cancellationToken);
+    }
+
+    public async Task RevokeMyLlmConnectionAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.DeleteAsync($"{LlmProtocol.MineConnections.TrimStart('/')}/{id}", cancellationToken);
+        response.EnsureSuccessStatusCode();
+    }
+
+    /// <param name="selection">Null : mes missions reprennent le modèle de l'instance.</param>
+    public async Task<string?> UpdateMyDefaultAsync(LlmSelectionDto? selection, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PutAsJsonAsync(LlmProtocol.MineDefault.TrimStart('/'), new UpdateMyDefaultRequest(selection), cancellationToken);
         return await ErrorOrNullAsync(response, cancellationToken);
     }
 
@@ -192,6 +262,26 @@ public sealed class ApiClient(HttpClient http)
     /// <summary>Par compétence : missions qui l'ont chargée, et combien ont abouti (leçon 107).</summary>
     public async Task<IReadOnlyList<SkillPerformanceDto>> GetSkillPerformanceAsync(CancellationToken cancellationToken = default) =>
         await http.GetFromJsonAsync<SkillPerformanceDto[]>(SkillsProtocol.Performance.TrimStart('/'), cancellationToken) ?? [];
+
+    /// <summary>Importer le texte d'un SKILL.md (leçon 132) : il arrive en brouillon, avec ce qui mérite une relecture.</summary>
+    public async Task<SkillImportDto> ImportSkillAsync(string content, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsJsonAsync(SkillsProtocol.Import.TrimStart('/'), new ImportSkillRequest(content), cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
+        return (await response.Content.ReadFromJsonAsync<SkillImportDto>(cancellationToken))!;
+    }
+
+    public async Task SetSkillStatusAsync(string key, SkillStatus status, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PutAsJsonAsync(SkillsProtocol.Status(key).TrimStart('/'), new UpdateSkillStatusRequest(status), cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
+    }
+
+    public async Task DeleteSkillAsync(string key, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.DeleteAsync(SkillsProtocol.Skill(key).TrimStart('/'), cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
+    }
 
     public async Task<SkillDto> CreateSkillAsync(CreateSkillRequest request, CancellationToken cancellationToken = default)
     {
@@ -226,6 +316,12 @@ public sealed class ApiClient(HttpClient http)
     public async Task ReplyAsync(Guid mission, string text, CancellationToken cancellationToken = default)
     {
         using var response = await http.PostAsJsonAsync($"missions/{mission}/messages", new ReplyRequest(text), cancellationToken);
+        await EnsureOkAsync(response, cancellationToken);
+    }
+
+    public async Task StopMissionAsync(Guid mission, CancellationToken cancellationToken = default)
+    {
+        using var response = await http.PostAsync($"missions/{mission}/cancel", null, cancellationToken);
         await EnsureOkAsync(response, cancellationToken);
     }
 

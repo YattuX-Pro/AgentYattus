@@ -15,6 +15,10 @@ public sealed record ReportMessage(string Name, byte[]? Avatar, string What, str
 /// <summary>L'écran Rapports : les missions terminées, racontées comme une conversation, et ce qui a été exécuté.</summary>
 public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
 {
+    public event Action<MissionItem>? ConversationRequested;
+    [RelayCommand]
+    private void OpenConversation() { if (Selected is { } selected) ConversationRequested?.Invoke(selected); }
+
     public ObservableCollection<MissionItem> Reports { get; } = [];
 
     /// <summary>Le rapport choisi, en bulles : votre demande, puis la réponse de l'agent.</summary>
@@ -48,7 +52,8 @@ public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
 
     /// <summary>Sous le titre : « Aujourd’hui, 10:42 · Orders.Api ».</summary>
     public string? Subtitle => Selected is null ? null
-        : Selected.ProjectId is { } id && _projects.TryGetValue(id, out var name) ? $"{Selected.When} · {name}" : Selected.When;
+        : (Selected.ProjectId is { } id && _projects.TryGetValue(id, out var name) ? $"{Selected.When} · {name}" : Selected.When)
+          + (Selected.Branch is { } branch ? $" · branche {branch}" : "");
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
@@ -126,9 +131,11 @@ public sealed partial class ReportsViewModel(ApiClient api) : ObservableObject
             for (var i = 0; i < turns.Count; i++)
             {
                 var turn = turns[i];
+                var historical = await api.Faces.HistoricalAsync(turn.Author);
+                if (Selected?.Id != report.Id) return;
                 Thread.Add(turn.FromUser
                     ? new ReportMessage("Vous", _me?.Talk ?? _me?.Work, "avez répondu", turn.Text, true, null)
-                    : new ReportMessage(author?.Name ?? "L'agent", author?.Talk ?? author?.Work, "a répondu", turn.Text, false,
+                    : new ReportMessage(historical?.Name ?? "Agent · identité historique non disponible", historical?.Talk ?? historical?.Work, "a répondu", turn.Text, false,
                         !answered && report.IsReview ? "REPORT.md" : null, Last: i == lastAnswer));
                 answered |= !turn.FromUser;
             }

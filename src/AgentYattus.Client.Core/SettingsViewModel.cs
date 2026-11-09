@@ -36,9 +36,31 @@ public sealed record AgentModelRow(string Key, string Name, string Model, ModelI
 /// Paramètres › Modèles, à la manière d'opencode : connecter des fournisseurs (clé d'API, serveur local, adresse
 /// compatible OpenAI), puis choisir un modèle dans un sélecteur unique, avec recherche.
 /// </summary>
-public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
+/// <param name="personal">
+/// Mes clés (leçon 134) : les clés de la personne connectée, qui ne servent qu'à ses missions. Fournisseurs en ligne seulement ;
+/// Mode Gratuit personnel automatique. Faux : l'instance (mode local, ADR 0014).
+/// </param>
+public sealed partial class SettingsViewModel(ApiClient api, bool personal = false) : ObservableObject
 {
     private readonly List<ModelItem> _allModels = [];
+
+    public bool IsPersonal { get; } = personal;
+
+    /// <summary>Les réglages communs (mode Gratuit, modèle par agent) : seulement pour l'instance.</summary>
+    public bool IsInstance => !IsPersonal;
+
+    public string Heading => IsPersonal ? "Mes clés" : "Modèles et clés";
+
+    public string FreeModeDescription => IsPersonal
+        ? "Utilise automatiquement les modèles gratuits de vos fournisseurs connectés. Quota épuisé ? On passe au suivant, jamais à un modèle payant. Vous pouvez connecter plusieurs fournisseurs ci-dessous."
+        : "Tous les agents utilisent les modèles gratuits des fournisseurs connectés. Quota épuisé ? On passe au suivant, jamais à un modèle payant.";
+
+    public string Intro => IsPersonal
+        ? "Vos clés servent à vos missions seulement : personne d'autre ne les voit ni ne les utilise, et elles ne comptent pas dans le budget de l'instance. Sans clé à vous, vos missions utilisent les modèles de l'instance."
+        : "Les fournisseurs et le modèle par défaut de cette installation.";
+
+    /// <summary>Mes missions ont un modèle à moi : on peut revenir à celui de l'instance.</summary>
+    public bool CanUseInstanceModel => IsPersonal && Default is not null;
 
     public ObservableCollection<LlmProviderDto> Providers { get; } = [];
     public ObservableCollection<LlmProviderDto> FilteredProviders { get; } = [];
@@ -49,8 +71,9 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     /// <summary>La chaîne gratuite, dans l'ordre où les modèles sont essayés.</summary>
     public ObservableCollection<ModelItem> FreeChain { get; } = [];
 
-    /// <summary>Mode Gratuit : les agents sans modèle propre passent par la chaîne, avec bascule automatique.</summary>
+    /// <summary>Mode Gratuit : tous les agents passent par la chaîne, avec bascule automatique.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DefaultLabel))]
     public partial bool FreeMode { get; set; }
 
     /// <summary>Le sélecteur ne montre que les modèles gratuits (pour la chaîne).</summary>
@@ -62,10 +85,17 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
 
     /// <summary>Le modèle par défaut ; null si aucun n'est choisi.</summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUseInstanceModel))]
     public partial LlmSelectionDto? Default { get; set; }
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(DefaultLabel))]
     public partial ModelItem? DefaultModel { get; set; }
+
+    /// <summary>Le nom du modèle par défaut ; sans modèle à soi, ses missions prennent celui de l'instance.</summary>
+    public string DefaultLabel => FreeMode ? "Sélection automatique · modèles gratuits" : DefaultModel?.Model.Name ?? (IsPersonal ? "Celui de l'instance" : "Aucun modèle");
+
+    public string DefaultEyebrow => IsPersonal ? "MON MODÈLE PAR DÉFAUT" : "MODÈLE PAR DÉFAUT";
 
     // Le sélecteur de modèles.
     [ObservableProperty]
@@ -116,6 +146,11 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
 
     public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
+        if (IsPersonal)
+        {
+            await LoadMineAsync(cancellationToken);
+            return;
+        }
         try
         {
             var status = await api.GetLlmStatusAsync(cancellationToken);
@@ -152,6 +187,50 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
         }
     }
 
+    private async Task LoadMineAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var mine = await api.GetMyLlmAsync(cancellationToken);
+            var models = await api.GetMyLlmModelsAsync(cancellationToken);
+            Replace(Providers, mine.Providers);
+            Replace(Connections, mine.Connections);
+            var names = mine.Connections.ToDictionary(c => c.Id, c => c.ProviderName);
+            Default = mine.Default;
+            _allModels.Clear();
+            _allModels.AddRange(models.Models.Select(m => new ModelItem(m, names.GetValueOrDefault(m.ConnectionId, m.Provider),
+                IsDefault: m.ConnectionId == Default?.ConnectionId && m.Id == Default?.Model)));
+            DefaultModel = _allModels.FirstOrDefault(m => m.IsDefault);
+            _loadingFree = true;
+            FreeMode = mine.FreeMode;
+            _loadingFree = false;
+            var groups = _allModels.Where(m => m.Model.Free).GroupBy(m => m.Model.ConnectionId).OrderBy(g => g.Key).Select(g => g.ToList()).ToList();
+            Replace(FreeChain, Enumerable.Range(0, groups.Count == 0 ? 0 : groups.Max(g => g.Count))
+                .SelectMany(i => groups.Where(g => g.Count > i).Select(g => g[i])).Take(10));
+            Agents.Clear();
+            FilterModels();
+            FilterProviders();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException
+                                   || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            Error = ex.Message;
+        }
+    }
+
+    /// <summary>Mes missions reprennent le modèle de l'instance ; mes clés restent connectées.</summary>
+    [RelayCommand]
+    private Task UseInstanceModelAsync() => RunAsync(async () =>
+    {
+        if (await api.UpdateMyDefaultAsync(null) is { } error)
+            Error = error;
+        else
+        {
+            await LoadAsync();
+            Info = "Vos missions utilisent de nouveau le modèle de l'instance.";
+        }
+    });
+
     partial void OnModelQueryChanged(string value) => FilterModels();
 
     partial void OnPickerFreeOnlyChanged(bool value) => FilterModels();
@@ -166,7 +245,7 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     partial void OnFreeModeChanged(bool value)
     {
         if (!_loadingFree)
-            _ = SaveFreeAsync(value, FreeChain, value ? "Mode Gratuit activé : les agents sans modèle propre passent par la chaîne." : "Mode Gratuit désactivé.");
+            _ = SaveFreeAsync(value, FreeChain, value ? "Mode Gratuit activé : tous les agents utilisent les modèles gratuits avec bascule automatique." : "Mode Gratuit désactivé.");
     }
 
     [RelayCommand]
@@ -202,7 +281,7 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
     private Task SaveFreeAsync(bool enabled, IEnumerable<ModelItem> chain, string done) => RunAsync(async () =>
     {
         var request = new UpdateFreeModeRequest(enabled, [.. chain.Select(m => new LlmSelectionDto(m.Model.ConnectionId, m.Model.Id))]);
-        if (await api.UpdateFreeModeAsync(request) is { } error)
+        if (await (IsPersonal ? api.UpdateMyFreeModeAsync(enabled) : api.UpdateFreeModeAsync(request)) is { } error)
         {
             Error = error;
             await LoadAsync();
@@ -258,7 +337,8 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
         IsPickerOpen = false;
         var selection = new LlmSelectionDto(item.Model.ConnectionId, item.Model.Id);
         var role = Agents.FirstOrDefault(a => a.Key == _pickerRole);
-        var error = role is null
+        var error = IsPersonal ? await api.UpdateMyDefaultAsync(selection)
+            : role is null
             ? await api.UpdateLlmSettingsAsync(new UpdateLlmSettingsRequest(selection))
             : await api.SetAgentModelAsync(role.Key, selection);
         if (error is not null)
@@ -266,7 +346,8 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
         else
         {
             await LoadAsync();
-            Info = role is null
+            Info = IsPersonal ? $"Vos missions utiliseront {item.Model.Name}, avec votre clé."
+                : role is null
                 ? $"{item.Model.Name} sera utilisé à la prochaine mission."
                 : $"{role.Name} utilisera {item.Model.Name}.";
         }
@@ -316,7 +397,7 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
         NewKey = "";
         await RunAsync(async () =>
         {
-            if (await api.ConnectLlmAsync(request, cancellationToken) is { } error)
+            if (await (IsPersonal ? api.ConnectMyLlmAsync(request, cancellationToken) : api.ConnectLlmAsync(request, cancellationToken)) is { } error)
                 Error = error;
             else
             {
@@ -324,6 +405,11 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
                 Connecting = null;
                 await LoadAsync(cancellationToken);
                 Info = request.ApiKey is null ? $"{provider.Name} connecté." : $"{provider.Name} connecté. La clé est chiffrée sur le serveur et ne sera plus affichée.";
+                if (IsPersonal)
+                {
+                    Info = $"{provider.Name} connecté. Vous pouvez connecter un autre fournisseur ; le mode Gratuit utilise automatiquement leurs modèles gratuits.";
+                    return;
+                }
                 // Comme opencode : une fois le fournisseur connecté, on choisit son modèle.
                 _pickerRole = null;
                 _pickingForChain = false;
@@ -346,7 +432,7 @@ public sealed partial class SettingsViewModel(ApiClient api) : ObservableObject
         if (PendingRevoke is not { } connection)
             return;
         PendingRevoke = null;
-        await api.RevokeLlmConnectionAsync(connection.Id);
+        await (IsPersonal ? api.RevokeMyLlmConnectionAsync(connection.Id) : api.RevokeLlmConnectionAsync(connection.Id));
         await LoadAsync();
         Info = connection.Last4 is null
             ? $"« {connection.Label} » déconnecté."

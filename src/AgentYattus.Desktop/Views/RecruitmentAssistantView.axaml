@@ -1,0 +1,79 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="using:AgentYattus.Desktop.Views"
+             xmlns:core="using:AgentYattus.Client.Core"
+             xmlns:contracts="using:AgentYattus.Contracts"
+             x:Class="AgentYattus.Desktop.Views.RecruitmentAssistantView"
+             x:DataType="core:RecruitmentViewModel">
+  <Border Background="{StaticResource Graphite}" CornerRadius="12" Padding="16">
+    <StackPanel Spacing="12">
+      <Button Classes="link" Command="{Binding ToggleCommand}" HorizontalAlignment="Left"
+              Content="Agent RH · Aidez-moi à créer le bon agent" />
+      <Grid IsVisible="{Binding IsOpen}" ColumnDefinitions="*,*" ColumnSpacing="20" Height="350">
+        <Grid RowDefinitions="Auto,*,Auto,Auto" RowSpacing="8">
+          <TextBlock Text="Décrivez le travail à déléguer. Le RH vous pose les questions utiles, puis prépare les consignes et les compétences."
+                     TextWrapping="Wrap" Foreground="{StaticResource Pierre}" FontSize="12" />
+          <ScrollViewer x:Name="ConversationScroll" Grid.Row="1">
+            <ItemsControl ItemsSource="{Binding Messages}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="core:RecruitmentMessage">
+                  <StackPanel Margin="0,0,0,12" Spacing="4">
+                    <TextBlock Text="{Binding Speaker}" FontWeight="SemiBold" Foreground="{StaticResource VertDeGris}" />
+                    <SelectableTextBlock Text="{Binding Text}" TextWrapping="Wrap" FontSize="13" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+          <TextBox Grid.Row="2" Text="{Binding Input, Mode=TwoWay}" views:ChatInput.Send="{Binding SendCommand}" ToolTip.Tip="Entrée pour envoyer · Maj + Entrée pour une nouvelle ligne" AcceptsReturn="True" Height="68" MaxLength="2000"
+                   PlaceholderText="Ex. : un agent qui prépare des propositions commerciales pour mes clients…" />
+          <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="12">
+            <Button Classes="primary" Content="Envoyer au RH" Command="{Binding SendCommand}" />
+            <Button Classes="link" Content="Reprendre l'attente" Command="{Binding ResumeCommand}" IsVisible="{Binding CanResume}" />
+            <Button Classes="link" Content="Arrêter" Command="{Binding StopCommand}" IsVisible="{Binding CanStop}" />
+            <TextBlock IsVisible="{Binding IsBusy}" Text="Le RH réfléchit…" VerticalAlignment="Center" FontSize="12" />
+          </StackPanel>
+        </Grid>
+        <Grid Grid.Column="1" RowDefinitions="*,Auto,Auto" RowSpacing="8">
+          <ScrollViewer>
+            <StackPanel Spacing="8">
+              <TextBlock Text="Fiche proposée" FontWeight="SemiBold" />
+              <TextBlock Text="Le visage et le prénom du formulaire seront utilisés. Créez directement l'agent ou ajustez sa fiche."
+                         TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Pierre}" />
+              <StackPanel IsVisible="{Binding HasDraft}" Spacing="8">
+                <TextBlock Text="{Binding Draft.Name}" FontSize="18" FontWeight="SemiBold" />
+                <TextBlock Text="{Binding Draft.Summary}" TextWrapping="Wrap" />
+                <Expander Header="Consignes et outils">
+                  <StackPanel Spacing="8">
+                    <SelectableTextBlock Text="{Binding Draft.Instructions}" TextWrapping="Wrap" FontSize="12" />
+                    <TextBlock Text="{Binding ToolsLabel}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Pierre}" />
+                  </StackPanel>
+                </Expander>
+                <ItemsControl ItemsSource="{Binding Draft.Skills}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="contracts:RecruitmentSkillDto">
+                      <Expander Header="{Binding Name}">
+                        <StackPanel Spacing="6">
+                          <TextBlock Text="{Binding Description}" TextWrapping="Wrap" FontSize="12" />
+                          <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Pierre}" />
+                        </StackPanel>
+                      </Expander>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </StackPanel>
+          </ScrollViewer>
+          <TextBlock Grid.Row="1" Text="{Binding Error}" Foreground="{StaticResource Cinabre}" TextWrapping="Wrap" FontSize="12" />
+          <StackPanel Grid.Row="2" Spacing="6">
+            <TextBlock Text="{Binding Info}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource VertDeGris}" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+              <Button Classes="primary" Content="Créer cet agent" Command="{Binding CreateCommand}" />
+              <Button Classes="link" Content="Ajuster le formulaire" Command="{Binding ApplyCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </Grid>
+      </Grid>
+    </StackPanel>
+  </Border>
+</UserControl>

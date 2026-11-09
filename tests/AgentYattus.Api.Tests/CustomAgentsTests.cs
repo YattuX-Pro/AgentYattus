@@ -42,8 +42,8 @@ public sealed class CustomAgentsTests
 
         await root.PutAsJsonAsync(AgentsProtocol.Profile(agent.Key), new UpdateAgentProfileRequest("Testeur", "Relit les tests.", ["read_file"]), Ct);
         var listed = (await root.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!;
-        Assert.Equal(["analyste", "redacteur", "testeur-de-regression", "testeur-de-regression-2"], listed.Select(a => a.Key));
-        Assert.Equal(("Testeur", "read_file"), (listed[2].Name, Assert.Single(listed[2].Tools).Name));
+        Assert.Equal(["analyste", "redacteur", "developpeur", "relecteur", "testeur-de-regression", "testeur-de-regression-2"], listed.Select(a => a.Key));
+        Assert.Equal(("Testeur", "read_file"), (listed[4].Name, Assert.Single(listed[4].Tools).Name));
 
         Assert.Equal(HttpStatusCode.NoContent, (await root.DeleteAsync(AgentsProtocol.Role(agent.Key), Ct)).StatusCode);
         Assert.DoesNotContain((await root.GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, Ct))!, a => a.Key == agent.Key);
@@ -149,7 +149,7 @@ public sealed class CustomAgentsTests
         var mission = (await created.Content.ReadFromJsonAsync<MissionDto>(Ct))!;
         var paused = await client.WaitForStatusAsync(mission.Id, MissionStatus.AwaitingApproval);
 
-        Assert.Equal(["write_file"], model.Options[0]!.Tools!.Select(t => t.Name));
+        Assert.Equal(["write_file"], model.Options[0]!.Tools!.Select(t => t.Name).Where(t => t != "poser_question"));
         Assert.StartsWith("Tu es le Testeur d'Agent Yattus.", model.Options[0]!.Instructions);
         Assert.EndsWith("Chaque écriture attend la décision d'un humain.", model.Options[0]!.Instructions);
         Assert.Equal("write_file", Assert.Single(paused.PendingApproval!.ToolCalls).Tool);

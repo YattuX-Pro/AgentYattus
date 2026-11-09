@@ -23,10 +23,9 @@
     { "slug": "salma", "name": "Salma" },
     { "slug": "aicha", "name": "Aïcha" }
   ],
-  "leader": { "slug": "leon", "name": "Léon" },
   "manager": "vous",
   "defaultTeam": [
-    { "role": "analyste", "slug": "ines", "name": "Inès" },
+    { "role": "analyste", "slug": "ines", "name": "Inès", "leader": true },
     { "role": "redacteur", "slug": "malik", "name": "Malik" }
   ]
 }

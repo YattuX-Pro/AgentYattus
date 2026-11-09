@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:core="using:AgentYattus.Client.Core"
+             xmlns:contracts="using:AgentYattus.Contracts"
              xmlns:views="using:AgentYattus.Desktop.Views"
              xmlns:conv="using:AgentYattus.Desktop.Converters"
              x:Class="AgentYattus.Desktop.Views.RecruitView" Classes="screen"
@@ -195,6 +196,10 @@
       </StackPanel>
     </Border>
 
+    <Border DockPanel.Dock="Top" Margin="24,12,24,0" IsVisible="{Binding CanUseRh}">
+      <views:RecruitmentAssistantView DataContext="{Binding Rh}" />
+    </Border>
+
     <!-- Le badge reste en place ; seul le formulaire défile, si la fenêtre est trop basse. -->
     <Grid ColumnDefinitions="500,*" ColumnSpacing="24" Margin="24,20,24,0">
 
@@ -329,6 +334,7 @@
 
           <!-- Identité -->
           <Border Grid.Row="1" Classes="card">
+            <StackPanel Spacing="16">
             <Grid ColumnDefinitions="*,*" ColumnSpacing="20">
               <StackPanel Spacing="8">
                 <TextBlock Classes="field" Text="Prénom" />
@@ -353,6 +359,23 @@
                 </Border>
               </StackPanel>
             </Grid>
+            <!-- Chef d'équipe (leçon 129) : pas encore dans la maquette ; même interrupteur que les outils. -->
+            <Border Padding="12,10" CornerRadius="10" BorderBrush="#1F2226" BorderThickness="1" Background="#141518">
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                  <TextBlock Text="Chef d’équipe" FontSize="13" FontWeight="Medium" />
+                  <TextBlock Classes="mono" Text="on s’adresse à lui par défaut · il répond ou confie la demande" FontSize="10.5"
+                             Foreground="{StaticResource Cendre}" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <Button Grid.Column="1" Classes="bare" VerticalAlignment="Center" AutomationProperties.Name="Chef d’équipe"
+                        Command="{Binding ToggleLeaderCommand}">
+                  <Border Classes="track" Classes.on="{Binding IsLeader}">
+                    <Ellipse Width="18" Height="18" Fill="{StaticResource Parchemin}" />
+                  </Border>
+                </Button>
+              </Grid>
+            </Border>
+            </StackPanel>
           </Border>
 
           <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="16">
@@ -447,6 +470,18 @@
               </ItemsControl>
               <TextBlock IsVisible="{Binding !Skills.Count}" Text="Aucune compétence pour l’instant : écrivez la première."
                          FontSize="12.5" Foreground="{StaticResource Pierre}" />
+              <ItemsControl ItemsSource="{Binding SuggestedSkills}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="contracts:RecruitmentSkillDto">
+                    <Expander Header="{Binding Name}">
+                      <StackPanel Spacing="6">
+                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+                        <SelectableTextBlock Text="{Binding Body}" TextWrapping="Wrap" FontSize="12" />
+                      </StackPanel>
+                    </Expander>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
               <Grid IsVisible="{Binding IsWritingSkill}" ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="16" RowSpacing="10"
                     Margin="0,4,0,0">
                 <StackPanel Spacing="8">

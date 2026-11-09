@@ -52,6 +52,7 @@ internal static class Database
             {
                 // En général : tables déjà créées au démarrage précédent. Journalisé pour ne pas masquer une vraie erreur.
                 logger.LogWarning(ex, "Création des tables de {Db} ignorée", typeof(TDb).Name);
+                await LocalConversationSchema.UpgradeAsync(db, cancellationToken);
             }
         }
 

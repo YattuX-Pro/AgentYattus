@@ -14,58 +14,64 @@ public sealed partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            // Mode local (ADR 0014) : le logiciel lance sa propre API. Sinon, un serveur et Keycloak.
-            if (LocalApi(out var developing) is { } local)
+            var selection = BackendSelection.ForStartup();
+            if (selection.IsLocal)
             {
-                StartLocal(desktop, local, developing);
-                base.OnFrameworkInitializationCompleted();
-                return;
+                var configured = Environment.GetEnvironmentVariable("AGENTYATTUS_API_PATH");
+                var installed = LocalBackend.Find(AppContext.BaseDirectory, configured, searchRepository: false);
+                var path = installed ?? LocalBackend.Find(AppContext.BaseDirectory, configured, searchRepository: true);
+                if (path is null)
+                    throw new InvalidOperationException("L'API locale est introuvable. Installez la version complète ou compilez l'API.");
+                StartLocal(desktop, LocalBackend.Prepare(path), developing: installed is null);
             }
-
-            var apiUrl = new Uri(Environment.GetEnvironmentVariable("AGENTYATTUS_API_URL") ?? "http://localhost:5080/");
-            var authority = new Uri(Environment.GetEnvironmentVariable("AGENTYATTUS_AUTHORITY")
-                                    ?? "http://localhost:8380/realms/agent-yattus");
-            var oidc = new OidcClient(new HttpClient(), new OidcSettings(authority, "agent-yattus-desktop"));
-            var tokens = new TokenStore(oidc);
-            // Chaque requête vers l'API porte le jeton de la session.
-            var api = new ApiClient(new HttpClient(new BearerTokenHandler(tokens) { InnerHandler = new HttpClientHandler() })
-            {
-                BaseAddress = apiUrl,
-            });
-            var vm = new HomeViewModel(api);
-            var shell = new ShellViewModel(api, vm, new LoginViewModel(oidc, tokens, OpenBrowserAsync))
-            {
-                AdminUrl = new Uri(Environment.GetEnvironmentVariable("AGENTYATTUS_ADMIN_URL") ?? "http://localhost:4200/"),
-            };
-            shell.OpenUrlRequested += uri => _ = OpenBrowserAsync(uri);
-            tokens.Expired += () => Dispatcher.UIThread.Post(shell.SessionExpired);
-            var hub = new MissionsHubClient(apiUrl, accessTokenProvider: () => tokens.GetAccessTokenAsync());
-            hub.MissionEventReceived += e => Dispatcher.UIThread.Post(() => _ = shell.ApplyAsync(e));
-            hub.MissionTextReceived += e => Dispatcher.UIThread.Post(() => shell.ApplyText(e));
-            // Le hub exige un jeton : on s'y connecte après la connexion, on s'en détache à la déconnexion.
-            shell.LoggedIn += () => _ = ConnectAsync(hub, vm);
-            shell.LoggedOut += () => _ = hub.StopAsync();
-            desktop.ShutdownRequested += (_, _) => hub.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            desktop.MainWindow = new MainWindow { DataContext = shell };
+            else
+                StartServer(desktop, selection);
         }
-
         base.OnFrameworkInitializationCompleted();
     }
 
-    /// <summary>
-    /// Le mode local s'il est demandé (AGENTYATTUS_MODE=local), ou si l'API est installée à côté du logiciel
-    /// et qu'aucun serveur n'est indiqué. En développement, AGENTYATTUS_MODE=local prend la compilation du dépôt.
-    /// </summary>
-    private static LocalBackend? LocalApi(out bool developing)
+    private static void StartServer(IClassicDesktopStyleApplicationLifetime desktop, BackendSelection selection)
     {
-        developing = false;
-        var mode = Environment.GetEnvironmentVariable("AGENTYATTUS_MODE");
-        if (string.Equals(mode, "server", StringComparison.OrdinalIgnoreCase) || Environment.GetEnvironmentVariable("AGENTYATTUS_API_URL") is not null)
-            return null;
-        var asked = string.Equals(mode, "local", StringComparison.OrdinalIgnoreCase);
-        developing = asked;
-        var path = LocalBackend.Find(AppContext.BaseDirectory, Environment.GetEnvironmentVariable("AGENTYATTUS_API_PATH"), searchRepository: asked);
-        return path is null ? null : LocalBackend.Prepare(path);
+        var apiUrl = new Uri(selection.ApiUrl);
+        var authority = new Uri(selection.Authority);
+        var oidc = new OidcClient(new HttpClient(), new OidcSettings(authority, "agent-yattus-desktop"));
+        var tokens = new TokenStore(oidc);
+        // Chaque requête vers l'API porte le jeton de la session.
+        var api = new ApiClient(new HttpClient(new BearerTokenHandler(tokens) { InnerHandler = new HttpClientHandler() })
+        {
+            BaseAddress = apiUrl,
+        });
+        var vm = new HomeViewModel(api);
+        var shell = new ShellViewModel(api, vm, new LoginViewModel(oidc, tokens, OpenBrowserAsync))
+        {
+            AdminUrl = new Uri(selection.AdminUrl),
+            DataLocation = "Serveur · " + apiUrl.GetLeftPart(UriPartial.Authority),
+            DataLocationDetail = apiUrl.AbsoluteUri,
+        };
+        shell.OpenUrlRequested += uri => _ = OpenBrowserAsync(uri);
+        tokens.Expired += () => Dispatcher.UIThread.Post(shell.SessionExpired);
+        var hub = new MissionsHubClient(apiUrl, accessTokenProvider: () => tokens.GetAccessTokenAsync());
+        hub.MissionEventReceived += e => Dispatcher.UIThread.Post(() => _ = shell.ApplyAsync(e));
+        hub.MissionTextReceived += e => Dispatcher.UIThread.Post(() => shell.ApplyText(e));
+        hub.MissionActivityReceived += e => Dispatcher.UIThread.Post(() => shell.ApplyActivity(e));
+        hub.Reconnected += () => Dispatcher.UIThread.Post(() => _ = shell.RefreshConversationsAsync());
+        // Le hub exige un jeton : on s'y connecte après la connexion, on s'en détache à la déconnexion.
+        shell.LoggedIn += () =>
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (desktop.MainWindow is not { } window)
+                    return;
+                if (window.WindowState == Avalonia.Controls.WindowState.Minimized)
+                    window.WindowState = Avalonia.Controls.WindowState.Normal;
+                window.Show();
+                window.Activate();
+            });
+            _ = ConnectAsync(hub, vm);
+        };
+        shell.LoggedOut += () => _ = hub.StopAsync();
+        desktop.ShutdownRequested += (_, _) => hub.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        desktop.MainWindow = new MainWindow { DataContext = shell };
     }
 
     private static void StartLocal(IClassicDesktopStyleApplicationLifetime desktop, LocalBackend local, bool developing)
@@ -75,11 +81,18 @@ public sealed partial class App : Application
         var tokens = new TokenStore(new OidcClient(new HttpClient(), new OidcSettings(local.Url, "local")));
         var api = new ApiClient(new HttpClient(new BearerTokenHandler(tokens) { InnerHandler = new HttpClientHandler() }) { BaseAddress = local.Url });
         var home = new HomeViewModel(api);
-        var shell = new ShellViewModel(api, home) { UserName = Environment.UserName };
+        var shell = new ShellViewModel(api, home)
+        {
+            UserName = Environment.UserName,
+            DataLocation = "Sur cet ordinateur · base locale",
+            DataLocationDetail = Path.Combine(Environment.GetEnvironmentVariable("Local__DataFolder") ?? BackendSelection.DataFolder, "agent-yattus.db"),
+        };
         shell.OpenUrlRequested += uri => _ = OpenBrowserAsync(uri);
         var hub = new MissionsHubClient(local.Url, accessTokenProvider: () => tokens.GetAccessTokenAsync());
         hub.MissionEventReceived += e => Dispatcher.UIThread.Post(() => _ = shell.ApplyAsync(e));
         hub.MissionTextReceived += e => Dispatcher.UIThread.Post(() => shell.ApplyText(e));
+        hub.MissionActivityReceived += e => Dispatcher.UIThread.Post(() => shell.ApplyActivity(e));
+        hub.Reconnected += () => Dispatcher.UIThread.Post(() => _ = shell.RefreshConversationsAsync());
         desktop.ShutdownRequested += (_, _) =>
         {
             hub.DisposeAsync().AsTask().GetAwaiter().GetResult();

@@ -17,6 +17,7 @@ internal sealed class GitTools(string workspace, int maxChars)
         ("git_status", "Liste les fichiers modifiés, ajoutés ou supprimés dans le dépôt git du projet."),
         ("git_diff", "Montre les modifications du dépôt git du projet par rapport au dernier commit (format diff)."),
         ("git_log", "Montre les derniers commits du dépôt git du projet."),
+        ("git_commit", "Enregistre toutes les modifications dans un commit, sur la branche de la mission (mode branche seulement). Un humain doit approuver."),
     ];
 
     public IReadOnlyList<AIFunction> AsAIFunctions() =>
@@ -24,7 +25,28 @@ internal sealed class GitTools(string workspace, int maxChars)
         AIFunctionFactory.Create(Status, Catalog[0].Name, Catalog[0].Description),
         AIFunctionFactory.Create(Diff, Catalog[1].Name, Catalog[1].Description),
         AIFunctionFactory.Create(Log, Catalog[2].Name, Catalog[2].Description),
+        // Un commit reste dans l'historique : l'humain l'approuve, comme une écriture.
+        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(Commit, Catalog[3].Name, Catalog[3].Description)),
     ];
+
+    /// <summary>
+    /// Le commit de la mission (leçon 128) : seulement sur une branche « agent/… », jamais sur la branche de l'humain.
+    /// Toutes les modifications sont incluses ; l'auteur est « Agent Yattus ».
+    /// </summary>
+    public string Commit([Description("Le message du commit : une ligne de résumé, puis le détail.")] string message)
+    {
+        if (string.IsNullOrWhiteSpace(message) || message.Length > 2000)
+            throw new InvalidOperationException("Un message de 1 à 2 000 caractères.");
+        using var repo = Open();
+        if (!repo.Head.FriendlyName.StartsWith(GitBranches.Prefix, StringComparison.Ordinal))
+            throw new InvalidOperationException("git_commit ne sert qu'en mode branche : la branche courante du projet n'est pas celle de la mission.");
+        Commands.Stage(repo, "*");
+        if (!repo.RetrieveStatus().IsDirty)
+            return "Rien à enregistrer : aucune modification.";
+        var agent = new Signature("Agent Yattus", "agent@agent-yattus.local", DateTimeOffset.UtcNow);
+        var commit = repo.Commit(message.Trim(), agent, agent);
+        return $"Commit {commit.Sha[..7]} sur {repo.Head.FriendlyName}.";
+    }
 
     public string Status()
     {

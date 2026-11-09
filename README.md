@@ -41,6 +41,12 @@ dotnet run --project src/AgentYattus.Api --launch-profile http
 dotnet run --project src/AgentYattus.Desktop
 ```
 
+Le bureau s’ouvre directement sur le serveur par défaut, sans choix de stockage. Les adresses du serveur configuré sont réutilisées ; les variables `AGENTYATTUS_API_URL`, `AGENTYATTUS_AUTHORITY` et `AGENTYATTUS_ADMIN_URL` permettent de les remplacer. Le mode local reste disponible avec `AGENTYATTUS_MODE=local`. Les deux modes conservent des données distinctes.
+
+Les missions utilisent des lectures ciblées, des compétences chargées à la demande et des plafonds de contexte, de sortie et de tokens par mission. Voir [Choisir la base et limiter les tokens](docs/base-et-economie-tokens.md) pour les réglages et leurs limites.
+
+Pour créer un agent sans savoir rédiger ses consignes ou ses compétences, ouvrir **Nouveau collègue › Agent RH** : décrire le besoin, répondre aux questions utiles, puis créer le profil proposé ou ajuster sa fiche. Voir [Recruter avec l'agent RH](docs/recrutement-rh.md).
+
 Espace admin web (Node 24) :
 
 ```bash

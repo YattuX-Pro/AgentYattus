@@ -12,7 +12,8 @@ public sealed class OfficeViewModelTests
 
     private static OfficeViewModel Create(MissionStatus status, AuditEntryDto[] events, ApprovalDto? approval = null)
     {
-        var team = SceneTests.Team(("analyste", "Inès"), ("redacteur", "Malik")) with { TypingMs = 10, PauseMs = 100 };
+        // Malik, le Rédacteur, est le chef d'équipe : il annonce depuis le bureau du chef ; Inès reste au sien.
+        var team = SceneTests.Team(("redacteur", "Malik"), ("analyste", "Inès")) with { TypingMs = 10, PauseMs = 100 };
         var mission = new MissionDto(Guid.NewGuid(), "Revue de Orders", status, T, null, approval, MissionKind.Review, Project);
         var handler = new StubHandler(request =>
         {
@@ -34,8 +35,8 @@ public sealed class OfficeViewModelTests
 
         await office.LoadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(["Léon", "Léon"], office.Feed.Select(l => l.Name));
-        Assert.Equal("Inès", office.Analyst.Name);
+        Assert.Equal(["Malik", "Malik"], office.Feed.Select(l => l.Name));
+        Assert.Equal(("Malik", "Inès", "Siège libre"), (office.Leader.Name, office.Analyst.Name, office.Writer.Name));
 
         // 10 ms par lettre : au bout de 50 ms, cinq lettres sont écrites, et Inès parle.
         office.Tick(TimeSpan.FromMilliseconds(50));

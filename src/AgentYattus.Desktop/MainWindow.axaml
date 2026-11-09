@@ -5,6 +5,7 @@
         x:Class="AgentYattus.Desktop.MainWindow"
         x:DataType="core:ShellViewModel"
         Title="Agent Yattus"
+        Icon="/Assets/Branding/yattus.ico"
         Width="1440" Height="900" MinWidth="900" MinHeight="640"
         FontFamily="{StaticResource Sans}"
         Foreground="{StaticResource Parchemin}"
@@ -14,6 +15,7 @@
   <Window.DataTemplates>
     <DataTemplate DataType="core:LoginViewModel"><views:LoginView /></DataTemplate>
     <DataTemplate DataType="core:HomeViewModel"><views:HomeView /></DataTemplate>
+    <DataTemplate DataType="core:WorkspaceViewModel"><views:WorkspaceView /></DataTemplate>
     <DataTemplate DataType="core:OfficeViewModel"><views:OfficeView /></DataTemplate>
     <DataTemplate DataType="core:RecruitViewModel"><views:RecruitView /></DataTemplate>
     <DataTemplate DataType="core:AgentsViewModel"><views:AgentsView /></DataTemplate>
@@ -21,19 +23,75 @@
     <DataTemplate DataType="core:SettingsViewModel"><views:SettingsView /></DataTemplate>
   </Window.DataTemplates>
 
-  <Grid RowDefinitions="Auto,*">
+  <Window.Styles>
+    <!-- La pastille des missions (leçon 128) : un contour discret, plus clair au survol. -->
+    <Style Selector="Button.pill /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#111215" />
+      <Setter Property="BorderBrush" Value="#1F2226" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="16" />
+    </Style>
+    <Style Selector="Button.pill:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     Button.pill:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#16181B" />
+      <Setter Property="BorderBrush" Value="#34383E" />
+    </Style>
+    <!-- Une ligne du panneau des missions ; celle qui attend votre accord est teintée de laiton. -->
+    <Style Selector="Button.row">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="10" />
+    </Style>
+    <Style Selector="Button.row /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Foreground" Value="{StaticResource Parchemin}" />
+    </Style>
+    <Style Selector="Button.row.awaiting /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#12D8B86E" />
+    </Style>
+    <Style Selector="Button.row:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#1D2024" />
+    </Style>
+
+    <!-- Le voile du dossier glissé : il apparaît en fondu, la zone grandit un peu, l'icône flotte. -->
+    <Style Selector="Border.veil">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.veil.shown">
+      <Setter Property="IsVisible" Value="True" />
+      <Style.Animations>
+        <Animation Duration="0:0:0.2" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="Opacity" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Border.veil.shown Border.zone">
+      <Style.Animations>
+        <Animation Duration="0:0:0.3" Easing="CubicEaseOut">
+          <KeyFrame Cue="0%"><Setter Property="ScaleTransform.ScaleX" Value="0.96" /><Setter Property="ScaleTransform.ScaleY" Value="0.96" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="ScaleTransform.ScaleX" Value="1" /><Setter Property="ScaleTransform.ScaleY" Value="1" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+    <Style Selector="Border.veil.shown Border.float">
+      <Style.Animations>
+        <Animation Duration="0:0:1.6" IterationCount="Infinite" Easing="SineEaseInOut">
+          <KeyFrame Cue="0%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+          <KeyFrame Cue="50%"><Setter Property="TranslateTransform.Y" Value="-6" /></KeyFrame>
+          <KeyFrame Cue="100%"><Setter Property="TranslateTransform.Y" Value="0" /></KeyFrame>
+        </Animation>
+      </Style.Animations>
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="Auto,*,Auto">
     <!-- Barre du haut (maquette « Bureau des agents ») : 64 px, la marque, les écrans, vous. -->
     <Border Grid.Row="0" Height="64" Padding="24,0" BorderBrush="#16181B" BorderThickness="0,0,0,1" IsVisible="{Binding ShowNav}">
-      <Grid ColumnDefinitions="260,*,260" ColumnSpacing="16">
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
         <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-          <Border Width="30" Height="30" CornerRadius="8" BorderBrush="#2A2D31" BorderThickness="1" Background="#131417">
-            <Viewbox Width="17" Height="17">
-              <Canvas Width="24" Height="24">
-                <Path Data="M5 3.5 12 11l7-7.5M12 11v9.5" Stroke="{StaticResource VertDeGris}" StrokeThickness="2" StrokeLineCap="Round" />
-                <Ellipse Canvas.Left="9.8" Canvas.Top="8.8" Width="4.4" Height="4.4" Fill="{StaticResource VertDeGris}" />
-              </Canvas>
-            </Viewbox>
-          </Border>
+          <Image Source="/Assets/Branding/yattus.png" Width="34" Height="34" />
           <TextBlock Text="Agent Yattus" FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center" />
         </StackPanel>
 
@@ -45,30 +103,99 @@
             </Button>
             <!-- L'open space de la mission qui attend une décision, qui tourne, ou la plus récente. -->
             <Button Classes="tab" Classes.active="{Binding IsOfficeSection}" Command="{Binding OpenOfficeCommand}"
-                    IsEnabled="{Binding Home.Missions.Count}" ToolTip.Tip="L’équipe au travail sur la dernière mission">
-              <TextBlock Text="Open space" FontSize="13" FontWeight="Medium" />
+                    ToolTip.Tip="Conversations et activité du projet sélectionné">
+              <TextBlock Text="Projet" FontSize="13" FontWeight="Medium" />
             </Button>
             <Button Classes="tab" Classes.active="{Binding IsAgentsSection}" Command="{Binding ShowAgentsCommand}">
               <TextBlock Text="Agents" FontSize="13" FontWeight="Medium" />
             </Button>
             <Button Classes="tab" Classes.active="{Binding IsReportsSection}" Command="{Binding ShowReportsCommand}">
-              <TextBlock Text="Rapports" FontSize="13" FontWeight="Medium" />
+              <TextBlock Text="Livrables" FontSize="13" FontWeight="Medium" />
             </Button>
           </StackPanel>
         </Border>
 
         <!-- Vous : votre nom et votre portrait ; un clic ouvre l'espace admin et la déconnexion. -->
-        <Button Grid.Column="2" Classes="bare" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="0"
-                ToolTip.Tip="{Binding Home.IsBackendConnected, Converter={x:Static views:Backend.Tip}}">
-          <StackPanel Orientation="Horizontal" Spacing="10">
-            <TextBlock Text="{Binding UserName}" FontSize="13" Foreground="{StaticResource Pierre}" VerticalAlignment="Center" />
-            <views:Avatar Image="{Binding Home.Me.Work}" Label="{Binding UserName}" Size="34" Ring="#2A2D31" RingWidth="1" Background="{StaticResource Obsidienne}" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" HorizontalAlignment="Right" VerticalAlignment="Center">
+        <!-- Les missions (leçon 128) : combien tournent, combien attendent votre accord ; un clic ouvre le panneau. -->
+        <Button Classes="pill" Command="{Binding Inbox.ToggleCommand}" ToolTip.Tip="Réponses non lues" Height="32">
+          <StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="Réponses" /><TextBlock Text="{Binding Inbox.Count}" Foreground="{StaticResource VertDeGris}" /></StackPanel>
+        </Button>
+        <Button x:Name="ActivityButton" Classes="pill" Height="32" Padding="12,0" VerticalAlignment="Center" VerticalContentAlignment="Center"
+                IsVisible="{Binding Home.Missions.Count}" ToolTip.Tip="{Binding Home.ActivityTip}" AutomationProperties.Name="{Binding Home.ActivityTip}">
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <StackPanel Orientation="Horizontal" Spacing="7" IsVisible="{Binding Home.HasRunning}">
+              <Panel Width="7" Height="7" VerticalAlignment="Center">
+                <Ellipse Classes="pulse" Width="7" Height="7" Fill="{StaticResource VertDeGris}" />
+                <Ellipse Width="7" Height="7" Fill="{StaticResource VertDeGris}" />
+              </Panel>
+              <TextBlock Classes="mono" Text="{Binding Home.RunningCount}" FontSize="12" Foreground="{StaticResource Pierre}" VerticalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="7" IsVisible="{Binding Home.HasWaiting}">
+              <Border Width="7" Height="7" CornerRadius="1.5" Background="{StaticResource Laiton}" RenderTransform="rotate(45deg)" VerticalAlignment="Center" />
+              <TextBlock Classes="mono" Text="{Binding Home.WaitingCount}" FontSize="12" Foreground="{StaticResource Laiton}" VerticalAlignment="Center" />
+            </StackPanel>
+            <!-- Rien en cours : une horloge, l'historique. -->
+            <Path IsVisible="{Binding Home.IsQuiet}" Data="M12 3.5a8.5 8.5 0 1 1 0 17 8.5 8.5 0 0 1 0-17zM12 7.5V12l3 2"
+                  Stroke="{StaticResource Pierre}" StrokeThickness="1.8" StrokeLineCap="Round" StrokeJoin="Round" Width="14" Height="14" Stretch="Uniform" VerticalAlignment="Center" />
           </StackPanel>
+          <Button.Flyout>
+            <!-- Aligné sur le bord de la fenêtre (24 px), 10 px sous la pastille, comme la maquette. -->
+            <Flyout Placement="BottomEdgeAlignedRight" HorizontalOffset="46" VerticalOffset="10">
+              <StackPanel Width="388" Button.Click="CloseActivity">
+                <ItemsControl ItemsSource="{Binding Home.Activity}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="core:MissionItem">
+                      <Button Classes="row" Classes.awaiting="{Binding IsAwaitingApproval}"
+                              Command="{Binding $parent[Window].((core:ShellViewModel)DataContext).Home.OpenMissionCommand}" CommandParameter="{Binding}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                          <ItemsControl ItemsSource="{Binding Faces}" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                              <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="-10" /></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                              <DataTemplate x:DataType="core:Face">
+                                <views:Avatar Image="{Binding Work}" Label="{Binding Name}" Size="32" RingWidth="1.5" Background="{StaticResource Graphite}"
+                                              Ring="{Binding $parent[ItemsControl].((core:MissionItem)DataContext).Status, Converter={x:Static views:Tone.Of}}" />
+                              </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                          </ItemsControl>
+                          <StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Goal}" FontSize="13.5" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding ShortLine}" FontSize="12" Foreground="{Binding Status, Converter={x:Static views:Tone.Of}}" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="2" Classes="mono" Text="{Binding Ago}" FontSize="11" Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border Height="1" Background="#24272B" Margin="4,6" />
+                <Button Classes="row" Height="36" Padding="0" Command="{Binding ShowReportsCommand}" HorizontalContentAlignment="Center" VerticalContentAlignment="Center">
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <TextBlock Text="Tout l’historique" FontSize="12.5" Foreground="{StaticResource Pierre}" VerticalAlignment="Center" />
+                    <Path Data="M5 12h14M13 6l6 6-6 6" Stroke="{StaticResource Pierre}" StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round"
+                          Width="13" Height="13" Stretch="Uniform" VerticalAlignment="Center" />
+                  </StackPanel>
+                </Button>
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+
+        <!-- Vous : votre portrait ; un clic ouvre votre nom, l'espace admin et la déconnexion. -->
+        <Button Classes="bare" VerticalAlignment="Center" Padding="0"
+                ToolTip.Tip="{Binding Home.IsBackendConnected, Converter={x:Static views:Backend.Tip}}">
+          <views:Avatar Image="{Binding Home.Me.Work}" Label="{Binding UserName}" Size="34" Ring="#2A2D31" RingWidth="1" Background="{StaticResource Obsidienne}" />
           <Button.Flyout>
             <Flyout Placement="BottomEdgeAlignedRight">
               <StackPanel Width="200" Spacing="2">
+                <TextBlock Text="{Binding UserName}" FontSize="12" Foreground="{StaticResource Cendre}" Margin="10,6,10,6" TextTrimming="CharacterEllipsis" />
                 <Button Classes="bare menu" Command="{Binding OpenAdminCommand}" IsVisible="{Binding IsLlmAdmin}">
                   <TextBlock Text="Ouvrir l’espace admin" FontSize="13" />
+                </Button>
+                <Button Classes="bare menu" Command="{Binding ShowInstanceModelsCommand}" IsVisible="{Binding IsLlmAdmin}">
+                  <TextBlock Text="Mode Gratuit du serveur" FontSize="13" />
                 </Button>
                 <Button Classes="bare menu" Command="{Binding ShowSettingsCommand}" IsVisible="{Binding CanManageModels}">
                   <TextBlock Text="Modèles et clés" FontSize="13" />
@@ -80,6 +207,7 @@
             </Flyout>
           </Button.Flyout>
         </Button>
+        </StackPanel>
       </Grid>
     </Border>
 
@@ -89,5 +217,50 @@
         <CrossFade Duration="0:0:0.25" />
       </TransitioningContentControl.PageTransition>
     </TransitioningContentControl>
+
+    <views:AgentToastView Grid.Row="1" DataContext="{Binding Inbox}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="20,0,20,150" MaxWidth="440" />
+    <Border Grid.Row="1" IsVisible="{Binding Inbox.IsOpen}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="16" Width="390" MaxHeight="500"
+            Background="{StaticResource Graphite}" BorderBrush="{StaticResource Filet}" BorderThickness="1" CornerRadius="14" Padding="16">
+      <DockPanel><StackPanel DockPanel.Dock="Top" Spacing="8"><Grid ColumnDefinitions="*,Auto"><TextBlock Text="Réponses non lues" FontWeight="SemiBold" VerticalAlignment="Center" /><Button Grid.Column="1" Classes="link" Content="Fermer" Command="{Binding Inbox.ToggleCommand}" /></Grid><TextBlock Text="{Binding Inbox.Error}" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource Laiton}" /><TextBlock Text="Les réponses restent ici jusqu’à leur lecture." FontSize="12" Foreground="{StaticResource Pierre}" /></StackPanel>
+        <ScrollViewer><ItemsControl ItemsSource="{Binding Inbox.Items}"><ItemsControl.ItemTemplate><DataTemplate x:DataType="core:ConversationNotice">
+          <Button Classes="row" Command="{Binding $parent[Window].((core:ShellViewModel)DataContext).Inbox.OpenCommand}" CommandParameter="{Binding}">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10"><views:Avatar Image="{Binding Avatar}" Label="{Binding Name}" Size="36" RingWidth="0" /><StackPanel Grid.Column="1" Spacing="3"><TextBlock Text="{Binding Name}" FontWeight="SemiBold" /><TextBlock Text="{Binding Text}" TextWrapping="Wrap" /><TextBlock Text="{Binding Project}" FontSize="11" Foreground="{StaticResource Pierre}" /></StackPanel></Grid>
+          </Button>
+        </DataTemplate></ItemsControl.ItemTemplate></ItemsControl></ScrollViewer>
+      </DockPanel>
+    </Border>
+    <!-- Un dossier glissé depuis le Finder, n'importe où sur la fenêtre (leçon 128) : le lâcher en fait le dossier du projet. -->
+    <Border Grid.RowSpan="2" Classes="veil" Classes.shown="{Binding Home.IsDraggingFolder}" Background="#D90B0C0E" IsHitTestVisible="True">
+      <Border Classes="zone" Width="560" Height="300" CornerRadius="28" Background="#0D5E9E92" HorizontalAlignment="Center" VerticalAlignment="Center"
+              RenderTransform="scale(1)" IsHitTestVisible="False">
+        <Panel>
+          <Rectangle RadiusX="28" RadiusY="28" Stroke="#A65E9E92" StrokeThickness="2" StrokeDashArray="3,2" />
+          <StackPanel Spacing="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Classes="float" Width="76" Height="76" CornerRadius="22" Background="#1F5E9E92" BorderBrush="#595E9E92" BorderThickness="1"
+                    HorizontalAlignment="Center" RenderTransform="translateY(0px)">
+              <Path Data="M3.5 7a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2zM12 10.5v5.5M9.5 13.5 12 16l2.5-2.5"
+                    Stroke="{StaticResource VertDeGris}" StrokeThickness="1.6" StrokeLineCap="Round" StrokeJoin="Round" Width="34" Height="34" Stretch="Uniform"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <TextBlock Text="Déposer pour travailler ici" FontSize="22" FontWeight="Medium" LetterSpacing="-0.2" HorizontalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+              <TextBlock Classes="mono" Text="{Binding Home.DragLabel}" FontSize="12" Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
+              <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding Home.DragBranch, Converter={x:Static ObjectConverters.IsNotNull}}">
+                <TextBlock Classes="mono" Text="·" FontSize="12" Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
+                <Path Data="M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9" Stroke="{StaticResource Cendre}"
+                      StrokeThickness="2" StrokeLineCap="Round" StrokeJoin="Round" Width="11" Height="11" Stretch="Uniform" VerticalAlignment="Center" />
+                <TextBlock Classes="mono" Text="{Binding Home.DragBranch}" FontSize="12" Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
+              </StackPanel>
+            </StackPanel>
+          </StackPanel>
+        </Panel>
+      </Border>
+    </Border>
+    <Border Grid.Row="2" Padding="24,8" Background="{StaticResource Graphite}" BorderBrush="{StaticResource Filet}" BorderThickness="0,1,0,0">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Text="{Binding DataLocation}" ToolTip.Tip="{Binding DataLocationDetail}" FontSize="12" Foreground="{StaticResource Pierre}" />
+        <TextBlock Grid.Column="1" Text="Connexion automatique" FontSize="12" Foreground="{StaticResource Pierre}" />
+      </Grid>
+    </Border>
   </Grid>
 </Window>

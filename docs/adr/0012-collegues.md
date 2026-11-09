@@ -15,7 +15,7 @@ Contrainte posée : **rien en dur**. Les visages, les prénoms, l'équipe de dé
 2. **Un siège par rôle et par projet.** Recruter un analyste pour un projet remplace l'analyste précédent ; l'ancien reste dans l'historique (qui, quand).
 3. **Tout ce qui est contenu est une donnée gérée dans l'admin** (module Équipe, schéma `team`) :
    - la **galerie de portraits** (pose « travaille » et pose « parle », prénom suggéré, actif ou non), stockée en base ;
-   - le **chef d'équipe** (le personnage qui annonce le début et la fin d'une mission) et le portrait de **« Vous »** ;
+   - le portrait de **« Vous »** ; le **chef d'équipe** était ici un personnage réglé à part (prénom et portrait) — depuis la leçon 129, c'est un collègue recruté, désigné au recrutement ;
    - l'**équipe de départ** d'un nouveau projet ;
    - les **traits de personnalité** : un libellé et la phrase de style ajoutée à la consigne ;
    - les **répliques** : un modèle de phrase par type d'événement, avec des variables (`{fichier}`, `{destinataire}`…) ;

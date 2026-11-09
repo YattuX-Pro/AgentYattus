@@ -13,6 +13,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      # ponytail: le projet Mobile (MAUI) est exclu : il demande le workload maui et un SDK Android.
+      # Ajouter un job macOS ou Android dédié quand l'APK devra être produit par la CI.
       - run: dotnet build tests/AgentYattus.Api.Tests
       - run: dotnet build tests/AgentYattus.Client.Core.Tests
       - run: dotnet build src/AgentYattus.Desktop

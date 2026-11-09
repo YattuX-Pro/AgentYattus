@@ -104,7 +104,9 @@ internal sealed class DockerSandbox(Microsoft.Extensions.Options.IOptions<Agents
             "--workdir", "/work",
         ];
         // .git en lecture seule : une commande ne peut pas y planter un « hook » que la machine exécuterait plus tard.
-        if (Directory.Exists(Path.Combine(root, ".git")))
+        // Dans une copie de travail de mission (ADR 0016), .git est un fichier qui désigne le dépôt : en lecture seule aussi,
+        // sinon une commande pourrait le faire pointer ailleurs, et git, sur la machine, travaillerait dans un autre dépôt.
+        if (Directory.Exists(Path.Combine(root, ".git")) || File.Exists(Path.Combine(root, ".git")))
             args.AddRange(["--mount", $"type=bind,source={Path.Combine(root, ".git")},target=/work/.git,readonly"]);
         // Les fichiers exclus (secrets probables) n'existent pas non plus pour une commande : vides et en lecture seule.
         foreach (var relative in hidden ?? [])
@@ -144,8 +146,18 @@ internal sealed class DockerSandbox(Microsoft.Extensions.Options.IOptions<Agents
         try
         {
             using var kill = Process.Start(new ProcessStartInfo("docker") { ArgumentList = { "kill", name }, RedirectStandardOutput = true, RedirectStandardError = true });
-            if (kill is not null)
-                await kill.WaitForExitAsync();
+            if (kill is null)
+                return;
+            // Un démon Docker bloqué ne doit pas bloquer la mission : 10 secondes, puis on abandonne le client « docker kill ».
+            using var limit = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            try
+            {
+                await kill.WaitForExitAsync(limit.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                kill.Kill(entireProcessTree: true);
+            }
         }
         catch (System.ComponentModel.Win32Exception)
         {

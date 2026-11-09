@@ -7,6 +7,61 @@ namespace AgentYattus.Client.Core.Tests;
 public sealed class HomeViewModelTests
 {
     [Fact]
+    public async Task A_rejected_message_shows_the_servers_explanation_and_keeps_the_draft()
+    {
+        var handler = new StubHandler(_ => new HttpResponseMessage(HttpStatusCode.BadRequest)
+        {
+            Content = JsonContent.Create(new { errors = new { agent = new[] { "Cet agent n'est pas proposé." } } }),
+        });
+        var home = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") })) { Goal = "Hello Léon" };
+        await home.LaunchMissionCommand.ExecuteAsync(null);
+        Assert.Equal("Cet agent n'est pas proposé.", home.Error);
+        Assert.Equal("Hello Léon", home.Goal);
+        Assert.Empty(home.Missions);
+    }
+
+    [Fact]
+    public void Navigating_away_and_back_closes_the_folder_picker_and_preserves_the_draft()
+    {
+        var api = new ApiClient(new HttpClient(new StubHandler(_ => throw new InvalidOperationException())));
+        var home = new HomeViewModel(api) { Goal = "Mon brouillon" };
+        var shell = new ShellViewModel(api, home);
+        Assert.False(home.IsFolderOpen);
+        home.IsFolderOpen = true;
+        home.IsBrowsing = true;
+
+        shell.Current = new ReportsViewModel(api);
+        Assert.False(home.IsFolderOpen);
+        Assert.False(home.IsBrowsing);
+        shell.GoHomeCommand.Execute(null);
+        Assert.Same(home, shell.Current);
+        Assert.False(home.IsFolderOpen);
+        Assert.Equal("Mon brouillon", home.Goal);
+    }
+
+    [Fact]
+    public async Task Failed_attempts_stay_out_of_home_on_reload_and_live_updates()
+    {
+        var failed = new MissionDto(Guid.NewGuid(), "Essai", MissionStatus.Failed, DateTimeOffset.UtcNow);
+        var completed = new MissionDto(Guid.NewGuid(), "Terminée", MissionStatus.Completed, DateTimeOffset.UtcNow);
+        var running = new MissionDto(Guid.NewGuid(), "En cours", MissionStatus.Running, DateTimeOffset.UtcNow);
+        var handler = new StubHandler(request => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = request.RequestUri!.AbsolutePath == "/missions"
+                ? JsonContent.Create(new[] { failed, completed, running })
+                : request.RequestUri.AbsolutePath == "/projects/workspace-roots"
+                    ? JsonContent.Create(new WorkspaceRootsDto(true, []))
+                    : request.RequestUri.AbsolutePath == "/projects" ? JsonContent.Create(Array.Empty<ProjectDto>())
+                    : JsonContent.Create(Array.Empty<AgentDto>()),
+        });
+        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(new[] { completed.Id, running.Id }, vm.Missions.Select(m => m.Id));
+        vm.Apply(new MissionEventDto(running.Id, MissionStatus.Failed, DateTimeOffset.UtcNow));
+        Assert.Equal(completed.Id, Assert.Single(vm.Missions).Id);
+    }
+
+    [Fact]
     public void Launch_is_disabled_while_the_goal_is_blank()
     {
         var vm = new HomeViewModel(new ApiClient(new HttpClient(new StubHandler(_ => throw new InvalidOperationException()))));
@@ -31,11 +86,14 @@ public sealed class HomeViewModelTests
             Goal = "Relire le README",
         };
 
+        MissionItem? opened = null;
+        vm.MissionOpened += item => opened = item;
         await vm.LaunchMissionCommand.ExecuteAsync(null);
 
         Assert.Equal(HttpMethod.Post, sent!.Method);
         Assert.Equal("http://api/missions", sent.RequestUri!.ToString());
         Assert.Equal(mission.Id, Assert.Single(vm.Missions).Id);
+        Assert.Same(vm.Missions[0], opened);
         Assert.Equal("", vm.Goal);
 
         vm.Apply(new MissionEventDto(mission.Id, MissionStatus.Completed, DateTimeOffset.UtcNow));
@@ -103,7 +161,12 @@ public sealed class HomeViewModelTests
         var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
         await vm.LoadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal("analyste", vm.SelectedAgent!.Key);
+        // Par défaut, on parle au chef d'équipe (leçon 129) ; ici, pas d'équipe : le serveur confie la question à l'Analyste.
+        // Un agent choisi répond en direct.
+        Assert.Null(vm.SelectedAgent);
+        Assert.Equal("Quelle mission pour l’équipe ?", vm.Title);
+        vm.Goal = "Que fait ce dépôt ?";
+        await vm.LaunchMissionCommand.ExecuteAsync(null);
         vm.SelectedAgent = vm.Agents[1];
         vm.Goal = "Vérifie les tests";
         await vm.LaunchMissionCommand.ExecuteAsync(null);
@@ -111,8 +174,79 @@ public sealed class HomeViewModelTests
         vm.Goal = "Revue";
         await vm.LaunchMissionCommand.ExecuteAsync(null);
 
-        Assert.Contains("\"agent\":\"testeur\"", bodies[0]);
-        Assert.Contains("\"agent\":null", bodies[1]);
+        Assert.Contains("\"agent\":null", bodies[0]);
+        Assert.Contains("\"agent\":\"testeur\"", bodies[1]);
+        Assert.Contains("\"agent\":null", bodies[2]);
+    }
+
+    [Fact]
+    public async Task A_develop_mission_carries_the_chosen_skills_and_an_imported_skill_is_read_then_validated()
+    {
+        var bodies = new List<string>();
+        var statuses = new List<string>();
+        SkillDto approved = new("conventions", "Conventions", "Pour toute modification de ce dépôt.", "1. Lire AGENTS.md.", true, false, 0, null, 2);
+        SkillDto draft = new("brouillon", "Brouillon", "Une compétence pas encore validée.", "Corps.", true, false, 0, null, 1, SkillStatus.Draft);
+        SkillDto imported = new("importee", "Importée", "Pour les revues de code de ce dépôt.", "1. Relire le diff ligne à ligne.", true, false, 0, null, 1,
+            SkillStatus.Draft, [new SkillSourceDto("depot", "AGENTS.md")]);
+        var handler = new StubHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (request.Method == HttpMethod.Put)
+            {
+                statuses.Add(path + " " + request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                return new HttpResponseMessage(HttpStatusCode.NoContent);
+            }
+            if (request.Method == HttpMethod.Post && path == "/skills/import")
+                return new HttpResponseMessage(HttpStatusCode.Created) { Content = JsonContent.Create(new SkillImportDto(imported, ["Elle parle d'agir sans accord."])) };
+            if (request.Method == HttpMethod.Post)
+            {
+                bodies.Add(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                return new HttpResponseMessage(HttpStatusCode.Accepted) { Content = JsonContent.Create(new MissionDto(Guid.NewGuid(), "But", MissionStatus.Pending, DateTimeOffset.UtcNow)) };
+            }
+            object content = path switch
+            {
+                "/skills" => new[] { approved, draft },
+                "/agents" => Array.Empty<AgentDto>(),
+                "/projects" => Array.Empty<ProjectDto>(),
+                _ => Array.Empty<MissionDto>(),
+            };
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(content, content.GetType()) };
+        });
+        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+
+        // Un brouillon ne se choisit pas ; une compétence approuvée, avec sa version.
+        Assert.Equal("Conventions · v2", Assert.Single(vm.MissionSkills).Label);
+        vm.MissionSkills[0].IsSelected = true;
+        Assert.Equal("Compétences · 1", vm.SkillsLabel);
+
+        // Développer et REPORT.md s'excluent ; développer n'a pas de « à qui l'on parle ».
+        vm.Develop = true;
+        Assert.False(vm.IsQuestion);
+        vm.WriteReport = true;
+        Assert.False(vm.Develop);
+        vm.Develop = true;
+        Assert.False(vm.WriteReport);
+        vm.Goal = "Ajoute un test pour OrderService";
+        await vm.LaunchMissionCommand.ExecuteAsync(null);
+        Assert.Contains("\"kind\":\"Develop\"", bodies[0]);
+        Assert.Contains("\"skills\":[\"conventions\"]", bodies[0]);
+
+        // Importer : le brouillon se relit en entier (procédure, références, avertissements, portée), puis se valide.
+        var file = Path.GetTempFileName();
+        await File.WriteAllTextAsync(file, "---\nname: Importée\n---", TestContext.Current.CancellationToken);
+        vm.PickFiles = () => Task.FromResult<IReadOnlyList<string>>([file]);
+        await vm.ImportSkillCommand.ExecuteAsync(null);
+        Assert.True(vm.HasPendingSkill);
+        Assert.Contains("1. Relire le diff ligne à ligne.", vm.PendingSkillText);
+        Assert.Contains("- depot : AGENTS.md", vm.PendingSkillText);
+        Assert.Contains("sans accord", vm.PendingSkillText);
+        Assert.Contains("Portée : personnelle", vm.PendingSkillText);
+        await vm.ValidateSkillCommand.ExecuteAsync(null);
+        Assert.Equal("/skills/importee/status {\"status\":\"Approved\"}", Assert.Single(statuses));
+        Assert.False(vm.HasPendingSkill);
+        Assert.Equal("Compétences · 2", vm.SkillsLabel);
+        File.Delete(file);
     }
 
     [Fact]
@@ -151,41 +285,31 @@ public sealed class HomeViewModelTests
 
         await vm.LoadAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal(["http://api/missions?limit=50", "http://api/projects", "http://api/projects/workspace-roots", "http://api/agents"], sent);
+        Assert.Equal(["http://api/missions?limit=50", "http://api/projects", "http://api/projects/workspace-roots", "http://api/agents", "http://api/skills"], sent);
         Assert.Equal(missions.Select(m => m.Id), vm.Missions.Select(m => m.Id));
         Assert.True(vm.Missions[0].IsAwaitingApproval);
         Assert.Equal("À valider", vm.Missions[0].StatusLabel);
     }
 
     [Fact]
-    public async Task A_suggestion_launches_a_two_agent_review()
+    public void Elapsed_time_is_short()
     {
-        string? body = null;
-        var handler = new StubHandler(request =>
-        {
-            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
-            return new HttpResponseMessage(HttpStatusCode.Accepted)
-            {
-                Content = JsonContent.Create(new MissionDto(Guid.NewGuid(), "Audit de sécurité", MissionStatus.Pending,
-                    DateTimeOffset.UtcNow, Kind: MissionKind.Review)),
-            };
-        });
-        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
-
-        vm.UseSuggestionCommand.Execute("Audit de sécurité");
-        await vm.LaunchMissionCommand.ExecuteAsync(null);
-
-        Assert.True(vm.WriteReport);
-        Assert.Contains("\"kind\":\"Review\"", body);
-        Assert.True(vm.Missions[0].IsReview);
+        var now = new DateTimeOffset(2026, 11, 7, 15, 0, 0, TimeSpan.Zero);
+        Assert.Equal("en cours", MissionItem.Elapsed(true, now.AddDays(-3), now));
+        Assert.Equal("2 min", MissionItem.Elapsed(false, now.AddMinutes(-2), now));
+        Assert.Equal("hier", MissionItem.Elapsed(false, now.AddDays(-1), now));
     }
 
     [Fact]
-    public async Task The_owner_picks_the_project_folder_with_the_system_picker()
+    public async Task The_owner_browses_to_a_folder_in_the_app_without_climbing_above_the_allowed_root()
     {
         var project = new ProjectDto(Guid.NewGuid(), "Perso", null, null, new UserRefDto("me", "me", null), ProjectVisibility.Private, true, null,
             ProjectRole.Owner, true, [], DateTimeOffset.UtcNow);
-        var folder = Directory.CreateTempSubdirectory("mon-depot").FullName;
+        var root = Directory.CreateTempSubdirectory("racine").FullName;
+        var folder = Directory.CreateDirectory(Path.Combine(root, "mon-depot")).FullName;
+        Directory.CreateDirectory(Path.Combine(folder, ".git"));
+        await File.WriteAllTextAsync(Path.Combine(folder, ".git", "HEAD"), "ref: refs/heads/main\n", TestContext.Current.CancellationToken);
+        Directory.CreateDirectory(Path.Combine(root, ".cache"));
         string? put = null;
         var handler = new StubHandler(request =>
         {
@@ -198,25 +322,33 @@ public sealed class HomeViewModelTests
             object content = path switch
             {
                 "/projects" => new[] { project },
-                "/projects/workspace-roots" => new WorkspaceRootsDto(true, []),
+                "/projects/workspace-roots" => new WorkspaceRootsDto(false, [root]),
                 "/agents" => Array.Empty<AgentDto>(),
                 _ => Array.Empty<MissionDto>(),
             };
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = JsonContent.Create(content, content.GetType()) };
         });
-        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }))
-        {
-            PickFolder = _ => Task.FromResult<string?>(folder),
-        };
+        var vm = new HomeViewModel(new ApiClient(new HttpClient(handler) { BaseAddress = new Uri("http://api/") }));
         await vm.LoadAsync(TestContext.Current.CancellationToken);
 
         Assert.True(vm.CanChooseFolder);
-        Assert.Equal("Choisir un dossier", vm.FolderLabel);
-        await vm.ChooseFolderCommand.ExecuteAsync(null);
+        Assert.True(vm.NoFolder);
+        vm.BrowseCommand.Execute(null);
+        // Le dossier autorisé, sans les dossiers cachés ; un dépôt git montre sa branche.
+        var entry = Assert.Single(vm.Entries);
+        Assert.Equal(("mon-depot", "main"), (entry.Name, entry.Branch));
+        vm.SelectCommand.Execute(entry);
+        await vm.ChooseCommand.ExecuteAsync(null);
 
         Assert.Contains(System.Text.Json.JsonSerializer.Serialize(folder), put);
-        Assert.Equal(Path.GetFileName(folder), vm.FolderLabel);
         Assert.Equal(folder, vm.SelectedProject!.Workspace);
+        Assert.Equal(("main", false), (vm.Branch, vm.IsFolderOpen));
+
+        // Rouvert, il part d'à côté du dossier ; remonter au-dessus de la racine permise referme la navigation.
+        vm.BrowseCommand.Execute(null);
+        Assert.Equal(root, vm.BrowsePath);
+        vm.UpCommand.Execute(null);
+        Assert.False(vm.IsBrowsing);
     }
 
     [Fact]

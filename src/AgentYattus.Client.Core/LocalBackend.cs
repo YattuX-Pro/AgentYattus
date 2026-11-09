@@ -12,6 +12,17 @@ namespace AgentYattus.Client.Core;
 public sealed class LocalBackend : IAsyncDisposable
 {
     private Process? _process;
+    private StreamWriter? _log;
+    private long _logged;
+
+    /// <summary>
+    /// Le journal de l'API locale : là où l'on trouve la cause d'une mission en échec. Réécrit à chaque lancement,
+    /// 5 Mo au plus. Il ne contient pas le jeton (passé par l'environnement) ; il peut citer des erreurs des fournisseurs.
+    /// </summary>
+    public static string LogPath { get; } =
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AgentYattus", "api.log");
+
+    public const long MaxLogBytes = 5 * 1024 * 1024;
 
     private LocalBackend(string apiPath, int port, string token)
     {
@@ -82,8 +93,18 @@ public sealed class LocalBackend : IAsyncDisposable
     {
         _process = Process.Start(StartInfo(seedFolder)) ?? throw new InvalidOperationException("L'API locale n'a pas démarré.");
         // Les sorties sont lues pour ne pas bloquer l'API quand le tampon est plein ; elles ne contiennent pas le jeton.
-        _process.OutputDataReceived += (_, _) => { };
-        _process.ErrorDataReceived += (_, _) => { };
+        // Elles vont dans api.log : c'est le « journal du serveur » d'un logiciel en mode local.
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
+            _log = new StreamWriter(LogPath, append: false) { AutoFlush = true };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log = null; // sans journal, le logiciel fonctionne quand même
+        }
+        _process.OutputDataReceived += (_, e) => Log(e.Data);
+        _process.ErrorDataReceived += (_, e) => Log(e.Data);
         _process.BeginOutputReadLine();
         _process.BeginErrorReadLine();
 
@@ -117,11 +138,34 @@ public sealed class LocalBackend : IAsyncDisposable
         throw new TimeoutException("L'API locale ne répond pas après 30 secondes.");
     }
 
+    private void Log(string? line)
+    {
+        if (line is null || _log is null)
+            return;
+        lock (_log)
+        {
+            if (_logged > MaxLogBytes)
+                return;
+            _logged += line.Length + 1;
+            try
+            {
+                _log.WriteLine(_logged > MaxLogBytes ? "[… journal coupé à 5 Mo]" : line);
+            }
+            catch (ObjectDisposedException)
+            {
+                // Une dernière ligne après l'arrêt du logiciel : rien à garder.
+            }
+        }
+    }
+
     public ValueTask DisposeAsync()
     {
         if (_process is { HasExited: false })
             _process.Kill(entireProcessTree: true);
         _process?.Dispose();
+        if (_log is { } log)
+            lock (log)
+                log.Dispose();
         return ValueTask.CompletedTask;
     }
 

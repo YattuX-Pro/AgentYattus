@@ -27,8 +27,13 @@ public sealed class FreeModeTests
             throw new HttpRequestException("quota", null, status);
         }
 
-        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+        public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var response = await GetResponseAsync(messages, options, cancellationToken);
+            foreach (var update in response.ToChatResponseUpdates())
+                yield return update;
+        }
 
         public object? GetService(Type serviceType, object? serviceKey = null) => null;
 
@@ -86,10 +91,14 @@ public sealed class FreeModeTests
         var free = (await client.GetFromJsonAsync<LlmModelsDto>(LlmProtocol.Models, Ct))!.Models.First(m => m.ConnectionId == nvidia.Id && m.Free);
 
         var paid = await client.PutAsJsonAsync(LlmProtocol.Free, new UpdateFreeModeRequest(true, [new(anthropic.Id, "claude-sonnet-5-5")]), Ct);
-        var empty = await client.PutAsJsonAsync(LlmProtocol.Free, new UpdateFreeModeRequest(true, []), Ct);
+        var automatic = await client.PutAsJsonAsync(LlmProtocol.Free, new UpdateFreeModeRequest(true, []), Ct);
+        var autoStatus = (await client.GetFromJsonAsync<LlmStatusDto>(LlmProtocol.Path, Ct))!;
+        Assert.True(autoStatus.FreeMode);
+        Assert.NotEmpty(autoStatus.FreeChain!);
+        Assert.All(autoStatus.FreeChain!, link => Assert.Equal(nvidia.Id, link.ConnectionId));
         var ok = await client.PutAsJsonAsync(LlmProtocol.Free, new UpdateFreeModeRequest(true, [new(nvidia.Id, free.Id), new(ollama.Id, "qwen3:8b")]), Ct);
 
-        Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.BadRequest, HttpStatusCode.NoContent), (paid.StatusCode, empty.StatusCode, ok.StatusCode));
+        Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.NoContent, HttpStatusCode.NoContent), (paid.StatusCode, automatic.StatusCode, ok.StatusCode));
         var status = (await client.GetFromJsonAsync<LlmStatusDto>(LlmProtocol.Path, Ct))!;
         Assert.True(status.FreeMode);
         Assert.Equal([new(nvidia.Id, free.Id), new LlmSelectionDto(ollama.Id, "qwen3:8b")], status.FreeChain);
@@ -101,7 +110,7 @@ public sealed class FreeModeTests
     }
 
     [Fact]
-    public async Task Agents_use_the_chain_unless_they_have_their_own_model()
+    public async Task Free_mode_overrides_agent_models_and_disabling_restores_them()
     {
         await using var api = new ApiFactory();
         var client = api.CreateClient();
@@ -112,13 +121,51 @@ public sealed class FreeModeTests
 
         using var scope = api.Services.CreateScope();
         var real = new LlmClientProvider(scope.ServiceProvider.GetRequiredService<LlmDb>(),
-            scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(), new ConfigurationBuilder().Build());
+            scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(), new ConfigurationBuilder().Build(), scope.ServiceProvider.GetRequiredService<ModelCatalog>());
 
-        var analyst = (await real.GetAsync("analyste", Ct))!;
+        var analyst = (await real.GetAsync("analyste", null, Ct))!;
         Assert.NotNull(analyst.Client.GetService<FallbackChatClient>());
-        Assert.Equal("gratuit : ollama/qwen3:8b (+1)", await real.GetModelAsync("analyste", Ct));
-        // Un modèle choisi exprès pour un rôle l'emporte sur la chaîne.
-        Assert.Equal("anthropic/claude-sonnet-5-5", (await real.GetAsync("redacteur", Ct))!.Model);
+        Assert.Equal("gratuit : ollama/qwen3:8b (+1)", await real.GetModelAsync("analyste", null, Ct));
+        Assert.NotNull((await real.GetAsync("redacteur", null, Ct))!.Client.GetService<FallbackChatClient>());
+        Assert.Equal("gratuit : ollama/qwen3:8b (+1)", await real.GetModelAsync("redacteur", null, Ct));
+        await client.PutAsJsonAsync(LlmProtocol.Free, new UpdateFreeModeRequest(false, []), Ct);
+        scope.ServiceProvider.GetRequiredService<LlmDb>().ChangeTracker.Clear();
+        Assert.Equal("anthropic/claude-sonnet-5-5", (await real.GetAsync("redacteur", null, Ct))!.Model);
+    }
+
+    [Fact]
+    public async Task Free_mode_discovers_backups_even_with_only_one_selected_model()
+    {
+        await using var api = new ApiFactory();
+        var client = api.CreateClient();
+        var connection = await ConnectAsync(client, "openrouter", Key);
+        var models = (await client.GetFromJsonAsync<LlmModelsDto>(LlmProtocol.Models, Ct))!.Models
+            .Where(m => m.ConnectionId == connection.Id && m.Free).ToList();
+        Assert.True(models.Count > 1);
+        await client.PutAsJsonAsync(LlmProtocol.Free, new UpdateFreeModeRequest(true, [new(connection.Id, models[0].Id)]), Ct);
+        using var scope = api.Services.CreateScope();
+        var real = new LlmClientProvider(scope.ServiceProvider.GetRequiredService<LlmDb>(),
+            scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(), new ConfigurationBuilder().Build(),
+            scope.ServiceProvider.GetRequiredService<ModelCatalog>());
+        Assert.Contains("(+", await real.GetModelAsync("analyste", null, Ct));
+        Assert.NotNull((await real.GetAsync("analyste", null, Ct))!.Client.GetService<FallbackChatClient>());
+    }
+
+    [Fact]
+    public async Task Revoking_all_free_connections_never_falls_back_to_a_paid_configuration()
+    {
+        await using var api = new ApiFactory();
+        var client = api.CreateClient();
+        var connection = await ConnectAsync(client, "ollama", null);
+        await client.PutAsJsonAsync(LlmProtocol.Free, new UpdateFreeModeRequest(true, [new(connection.Id, "qwen3:8b")]), Ct);
+        await client.DeleteAsync($"{LlmProtocol.Connections}/{connection.Id}", Ct);
+        using var scope = api.Services.CreateScope();
+        var real = new LlmClientProvider(scope.ServiceProvider.GetRequiredService<LlmDb>(),
+            scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>(),
+            new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+                { ["Anthropic:ApiKey"] = Key }).Build(), scope.ServiceProvider.GetRequiredService<ModelCatalog>());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => real.GetAsync("analyste", null, Ct));
+        Assert.Equal("gratuit : aucun modèle disponible", await real.GetModelAsync("analyste", null, Ct));
     }
 
     private static async Task<LlmConnectionDto> ConnectAsync(HttpClient client, string provider, string? key)

@@ -11,7 +11,7 @@ import { PageHeader } from '../../shell/page-header';
 
 /** Des valeurs d'exemple pour l'aperçu des bulles. */
 export const SAMPLE: Record<string, string> = {
-  objectif: 'Revue de Orders.Api', fichier: 'src/Orders/OrderService.cs', analyste: 'Inès', redacteur: 'Malik', chef: 'Léon', vous: 'Yatt',
+  objectif: 'Revue de Orders.Api', fichier: 'src/Orders/OrderService.cs', analyste: 'Inès', redacteur: 'Malik', chef: 'Inès', vous: 'Yatt',
 };
 
 const VARIABLE = /\{([^{}]*)\}/g;

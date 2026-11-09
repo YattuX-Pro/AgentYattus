@@ -17,17 +17,27 @@ public enum MissionStatus
     Cancelled,
 }
 
-/// <summary>Question : l'Analyste répond. Revue : l'Analyste rend ses constats, le Rédacteur écrit REPORT.md.</summary>
+/// <summary>
+/// Question : l'Analyste répond. Revue : l'Analyste rend ses constats, le Rédacteur écrit REPORT.md.
+/// Développer (ADR 0016) : le Développeur modifie le code sur une branche à part, le code lance les contrôles, le Relecteur juge le diff.
+/// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<MissionKind>))]
 public enum MissionKind
 {
     Question,
     Review,
+    Develop,
+    Recruitment,
 }
 
 /// <param name="ProjectId">Le projet de la mission ; null : le projet personnel de l'auteur (ADR 0009).</param>
-/// <param name="Agent">L'agent qui fait une mission « Question » (ADR 0013) ; null : l'Analyste.</param>
-public sealed record CreateMissionRequest(string Goal, MissionKind Kind = MissionKind.Question, Guid? ProjectId = null, string? Agent = null);
+/// <param name="Agent">L'agent qui fait une mission « Question » (ADR 0013) ; si c'est le chef d'équipe du projet, il peut confier
+/// la demande à un collègue (leçon 129) ; null : l'Analyste.</param>
+/// <param name="OnBranch">Travailler sur une branche git à part (leçon 127) : la branche courante du projet ne change pas.</param>
+/// <param name="Skills">Les compétences choisies par l'humain pour cette mission (cinq au plus) : chargées en entier dès le départ.</param>
+public sealed record CreateMissionRequest(
+    string Goal, MissionKind Kind = MissionKind.Question, Guid? ProjectId = null, string? Agent = null, bool OnBranch = false,
+    IReadOnlyList<string>? Skills = null);
 
 /// <param name="Result">La réponse finale de l'agent, une fois la mission terminée.</param>
 /// <param name="PendingApproval">Les actions qui attendent une décision, quand le statut est AwaitingApproval.</param>
@@ -50,7 +60,10 @@ public sealed record MissionDto(
     long OutputTokens = 0,
     decimal Cost = 0,
     Guid? RetryOf = null,
-    string? Agent = null);
+    string? Agent = null,
+    string? Branch = null,
+    IReadOnlyList<string>? Skills = null,
+    RecruitmentDraftDto? RecruitmentDraft = null, Guid? RecruitmentMissionId = null, MessageAuthorDto? Interlocutor = null, bool NeedsReply = false, bool RecruitmentAdded = false, bool CanReply = false, bool ResultAccepted = false, Guid? ExecutionId = null, Guid? RecruitmentRequestId = null);
 
 /// <param name="Id">Identifie cette demande : une décision ne vaut que pour la demande que l'on a vue.</param>
 public sealed record ApprovalDto(Guid Id, IReadOnlyList<ToolCallDto> ToolCalls);
@@ -65,12 +78,12 @@ public sealed record DecisionRequest(bool Approved, Guid ApprovalId);
 public sealed record ReplyRequest(string Text);
 
 /// <summary>Un tour de la conversation, après le but : une réponse de l'agent, ou un message de toi.</summary>
-public sealed record MissionTurnDto(bool FromUser, string Text, DateTimeOffset At);
+public sealed record MissionTurnDto(bool FromUser, string Text, DateTimeOffset At, MessageAuthorDto? Author = null, long Id = 0);
 
 public sealed record MissionEventDto(Guid MissionId, MissionStatus Status, DateTimeOffset At);
 
 /// <summary>Un morceau de la réponse en train de s'écrire ; les morceaux s'ajoutent les uns aux autres.</summary>
-public sealed record MissionTextDto(Guid MissionId, string Text);
+public sealed record MissionTextDto(Guid MissionId, string Text, MessageAuthorDto? Author = null, Guid? MessageId = null, long Sequence = 0, Guid? ExecutionId = null);
 
 /// <param name="Type">Ce qui s'est passé : un statut (« Running »), un outil (« outil:read_file »), une décision…</param>
 public sealed record AuditEntryDto(string Type, DateTimeOffset At);
@@ -91,4 +104,5 @@ public static class MissionsHubProtocol
 
     /// <summary>Le texte de la réponse, au fur et à mesure qu'il s'écrit (leçon 119).</summary>
     public const string MissionText = "MissionText";
+    public const string MissionActivity = "MissionActivity";
 }

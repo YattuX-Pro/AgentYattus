@@ -127,16 +127,13 @@ public static partial class TeamModule
             TeamSettingsDto request, TeamDb db, ICurrentUser me, IAgentCatalog catalog, CancellationToken ct) =>
         {
             var errors = new Dictionary<string, string[]>();
-            var leaderName = (request.LeaderName ?? "").Trim();
             var defaultTeam = request.DefaultTeam ?? [];
-            if (!ValidName(leaderName))
-                errors["leaderName"] = ["De 1 à 24 caractères : lettres, espaces, apostrophes et tirets."];
             if (request.TypingMs is < 5 or > 200)
                 errors["typingMs"] = ["Entre 5 et 200 ms par lettre."];
             if (request.PauseMs is < 300 or > 10_000)
                 errors["pauseMs"] = ["Entre 300 et 10 000 ms."];
             var roles = await catalog.RoleKeysAsync(ct);
-            var portraitIds = new[] { request.LeaderPortraitId, request.ManagerPortraitId }.OfType<Guid>()
+            var portraitIds = new[] { request.ManagerPortraitId }.OfType<Guid>()
                 .Concat(defaultTeam.Select(s => s.PortraitId)).Distinct().ToList();
             var known = await db.Portraits.Where(p => portraitIds.Contains(p.Id)).Select(p => p.Id).ToListAsync(ct);
             if (known.Count != portraitIds.Count)
@@ -145,14 +142,14 @@ public static partial class TeamModule
                 || defaultTeam.Select(s => s.Role).Distinct().Count() != defaultTeam.Count
                 || defaultTeam.Any(s => s.Role is null || !roles.Contains(s.Role) || !ValidName((s.Name ?? "").Trim())))
                 errors["defaultTeam"] = ["Un siège par rôle existant, avec un prénom valide."];
+            else if (defaultTeam.Count(s => s.Leader) > 1)
+                errors["defaultTeam"] = ["Un seul chef d'équipe."];
             if (errors.Count > 0)
                 return TypedResults.ValidationProblem(errors);
 
             var row = await db.Settings.FindAsync([TeamSettingsRow.SingletonId], ct);
             if (row is null)
                 db.Settings.Add(row = new TeamSettingsRow { Id = TeamSettingsRow.SingletonId });
-            row.LeaderPortraitId = request.LeaderPortraitId;
-            row.LeaderName = leaderName;
             row.ManagerPortraitId = request.ManagerPortraitId;
             row.DefaultTeam = JsonSerializer.Serialize(defaultTeam.Select(s => s with { Name = s.Name.Trim() }), JsonSerializerOptions.Web);
             row.TypingMs = request.TypingMs;
@@ -180,8 +177,7 @@ public static partial class TeamModule
     {
         var row = await db.Settings.AsNoTracking().FirstOrDefaultAsync(s => s.Id == TeamSettingsRow.SingletonId, ct);
         var team = row?.DefaultTeam is { } json ? JsonSerializer.Deserialize<List<DefaultSeatDto>>(json, JsonSerializerOptions.Web) ?? [] : [];
-        // Sans réglage, un intitulé plutôt qu'un prénom : l'équipe se nomme dans l'admin (ou par l'import de la galerie).
-        return new TeamSettingsDto(row?.LeaderPortraitId, row?.LeaderName ?? "Chef d'équipe", row?.ManagerPortraitId, team,
+        return new TeamSettingsDto(row?.ManagerPortraitId, team,
             row?.TypingMs ?? DefaultTypingMs, row?.PauseMs ?? DefaultPauseMs);
     }
 

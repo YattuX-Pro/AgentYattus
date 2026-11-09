@@ -6,6 +6,7 @@ import { HlmBadgeImports } from '@spartan-ng/helm/badge';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmInputImports } from '@spartan-ng/helm/input';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
+import { HlmSwitchImports } from '@spartan-ng/helm/switch';
 import { HlmTableImports } from '@spartan-ng/helm/table';
 import { Agent, AdminApi, ColleagueEntry, Portrait, TeamSettings, errorMessage } from '../../core/api';
 import { when } from '../../core/format';
@@ -22,7 +23,7 @@ export function typedLength(elapsedMs: number, typingMs: number, length: number)
 
 @Component({
   selector: 'app-teams',
-  imports: [PageHeader, PortraitPicker, NgIcon, HlmBadgeImports, HlmButtonImports, HlmInputImports, HlmSkeletonImports, HlmTableImports],
+  imports: [PageHeader, PortraitPicker, NgIcon, HlmBadgeImports, HlmButtonImports, HlmInputImports, HlmSkeletonImports, HlmSwitchImports, HlmTableImports],
   providers: [provideIcons({ lucidePlay, lucideRotateCcw, lucideSave, lucideUserMinus })],
   templateUrl: './teams.html',
 })
@@ -71,11 +72,16 @@ export class Teams implements OnDestroy {
     this.form.update((f) => {
       if (!f) return f;
       const current = f.defaultTeam.find((s) => s.role === role);
-      const next = { role, portraitId: patch.portraitId ?? current?.portraitId ?? '', name: patch.name ?? (current?.name || suggested || '') };
+      const next = { role, portraitId: patch.portraitId ?? current?.portraitId ?? '', name: patch.name ?? (current?.name || suggested || ''), leader: current?.leader ?? false };
       // Choisir un visage propose son prénom, sauf si un prénom a déjà été tapé pour ce siège.
       if (patch.portraitId && suggested && !current?.name) next.name = suggested;
       return { ...f, defaultTeam: [...f.defaultTeam.filter((s) => s.role !== role), next].filter((s) => s.portraitId) };
     });
+  }
+
+  /** Un seul chef d'équipe : le choisir retire le titre aux autres sièges. */
+  protected setLeader(role: string, on: boolean) {
+    this.form.update((f) => (f ? { ...f, defaultTeam: f.defaultTeam.map((s) => ({ ...s, leader: s.role === role ? on : on ? false : s.leader })) } : f));
   }
 
   protected clearSeat(role: string) {

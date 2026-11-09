@@ -45,6 +45,36 @@ public sealed class OidcTests
         Assert.True(session.IsLlmAdmin);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task The_browser_only_closes_after_a_successful_token_exchange(bool rejectToken)
+    {
+        var keycloak = new FakeKeycloak { RejectToken = rejectToken };
+        var oidc = new OidcClient(new HttpClient(keycloak), Settings);
+        var page = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var login = oidc.LoginAsync(url => Browser.ReturnAsync(url, "c", onPage: html => page.TrySetResult(html)), cancellationToken: Ct);
+        if (rejectToken)
+            await Assert.ThrowsAsync<InvalidOperationException>(() => login);
+        else
+            await login;
+        var html = await page.Task.WaitAsync(TimeSpan.FromSeconds(5), Ct);
+        if (rejectToken)
+        {
+            Assert.Contains("Connexion échouée", html);
+            Assert.DoesNotContain("window.close()", html);
+            Assert.DoesNotContain("Connexion réussie", html);
+        }
+        else
+        {
+            Assert.Contains("Connexion réussie", html);
+            Assert.Contains("window.close()", html);
+            Assert.Contains("history.replaceState", html);
+            Assert.Contains("Si cet onglet reste ouvert", html);
+            Assert.DoesNotContain(FakeKeycloak.AccessToken, html);
+        }
+    }
+
     [Fact]
     public async Task Login_with_a_provider_asks_keycloak_to_go_straight_to_it()
     {
@@ -147,14 +177,15 @@ public sealed class OidcTests
     /// <summary>Le navigateur après la connexion : il revient sur l'adresse de redirection, avec le code.</summary>
     private static class Browser
     {
-        public static Task ReturnAsync(Uri authorizeUrl, string code, string? state = null)
+        public static Task ReturnAsync(Uri authorizeUrl, string code, string? state = null, Action<string>? onPage = null)
         {
             var query = HttpUtility.ParseQueryString(authorizeUrl.Query);
             var callback = $"{query["redirect_uri"]}?code={code}&state={Uri.EscapeDataString(state ?? query["state"]!)}";
             _ = Task.Run(async () =>
             {
                 using var http = new HttpClient();
-                await http.GetAsync(callback);
+                var html = await http.GetStringAsync(callback);
+                onPage?.Invoke(html);
             });
             return Task.CompletedTask;
         }
@@ -165,6 +196,7 @@ public sealed class OidcTests
         public static readonly string AccessToken = Jwt(new { preferred_username = "dev", realm_access = new { roles = new[] { "llm-admin" } } });
 
         public string? LastTokenForm { get; private set; }
+        public bool RejectToken { get; init; }
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
@@ -175,6 +207,8 @@ public sealed class OidcTests
                     token_endpoint = "http://keycloak.test/realms/agent-yattus/protocol/openid-connect/token",
                 });
             LastTokenForm = await request.Content!.ReadAsStringAsync(cancellationToken);
+            if (RejectToken)
+                return new HttpResponseMessage(HttpStatusCode.BadRequest);
             return Json(new { access_token = AccessToken, refresh_token = "refresh-2", expires_in = 300 });
         }
 

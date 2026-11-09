@@ -5,18 +5,17 @@ using Microsoft.EntityFrameworkCore;
 namespace AgentYattus.Api.Modules.Team;
 
 /// <summary>Le fichier portraits.json d'un dossier de galerie.</summary>
-internal sealed record SeedFile(
-    IReadOnlyList<SeedPortrait> Portraits, SeedSeat? Leader, string? Manager, IReadOnlyList<SeedSeat>? DefaultTeam);
+internal sealed record SeedFile(IReadOnlyList<SeedPortrait> Portraits, string? Manager, IReadOnlyList<SeedSeat>? DefaultTeam);
 
 internal sealed record SeedPortrait(string Slug, string Name);
 
-/// <param name="Role">Vide pour le chef d'équipe.</param>
-internal sealed record SeedSeat(string? Role, string Slug, string Name);
+/// <param name="Leader">Le chef d'équipe des nouveaux projets (leçon 129).</param>
+internal sealed record SeedSeat(string Role, string Slug, string Name, bool Leader = false);
 
 /// <summary>
 /// Au démarrage, une galerie vide reçoit les portraits du dossier Team:SeedFolder (deploy/portraits) :
 /// &lt;slug&gt;.webp (pose « travaille »), &lt;slug&gt;-parle.webp (pose « parle »), et portraits.json pour les prénoms,
-/// le chef d'équipe, « Vous » et l'équipe de départ. Une galerie qui contient déjà un portrait n'est jamais touchée.
+/// « Vous » et l'équipe de départ, avec son chef d'équipe. Une galerie qui contient déjà un portrait n'est jamais touchée.
 /// </summary>
 internal sealed class PortraitSeeder(
     IServiceScopeFactory scopes, IConfiguration configuration, IHostEnvironment environment, ILogger<PortraitSeeder> logger) : IHostedService
@@ -69,12 +68,10 @@ internal sealed class PortraitSeeder(
             db.Settings.Add(new TeamSettingsRow
             {
                 Id = TeamSettingsRow.SingletonId,
-                LeaderPortraitId = seed.Leader is { } l ? bySlug.GetValueOrDefault(l.Slug) : null,
-                LeaderName = seed.Leader?.Name,
                 ManagerPortraitId = seed.Manager is { } m ? bySlug.GetValueOrDefault(m) : null,
                 DefaultTeam = JsonSerializer.Serialize(
-                    (seed.DefaultTeam ?? []).Where(s => s.Role is not null && bySlug.ContainsKey(s.Slug))
-                        .Select(s => new DefaultSeatDto(s.Role!, bySlug[s.Slug], s.Name)), JsonSerializerOptions.Web),
+                    (seed.DefaultTeam ?? []).Where(s => s.Role is { Length: > 0 } && bySlug.ContainsKey(s.Slug))
+                        .Select(s => new DefaultSeatDto(s.Role, bySlug[s.Slug], s.Name, s.Leader)), JsonSerializerOptions.Web),
                 UpdatedAt = now,
                 UpdatedBy = "import de la galerie",
             });

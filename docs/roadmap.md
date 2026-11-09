@@ -157,16 +157,30 @@ Préalable : `feat(auth): page de connexion aux couleurs d'Agent Yattus, avec Go
 - [x] 121 `feat(missions): reprise après redémarrage`
 
 ### Phase C — « Mode développeur »
-- [ ] 122 `search` · 123 `edit_file` · 124 relecture en diff
-- [ ] 125 ADR 0015 bac à sable · 126 conteneur isolé · 127 `run_command`
-- [ ] 128 git en lecture · 129 mode branche · 130 commit puis PR avec accord
-- [ ] 131 postes Développeur et Testeur · 132 évaluations du mode développeur
+- [x] 122 `search` · 123 `edit_file` · 124 relecture en diff (leçons 122, 123)
+- [x] 125 ADR 0015 bac à sable · 126 conteneur isolé · 127 `run_command` (leçons 124, 125)
+- [x] 128 git en lecture (leçon 126) · [~] 129 mode branche (écrit, non commité, sans leçon) · [ ] 130 commit puis PR avec accord
+- [x] 131 postes Développeur et Relecteur (leçon 131) · [ ] 132 évaluations du mode développeur
+
+### Parcours de développement et compétences (demandes du 2026-11-07, au soir)
+- [x] Le chef d'équipe est un collègue recruté, désigné au recrutement (leçon 129)
+- [x] 130 profil du dépôt : `explore_repository` (langages, projets, consignes du dépôt, contrôles)
+- [x] 131 ADR 0016 · mission Développer : copie isolée sans accord à chaque pas, contrôles lancés par le code avant et après, Relecteur distinct, une correction au plus, résultat assemblé par le code
+- [x] 132 ADR 0017 · compétences versionnées, brouillon à valider, import `SKILL.md`, références, compétences choisies pour une mission
+- [x] 133 `read_documentation` : pages officielles, protégé contre la SSRF, citées avec date, empreinte et version
+- [ ] Reprise étape par étape d'une mission Développer (points de reprise persistés) ; protection contre la double exécution (prise atomique Pending → Running)
+- [ ] Commit de livraison lié à l'empreinte du diff montré (invalide si le diff change) ; nettoyage contrôlé des copies de travail
+- [ ] File bornée, nouvelles tentatives limitées aux erreurs temporaires (429, 503), budget par mission et par projet visible pendant l'exécution
+- [ ] Évaluations : défaut, petite fonctionnalité, plusieurs fichiers, conventions, injection, reprise, refus d'accord ; avec et sans compétence ; coût par tâche acceptée
+- [ ] Compétences de projet et d'organisation ; ressources d'un dossier de compétence ; proposition de mise à jour quand une page de référence change
+- [ ] Navigation dans les symboles (serveur de langage) ; contrôles des sous-dossiers d'un monorepo
+- [ ] Bureau : vérification visuelle et artboards pour « Développer », « Compétences » et la pastille du chef ; un bureau pour le Relecteur
 
 ### Phase D — Connecteurs MCP
-- [ ] 133 ADR 0016 · 134 client MCP · 135 outils MCP par agent · 136 connexions personnelles · 137 « Connecter » · 138 sécurité MCP
+- [ ] 133 ADR 0019 · 134 client MCP · 135 outils MCP par agent · 136 connexions personnelles · 137 « Connecter » · 138 sécurité MCP
 
 ### Phase E — L'équipe se passe le relais
-- [ ] 139 ADR 0017 · 140 le chef planifie et délègue · 141 chaîne de postes · 142 l'open space joue la délégation
+- [ ] 139 ADR 0020 · 140 le chef planifie et délègue · 141 chaîne de postes · 142 l'open space joue la délégation
 - [ ] 143 missions planifiées · 144 webhooks · 145 budget par projet et par mission
 
 ### Phase F — Simple pour tous
@@ -179,7 +193,8 @@ Préalable : `feat(auth): page de connexion aux couleurs d'Agent Yattus, avec Go
 - [ ] Statuts des bureaux (« lit le code », « rédige »…) réglables dans l'admin, comme les répliques.
 
 - [ ] Rôles d'agents personnalisés (choix des outils) : une décision à part.
-- [ ] Clés de modèle personnelles (une clé ne sert qu'aux projets de son propriétaire), modèle par projet, budget par organisation et par projet (ADR 0009, reporté).
+- [x] Clés de modèle personnelles : chacun connecte les siennes, elles ne servent qu'à ses missions et sortent du budget de l'instance (ADR 0018, leçon 134).
+- [ ] Modèle par projet, budget par organisation, par projet et par utilisateur (ADR 0009, reporté) ; clé de projet partagée.
 
 - [ ] Lancer l'évaluation sur Haiku et Sonnet (payant, quelques dizaines de centimes) et choisir le modèle par défaut.
 - [ ] `feat(mobile): squelette MAUI` (le code existe, non commité ; à brancher sur la connexion OIDC avec `WebAuthenticator`).

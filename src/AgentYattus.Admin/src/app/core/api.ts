@@ -35,7 +35,7 @@ export interface AgentPerformance { role: string; finished: number; completed: n
 export interface AgentVersion { version: number; instructions: string | null; maxIterations: number | null; at: string; by: string }
 
 export type MissionStatus = 'Pending' | 'Running' | 'Completed' | 'Failed' | 'AwaitingApproval' | 'Cancelled';
-export type MissionKind = 'Question' | 'Review';
+export type MissionKind = 'Question' | 'Review' | 'Develop' | 'Recruitment';
 export interface ToolCall { tool: string; arguments: string }
 export interface Mission {
   id: string; goal: string; status: MissionStatus; createdAt: string; result: string | null;
@@ -78,11 +78,12 @@ export interface AuditEntry { type: string; at: string }
 export interface Portrait { id: string; slug: string; suggestedName: string; active: boolean; hasTalk: boolean; workUrl: string; talkUrl: string }
 export interface Trait { key: string; label: string; style: string }
 export interface SceneLine { event: string; description: string; speaker: string; template: string; variables: string[]; isDefault: boolean }
-export interface DefaultSeat { role: string; portraitId: string; name: string }
-export interface TeamSettings { leaderPortraitId: string | null; leaderName: string; managerPortraitId: string | null; defaultTeam: DefaultSeat[]; typingMs: number; pauseMs: number }
+/** Un siège de l'équipe de départ ; `leader` : le chef d'équipe des nouveaux projets (un au plus, leçon 129). */
+export interface DefaultSeat { role: string; portraitId: string; name: string; leader: boolean }
+export interface TeamSettings { managerPortraitId: string | null; defaultTeam: DefaultSeat[]; typingMs: number; pauseMs: number }
 export interface Colleague {
   id: string; projectId: string; role: string; portraitId: string; name: string; traits: string[];
-  recruitedBy: UserRef | null; recruitedAt: string; active: boolean; removedAt: string | null;
+  recruitedBy: UserRef | null; recruitedAt: string; active: boolean; removedAt: string | null; leader: boolean;
 }
 export interface ColleagueEntry { colleague: Colleague; projectName: string }
 export interface AuditFeedEntry { missionId: string; type: string; at: string }

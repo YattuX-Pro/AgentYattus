@@ -14,11 +14,18 @@ internal sealed class WorkspaceTools
     private readonly long _maxFileBytes;
     private readonly IReadOnlyList<string> _excluded;
     private readonly ICommandSandbox? _sandbox;
+    private readonly bool _isolated;
 
     /// <param name="excluded">Motifs de noms (« .env », « *.pfx ») : ces fichiers et dossiers n'existent pas pour l'agent (ADR 0010).</param>
-    public WorkspaceTools(string rootPath, long maxFileBytes = 256 * 1024, IReadOnlyList<string>? excluded = null, ICommandSandbox? sandbox = null)
+    /// <param name="isolated">
+    /// Le dossier est la copie de travail d'une mission sur branche (ADR 0016) : écrire, modifier et lancer une commande du
+    /// bac à sable n'y touchent pas les fichiers du projet, et ne demandent donc pas d'accord à chaque fois.
+    /// </param>
+    public WorkspaceTools(string rootPath, long maxFileBytes = 256 * 1024, IReadOnlyList<string>? excluded = null, ICommandSandbox? sandbox = null,
+        bool isolated = false)
     {
         _sandbox = sandbox;
+        _isolated = isolated;
         // Les motifs sous une seule forme Unicode (NFC), comme les noms auxquels on les compare.
         _excluded = (excluded ?? []).Select(p => p.Normalize(System.Text.NormalizationForm.FormC)).ToList();
         var root = Path.GetFullPath(rootPath);
@@ -35,26 +42,81 @@ internal sealed class WorkspaceTools
     public static IReadOnlyList<(string Name, string Description, bool RequiresApproval)> Catalog { get; } =
     [
         ("list_files", "Liste les fichiers et dossiers d'un dossier du workspace.", false),
-        ("read_file", "Lit le contenu texte d'un fichier du workspace ; un PDF, un Word (.docx) ou un Excel (.xlsx) est converti en texte.", false),
+        ("read_file", "Lit un passage d'un fichier (startLine, lineCount ; 120 lignes par défaut). PDF, Word et Excel sont convertis en texte.", false),
         ("write_file", "Crée ou remplace un fichier texte du workspace. Un humain doit approuver chaque écriture.", true),
         ("search", "Cherche un texte dans les fichiers du workspace et rend les lignes trouvées (fichier:ligne: texte).", false),
         ("edit_file", "Remplace un passage exact d'un fichier par un autre ; le passage doit apparaître une seule fois. Un humain doit approuver.", true),
         ("run_command", "Lance une commande (tests, compilation) dans un conteneur isolé, sans réseau, dans le dossier du projet. Un humain doit approuver chaque commande.", true),
         ("write_document", "Crée ou remplace un document Word (.docx) du workspace, à partir d'un texte : « # » pour un titre, « - » pour une puce. Un humain doit approuver.", true),
+        ("explore_repository", "Décrit le dépôt sans rien exécuter : langages, projets, consignes du dépôt (AGENTS.md, README…) et commandes pour compiler et tester.", false),
     ];
+
+    /// <summary>Les outils qui écrivent ou exécutent : un accord humain à chaque appel, sauf dans une copie de travail isolée.</summary>
+    private AIFunction Guarded(AIFunction function) => _isolated ? function : new ApprovalRequiredAIFunction(function);
 
     public IReadOnlyList<AIFunction> AsAIFunctions() =>
     [
         AIFunctionFactory.Create(ListFiles, Catalog[0].Name, Catalog[0].Description),
         AIFunctionFactory.Create(ReadFile, Catalog[1].Name, Catalog[1].Description),
         // Écrire modifie le disque de l'utilisateur : la boucle s'arrête et demande son accord avant chaque appel.
-        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteFile, Catalog[2].Name, Catalog[2].Description)),
+        // Dans la copie de travail d'une mission (ADR 0016), rien n'atteint ses fichiers : pas d'accord à chaque écriture.
+        Guarded(AIFunctionFactory.Create(WriteFile, Catalog[2].Name, Catalog[2].Description)),
         AIFunctionFactory.Create(Search, Catalog[3].Name, Catalog[3].Description),
         // Modifier, c'est écrire : la même règle que write_file.
-        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(EditFile, Catalog[4].Name, Catalog[4].Description)),
-        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(RunCommand, Catalog[5].Name, Catalog[5].Description)),
-        new ApprovalRequiredAIFunction(AIFunctionFactory.Create(WriteDocument, Catalog[6].Name, Catalog[6].Description)),
+        Guarded(AIFunctionFactory.Create(EditFile, Catalog[4].Name, Catalog[4].Description)),
+        Guarded(AIFunctionFactory.Create(RunCommand, Catalog[5].Name, Catalog[5].Description)),
+        Guarded(AIFunctionFactory.Create(WriteDocument, Catalog[6].Name, Catalog[6].Description)),
+        AIFunctionFactory.Create(ExploreRepository, Catalog[7].Name, Catalog[7].Description),
     ];
+
+    /// <summary>« explore_repository » (leçon 130) : le profil du dépôt, recalculé à chaque appel.</summary>
+    public string ExploreRepository(CancellationToken cancellationToken = default) => Profile(cancellationToken).Describe();
+
+    /// <summary>
+    /// Le profil du dépôt : mêmes règles que search (ni lien, ni fichier exclu, ni dépendances, ni .git), 5 000 fichiers au plus.
+    /// Seuls les petits fichiers de consignes et de projet sont lus.
+    /// </summary>
+    internal RepositoryProfile Profile(CancellationToken cancellationToken = default)
+    {
+        const int MaxFiles = 5000;
+        var files = new List<string>();
+        var pending = new Stack<string>([_root]);
+        var truncated = false;
+        while (pending.Count > 0 && !truncated)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var entry in Directory.EnumerateFileSystemEntries(pending.Pop()).Order(StringComparer.Ordinal))
+            {
+                var name = Path.GetFileName(entry);
+                if (IsLink(entry) || MatchesExcluded(name))
+                    continue;
+                if (Directory.Exists(entry))
+                {
+                    if (!SkippedFolders.Contains(name))
+                        pending.Push(entry);
+                    continue;
+                }
+                if (files.Count >= MaxFiles)
+                {
+                    truncated = true;
+                    break;
+                }
+                files.Add(Path.GetRelativePath(_root, entry));
+            }
+        }
+        return RepositoryProfile.From(files, truncated, relative =>
+        {
+            var file = new FileInfo(Path.Combine(_root, relative));
+            return file.Exists && file.Length <= 64 * 1024 ? File.ReadAllText(file.FullName) : null;
+        });
+    }
+
+    /// <summary>
+    /// Une commande lancée par le code lui-même (les contrôles d'une mission Développer, ADR 0016), dans le même bac à sable
+    /// que run_command ; null si le bac à sable est indisponible.
+    /// </summary>
+    internal async Task<CommandResult?> ExecuteAsync(string command, CancellationToken cancellationToken) =>
+        _sandbox is null ? null : await _sandbox.RunAsync(_root, command, cancellationToken, ExcludedEntries());
 
     /// <summary>
     /// Une commande (ADR 0015), toujours dans le bac à sable, jamais sur la machine. Sa sortie est une donnée :
@@ -167,7 +229,7 @@ internal sealed class WorkspaceTools
         [Description("Le nouveau passage.")] string newText,
         CancellationToken cancellationToken = default)
     {
-        var file = new FileInfo(Resolve(path));
+        var file = new FileInfo(ResolveForWriting(path));
         if (!file.Exists)
             throw new FileNotFoundException($"Fichier introuvable : {path}");
         if (file.Length > _maxFileBytes)
@@ -194,7 +256,7 @@ internal sealed class WorkspaceTools
     {
         if (!path.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Un document Word finit par .docx ; pour un autre fichier, utilise write_file.");
-        var fullPath = Resolve(path);
+        var fullPath = ResolveForWriting(path);
         if (System.Text.Encoding.UTF8.GetByteCount(content) > _maxFileBytes)
             throw new InvalidOperationException($"Contenu trop volumineux (maximum {_maxFileBytes} octets).");
         if (Directory.Exists(fullPath))
@@ -222,7 +284,9 @@ internal sealed class WorkspaceTools
 
     public async Task<string> ReadFile(
         [Description("Chemin du fichier, relatif à la racine du workspace.")] string path,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        [Description("Première ligne à lire, à partir de 1.")] int startLine = 1,
+        [Description("Nombre de lignes à lire, 120 par défaut, 500 au plus.")] int lineCount = 120)
     {
         var file = new FileInfo(Resolve(path));
         if (!file.Exists)
@@ -238,7 +302,8 @@ internal sealed class WorkspaceTools
             try
             {
                 // Hors du fil de la requête, avec son jeton : la mission peut être arrêtée pendant la lecture.
-                return await Task.Run(() => Documents.ExtractText(file.FullName, (int)Math.Min(_maxFileBytes, int.MaxValue), cancellationToken), cancellationToken);
+                var extracted = await Task.Run(() => Documents.ExtractText(file.FullName, (int)Math.Min(_maxFileBytes, int.MaxValue), cancellationToken), cancellationToken);
+                return TextExcerpt.Read(extracted, startLine, lineCount, 10_000, path);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -251,7 +316,8 @@ internal sealed class WorkspaceTools
             throw new InvalidOperationException($"Fichier trop volumineux : {file.Length} octets (maximum {_maxFileBytes}).");
         }
 
-        return await File.ReadAllTextAsync(file.FullName, cancellationToken);
+        var text = await File.ReadAllTextAsync(file.FullName, cancellationToken);
+        return TextExcerpt.Read(text, startLine, lineCount, 10_000, path);
     }
 
     public async Task<string> WriteFile(
@@ -259,7 +325,7 @@ internal sealed class WorkspaceTools
         [Description("Contenu texte complet du fichier.")] string content,
         CancellationToken cancellationToken = default)
     {
-        var fullPath = Resolve(path);
+        var fullPath = ResolveForWriting(path);
         if (System.Text.Encoding.UTF8.GetByteCount(content) > _maxFileBytes)
         {
             throw new InvalidOperationException($"Contenu trop volumineux (maximum {_maxFileBytes} octets).");
@@ -304,6 +370,20 @@ internal sealed class WorkspaceTools
             }
         }
 
+        return fullPath;
+    }
+
+    /// <summary>
+    /// Écrire : mêmes règles que lire, et jamais dans .git. Dans une copie de travail, .git est un fichier qui désigne le
+    /// dépôt ; le réécrire ferait travailler git, sur la machine, dans un autre dépôt (ADR 0016). Un hook planté dans .git/
+    /// s'exécuterait au prochain commit de l'humain.
+    /// </summary>
+    private string ResolveForWriting(string relativePath)
+    {
+        var fullPath = Resolve(relativePath);
+        var first = Path.GetRelativePath(_root, fullPath).Split(Path.DirectorySeparatorChar)[0];
+        if (string.Equals(first, ".git", StringComparison.OrdinalIgnoreCase))
+            throw new UnauthorizedAccessException($"Accès refusé : '{relativePath}' est dans .git, que seul git modifie.");
         return fullPath;
     }
 

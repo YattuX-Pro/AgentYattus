@@ -68,6 +68,9 @@ public sealed partial class ToolRow(ToolInfoDto tool) : ObservableObject
         "git_status" => "Voir l'état du dépôt git",
         "git_diff" => "Voir les modifications git",
         "git_log" => "Voir l'historique git",
+        "git_commit" => "Enregistrer un commit (branche de la mission)",
+        "explore_repository" => "Comprendre le dépôt (profil, consignes, contrôles)",
+        "read_documentation" => "Lire une documentation officielle (web, sites autorisés)",
         _ => tool.Description,
     };
 
@@ -82,6 +85,9 @@ public sealed partial class ToolRow(ToolInfoDto tool) : ObservableObject
 public sealed partial class SkillChoice(SkillDto skill, SkillPerformanceDto? performance = null) : ObservableObject
 {
     public SkillDto Skill { get; } = skill;
+
+    /// <summary>« Conventions du projet · v3 » ; « (dépréciée) » si elle l'est.</summary>
+    public string Label => $"{Skill.Name} · v{Skill.Version}" + (Skill.Status == SkillStatus.Deprecated ? " (dépréciée)" : "");
 
     /// <summary>
     /// Au survol : quand s'en servir, puis la mesure (leçon 107) : combien de fois un agent l'a chargée,
@@ -108,9 +114,51 @@ public sealed record ModelChoice(LlmSelectionDto? Selection, string Label);
 /// <param name="current">Le collègue qui l'occupe : son visage, son prénom et ses traits sont repris.</param>
 /// <param name="projectName">Sous le titre : « ÉQUIPE ORDERS.API ».</param>
 public sealed partial class RecruitViewModel(
-    ApiClient api, Guid projectId, string? role = null, ColleagueDto? current = null, string? projectName = null) : ObservableObject
+    ApiClient api, Guid projectId, string? role = null, ColleagueDto? current = null, string? projectName = null, Guid? recruitmentSource = null, Guid? recruitmentMission = null) : ObservableObject
 {
     public Guid ProjectId { get; } = projectId;
+
+    public RecruitmentViewModel Rh => field ??= CreateRh();
+    public bool CanUseRh => current is null;
+    public ObservableCollection<RecruitmentSkillDto> SuggestedSkills { get; } = [];
+    private RecruitmentDraftDto? _rhProfile;
+    private string? _createdRole;
+    private string? _createdSignature;
+
+    public void PrepareProfile(RecruitmentDraftDto draft) => ApplyRh(draft);
+
+    private RecruitmentViewModel CreateRh()
+    {
+        var rh = new RecruitmentViewModel(api, ProjectId);
+        rh.ApplyRequested += ApplyRh;
+        rh.CreateRequested = async (draft, ct) =>
+        {
+            ApplyRh(draft);
+            if (!CanRecruit)
+            {
+                rh.Error = "Choisissez un visage et un prénom valide dans le formulaire, puis recrutez.";
+                return;
+            }
+            await RecruitAsync(ct);
+            rh.Error = Error;
+        };
+        return rh;
+    }
+
+    private void ApplyRh(RecruitmentDraftDto draft)
+    {
+        if (ReferenceEquals(_rhProfile, draft) && Role?.IsCustomSlot == true) return;
+        var custom = Roles.FirstOrDefault(r => r.IsCustomSlot);
+        if (custom is null) { Error = "Le formulaire n'est pas encore chargé."; return; }
+        PickRole(custom);
+        _rhProfile = draft;
+        Instructions = draft.Instructions;
+        foreach (var tool in Tools) tool.IsOn = draft.Tools.Contains(tool.Tool.Name);
+        foreach (var skill in Skills) skill.IsSelected = false;
+        SuggestedSkills.Clear();
+        foreach (var skill in draft.Skills) SuggestedSkills.Add(skill);
+        Error = null;
+    }
 
     /// <summary>« ÉQUIPE ORDERS.API », ou « ÉQUIPE PERSONNELLE ».</summary>
     public string Team => projectName is null ? "ÉQUIPE PERSONNELLE" : $"ÉQUIPE {projectName.ToUpperInvariant()}";
@@ -186,8 +234,19 @@ public sealed partial class RecruitViewModel(
     [NotifyCanExecuteChangedFor(nameof(RecruitCommand))]
     public partial RoleChoice? Role { get; set; }
 
-    /// <summary>Le poste sur le badge : « ANALYSTE ».</summary>
-    public string Poste => (Role?.Name ?? "Nouveau collègue").ToUpperInvariant();
+    /// <summary>
+    /// Le chef d'équipe (leçon 129) : on s'adresse à lui par défaut, il répond ou confie la demande à un collègue.
+    /// Un seul par projet : le cocher retire le titre à l'actuel. Repris quand on change le visage du chef.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Poste))]
+    public partial bool IsLeader { get; set; } = current?.Leader == true;
+
+    [RelayCommand]
+    private void ToggleLeader() => IsLeader = !IsLeader;
+
+    /// <summary>Le poste sur le badge : « ANALYSTE », ou « CHEF D'ÉQUIPE · ANALYSTE ».</summary>
+    public string Poste => ((IsLeader ? "Chef d’équipe · " : "") + (Role?.Name ?? "Nouveau collègue")).ToUpperInvariant();
 
     /// <summary>Sur le badge : lecture seule, ou écriture avec votre accord.</summary>
     public string Access => Tools.Any(t => t.IsOn && t.Warn) ? "Lecture, écriture validée" : "Lecture seule";
@@ -314,7 +373,9 @@ public sealed partial class RecruitViewModel(
             try
             {
                 foreach (var m in await api.GetModelChoicesAsync(cancellationToken))
-                    Models.Add(new ModelChoice(new LlmSelectionDto(m.ConnectionId, m.Id), m.Free ? $"{m.Name} · gratuit" : m.Name));
+                    // Une clé personnelle (leçon 134) : seulement pour un agent à soi ; le serveur le vérifie.
+                    Models.Add(new ModelChoice(new LlmSelectionDto(m.ConnectionId, m.Id),
+                        m.Name + (m.Free ? " · gratuit" : "") + (m.Personal ? " · ma clé" : "")));
             }
             catch (Exception ex) when (ex is HttpRequestException or System.Text.Json.JsonException)
             {
@@ -373,6 +434,8 @@ public sealed partial class RecruitViewModel(
         foreach (var r in Roles)
             r.IsSelected = r == choice;
         Role = choice;
+        _rhProfile = null;
+        SuggestedSkills.Clear();
         // Le poste remplit les réglages ; un poste « Personnalisé » part de la lecture seule.
         _baseTools = choice.IsCustomSlot ? ["list_files", "read_file"] : [.. choice.Agent.Tools.Select(t => t.Name)];
         foreach (var t in Tools)
@@ -393,6 +456,13 @@ public sealed partial class RecruitViewModel(
             var tools = Tools.Where(t => t.IsOn).Select(t => t.Tool.Name).ToList();
             var instructions = Instructions.Trim();
             var model = Model?.Selection ?? Role.Agent.ModelOverride;
+            // Les compétences validées sur la fiche sont créées une fois ; une reprise après erreur ne les duplique pas.
+            foreach (var draft in SuggestedSkills.ToList())
+            {
+                var skill = await api.CreateSkillAsync(new CreateSkillRequest(draft.Name, draft.Description, draft.Body, Personal: true), cancellationToken);
+                Skills.Add(new SkillChoice(skill) { IsSelected = true });
+                SuggestedSkills.Remove(draft);
+            }
             if (Role.Agent.Mine && IsPersonalized)
             {
                 // Un agent à soi : on le règle directement.
@@ -402,17 +472,24 @@ public sealed partial class RecruitViewModel(
             else if (IsPersonalized)
             {
                 // Un poste partagé qu'on adapte, ou « Personnalisé » : un agent à soi, que personne d'autre ne voit.
-                var name = Role.IsCustomSlot ? $"Agent de {Name.Trim()}" : $"{Role.Name} de {Name.Trim()}";
-                var summary = Role.IsCustomSlot ? Summary(instructions) : Role.Agent.Role;
-                var created = await api.CreateAgentAsync(new CreateAgentRequest(
-                    name.Length > 40 ? name[..40].Trim() : name, summary.Length >= 5 ? summary : $"Agent personnel de {Name.Trim()}.",
-                    instructions, tools, Personal: true, Model: model, BasedOn: Role.IsCustomSlot ? null : role), cancellationToken);
-                role = created.Key;
+                var name = Role.IsCustomSlot ? _rhProfile?.Name ?? $"Agent de {Name.Trim()}" : $"{Role.Name} de {Name.Trim()}";
+                var summary = Role.IsCustomSlot ? _rhProfile?.Summary ?? Summary(instructions) : Role.Agent.Role;
+                var signature = System.Text.Json.JsonSerializer.Serialize(new { name, summary, instructions, tools, model });
+                if (_createdRole is not null && signature == _createdSignature)
+                    role = _createdRole;
+                else
+                {
+                    var created = await api.CreateAgentAsync(new CreateAgentRequest(
+                        name.Length > 40 ? name[..40].Trim() : name, summary.Length >= 5 ? summary : $"Agent personnel de {Name.Trim()}.",
+                        instructions, tools, Personal: true, Model: model, BasedOn: Role.IsCustomSlot ? null : role), cancellationToken);
+                    role = _createdRole = created.Key;
+                    _createdSignature = signature;
+                }
             }
 
             await api.RecruitAsync(ProjectId, new RecruitRequest(
                 role, Selected!.Portrait.Id, Name.Trim(), [.. Traits.Where(t => t.IsSelected).Select(t => t.Trait.Key)],
-                [.. Skills.Where(s => s.IsSelected).Select(s => s.Skill.Key)]), cancellationToken);
+                [.. Skills.Where(s => s.IsSelected).Select(s => s.Skill.Key)], IsLeader, recruitmentSource, recruitmentMission), cancellationToken);
             Done?.Invoke();
         }
         catch (HttpRequestException ex)

@@ -9,9 +9,10 @@ public sealed class RecruitViewModelTests
 {
     private static readonly Guid Project = Guid.NewGuid();
 
-    private static (RecruitViewModel Vm, List<string> Posted) Create()
+    private static (RecruitViewModel Vm, List<string> Posted) Create(bool failFirstRecruitment = false)
     {
         var posted = new List<string>();
+        var recruitAttempts = 0;
         var portraits = new[]
         {
             new PortraitDto(Guid.NewGuid(), "nora", "Nora", true, true, "/team/portraits/a/travail", "/team/portraits/a/parle"),
@@ -44,6 +45,8 @@ public sealed class RecruitViewModelTests
             if (request.Method == HttpMethod.Post)
             {
                 posted.Add(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                if (failFirstRecruitment && ++recruitAttempts == 1)
+                    return new HttpResponseMessage(HttpStatusCode.InternalServerError);
                 return new HttpResponseMessage(HttpStatusCode.Created)
                 {
                     Content = JsonContent.Create(new ColleagueDto(Guid.NewGuid(), Project, "analyste", portraits[1].Id, "Karim", [], null, DateTimeOffset.UtcNow, true, null)),
@@ -165,6 +168,40 @@ public sealed class RecruitViewModelTests
         Assert.Equal("rapport-client · charte · compétences utilisées",
             new ReportStats(0, 0, 0, Skills: ["rapport-client", "charte"]).SkillsLabel);
         Assert.False(new ReportStats(0, 0, 0).HasSkills);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task The_hr_creates_the_skill_the_agent_and_the_colleague_and_a_retry_does_not_duplicate_them(bool retry)
+    {
+        var (vm, posted) = Create(failFirstRecruitment: retry);
+        await vm.LoadAsync(TestContext.Current.CancellationToken);
+        var draft = new RecruitmentDraftDto("Rédacteur commercial", "Prépare des propositions commerciales claires.",
+            "Rédige des propositions à partir des faits fournis et vérifie les conditions avec l'utilisateur.",
+            ["read_file", "write_document"],
+            [new RecruitmentSkillDto("Proposition client", "Pour toute proposition commerciale destinée à un client.", "Identifie le besoin et les faits. Prépare le périmètre, le bénéfice, les conditions et les points à confirmer.")]);
+        vm.Rh.Draft = draft;
+        var done = false;
+        vm.Done += () => done = true;
+        await vm.Rh.CreateCommand.ExecuteAsync(null);
+        if (retry)
+        {
+            Assert.False(done);
+            Assert.NotNull(vm.Rh.Error);
+            await vm.Rh.CreateCommand.ExecuteAsync(null);
+        }
+        Assert.True(done);
+        Assert.Equal(retry ? 4 : 3, posted.Count);
+        var agent = System.Text.Json.JsonSerializer.Deserialize<CreateAgentRequest>(posted[1], System.Text.Json.JsonSerializerOptions.Web)!;
+        Assert.Equal(draft.Name, agent.Name);
+        Assert.Equal(draft.Instructions, agent.Instructions);
+        Assert.True(agent.Personal);
+        var recruited = System.Text.Json.JsonSerializer.Deserialize<RecruitRequest>(posted[^1], System.Text.Json.JsonSerializerOptions.Web)!;
+        Assert.Equal("Nora", recruited.Name);
+        Assert.Equal("agent-de-karim", recruited.Role);
+        Assert.Equal(["ton-client"], recruited.Skills);
+        Assert.Empty(vm.SuggestedSkills);
     }
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> respond) : HttpMessageHandler

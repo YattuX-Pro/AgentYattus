@@ -10,7 +10,8 @@ public sealed class AgentsTests(ApiFactory factory) : IClassFixture<ApiFactory>
     {
         var agents = await factory.CreateClient().GetFromJsonAsync<AgentDto[]>(AgentsProtocol.Path, TestContext.Current.CancellationToken);
 
-        Assert.Equal(["Analyste", "Rédacteur"], agents!.Select(a => a.Name));
+        // Le Développeur et le Relecteur (ADR 0016) suivent : ce sont les postes de la mission Développer.
+        Assert.Equal(["Analyste", "Rédacteur", "Développeur", "Relecteur"], agents!.Select(a => a.Name));
         Assert.Equal(["list_files", "read_file"], agents![0].Tools.Select(t => t.Name));
         Assert.DoesNotContain(agents[0].Tools, t => t.RequiresApproval);
         Assert.Equal(["write_file"], agents[1].Tools.Where(t => t.RequiresApproval).Select(t => t.Name));

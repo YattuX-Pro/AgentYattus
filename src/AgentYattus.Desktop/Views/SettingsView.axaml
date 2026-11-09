@@ -115,7 +115,10 @@
       <StackPanel Margin="40,26,40,28" Spacing="18" MaxWidth="1000">
         <StackPanel Spacing="4">
           <TextBlock Classes="eyebrow" Text="PARAMÈTRES" />
-          <TextBlock Text="Modèles" FontSize="26" FontWeight="SemiBold" LetterSpacing="-0.5" />
+          <TextBlock Text="{Binding Heading}" FontSize="26" FontWeight="SemiBold" LetterSpacing="-0.5" />
+          <!-- Mes clés (leçon 134) : ce qu'elles font, et pour qui. -->
+          <TextBlock Text="{Binding Intro}" FontSize="13" Foreground="{StaticResource Pierre}" TextWrapping="Wrap" MaxWidth="720"
+                     HorizontalAlignment="Left" IsVisible="{Binding IsPersonal}" />
         </StackPanel>
 
         <!-- Messages -->
@@ -131,26 +134,29 @@
               <Ellipse Classes="pulse" Width="14" Height="14" Fill="{StaticResource VertDeGris}" />
             </Border>
             <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-              <TextBlock Classes="eyebrow" Text="MODÈLE PAR DÉFAUT" />
-              <TextBlock FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.3"
-                         Text="{Binding DefaultModel.Model.Name, FallbackValue='Aucun modèle', TargetNullValue='Aucun modèle'}" />
+              <TextBlock Classes="eyebrow" Text="{Binding DefaultEyebrow}" />
+              <TextBlock FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.3" Text="{Binding DefaultLabel}" />
               <StackPanel Orientation="Horizontal" Spacing="10" IsVisible="{Binding DefaultModel, Converter={x:Static ObjectConverters.IsNotNull}}">
                 <TextBlock Classes="mono" FontSize="12" Foreground="{StaticResource Pierre}" Text="{Binding DefaultModel.ProviderName}" />
                 <TextBlock Classes="mono" FontSize="12" Foreground="{StaticResource Cendre}" Text="{Binding DefaultModel.Context}" />
                 <TextBlock Classes="mono" FontSize="12" Foreground="{StaticResource Cendre}" Text="{Binding DefaultModel.Price}" />
               </StackPanel>
             </StackPanel>
-            <Button Grid.Column="2" Classes="action primary" Content="Changer" Command="{Binding OpenPickerCommand}" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+              <Button Classes="action" Content="Modèle de l’instance" Command="{Binding UseInstanceModelCommand}" IsVisible="{Binding CanUseInstanceModel}"
+                      ToolTip.Tip="Vos missions reprennent le modèle de l’instance ; vos clés restent connectées." />
+              <Button Classes="action primary" Content="Changer" Command="{Binding OpenPickerCommand}" />
+            </StackPanel>
           </Grid>
         </Border>
 
-        <!-- Le mode Gratuit : une chaîne de modèles gratuits, avec bascule automatique quand un quota est épuisé. -->
+        <!-- Le mode Gratuit : une chaîne de modèles gratuits, avec bascule automatique quand un quota est épuisé. Réglage de l'instance. -->
         <Border Classes="card">
           <StackPanel Spacing="12">
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
               <StackPanel Spacing="3">
                 <TextBlock Classes="eyebrow" Text="MODE GRATUIT" />
-                <TextBlock Text="Quota épuisé ? On passe au modèle suivant. Jamais vers un modèle payant."
+                <TextBlock Text="{Binding FreeModeDescription}"
                            FontSize="12.5" Foreground="{StaticResource Pierre}" TextWrapping="Wrap" />
               </StackPanel>
               <ToggleSwitch Grid.Column="1" IsChecked="{Binding FreeMode}" OnContent="" OffContent="" VerticalAlignment="Center" />
@@ -167,7 +173,7 @@
                         <TextBlock Text="{Binding Model.Name}" FontSize="13.5" FontWeight="Medium" VerticalAlignment="Center" />
                         <TextBlock Classes="mono" Text="{Binding ProviderName}" FontSize="11.5" Foreground="{StaticResource Cendre}" VerticalAlignment="Center" />
                       </StackPanel>
-                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+                      <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6" IsVisible="{Binding $parent[UserControl].((core:SettingsViewModel)DataContext).IsInstance}">
                         <Button Classes="action" Content="↑" ToolTip.Tip="Essayer plus tôt"
                                 Command="{Binding $parent[UserControl].((core:SettingsViewModel)DataContext).MoveUpCommand}" CommandParameter="{Binding}" />
                         <Button Classes="action danger" Content="Retirer"
@@ -179,14 +185,14 @@
               </ItemsControl.ItemTemplate>
             </ItemsControl>
             <StackPanel Orientation="Horizontal" Spacing="8">
-              <Button Classes="action" Content="＋  Modèle gratuit" Command="{Binding OpenChainPickerCommand}" />
-              <Button Classes="action" Content="Tout ajouter" Command="{Binding FillChainCommand}" />
+              <Button IsVisible="{Binding IsInstance}" Classes="action" Content="＋  Modèle gratuit" Command="{Binding OpenChainPickerCommand}" />
+              <Button IsVisible="{Binding IsInstance}" Classes="action" Content="Tout ajouter" Command="{Binding FillChainCommand}" />
             </StackPanel>
           </StackPanel>
         </Border>
 
-        <!-- Un modèle par agent : le sien, ou celui par défaut. -->
-        <StackPanel Spacing="10">
+        <!-- Un modèle par agent : le sien, ou celui par défaut. Réglage de l'instance. -->
+        <StackPanel Spacing="10" IsVisible="{Binding IsInstance}">
           <TextBlock Classes="eyebrow" Text="PAR AGENT" />
           <ItemsControl ItemsSource="{Binding Agents}">
             <ItemsControl.ItemsPanel>

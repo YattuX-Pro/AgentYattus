@@ -483,3 +483,9 @@ $RECYCLE.BIN/
 
 # Livre d’apprentissage (PDF généré, non versionné)
 docs/livre/
+
+# Local agent workspaces and private configuration
+.claude/
+.env.*
+!.env.example
+!.env.sample

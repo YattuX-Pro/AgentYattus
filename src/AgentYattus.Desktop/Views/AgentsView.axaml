@@ -53,8 +53,8 @@
       </Style.Animations>
     </Style>
     <!-- La bulle de la fiche apparaît en grossissant. -->
-    <Style Selector="Border.cloud">
-      <Setter Property="RenderTransformOrigin" Value="0%,100%" />
+    <Style Selector="Grid.cloud">
+      <Setter Property="RenderTransformOrigin" Value="50%,0%" />
       <Style.Animations>
         <Animation Duration="0:0:0.4" Easing="BackEaseOut">
           <KeyFrame Cue="0%"><Setter Property="Opacity" Value="0" /><Setter Property="ScaleTransform.ScaleX" Value="0.6" /><Setter Property="ScaleTransform.ScaleY" Value="0.6" /></KeyFrame>
@@ -81,7 +81,8 @@
           </ItemsControl.ItemsPanel>
           <ItemsControl.DataTemplates>
             <DataTemplate DataType="core:AgentCard">
-              <Button Classes="bare lift enter" HorizontalAlignment="Stretch" VerticalAlignment="Top"
+              <Button Classes="bare lift enter" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                      HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch"
                       Command="{Binding $parent[ItemsControl].((core:AgentsViewModel)DataContext).SelectCommand}" CommandParameter="{Binding}">
                 <Border Classes="card" Classes.selected="{Binding IsSelected}">
                   <StackPanel>
@@ -113,6 +114,11 @@
                       <Border Margin="12" Height="22" Padding="8,0" CornerRadius="11" Background="#B80B0C0E"
                               HorizontalAlignment="Right" VerticalAlignment="Top" IsVisible="{Binding IsCustom}">
                         <TextBlock Classes="mono" Text="PERSO" FontSize="10" LetterSpacing="0.8" Foreground="{StaticResource Pierre}" VerticalAlignment="Center" />
+                      </Border>
+                      <!-- Le chef d'équipe (leçon 129) : pas encore dans la maquette ; même pastille que « PERSO », en vert-de-gris. -->
+                      <Border Margin="12" Height="22" Padding="8,0" CornerRadius="11" Background="#B80B0C0E"
+                              HorizontalAlignment="Left" VerticalAlignment="Top" IsVisible="{Binding IsLeader}">
+                        <TextBlock Classes="mono" Text="CHEF D’ÉQUIPE" FontSize="10" LetterSpacing="0.8" Foreground="{StaticResource VertDeGris}" VerticalAlignment="Center" />
                       </Border>
                     </Panel>
                     <StackPanel Spacing="12" Margin="16,4,16,16">
@@ -153,7 +159,7 @@
             </DataTemplate>
             <!-- Recruter un collègue : une tuile en pointillés -->
             <DataTemplate DataType="core:RecruitTile">
-              <Button Classes="bare lift enter" MinHeight="290" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Foreground="{StaticResource Cendre}"
+              <Button Classes="bare lift enter" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Foreground="{StaticResource Cendre}"
                       Command="{Binding $parent[ItemsControl].((core:AgentsViewModel)DataContext).CustomizeCommand}">
                 <Panel>
                   <Rectangle RadiusX="18" RadiusY="18" Stroke="#2E3237" StrokeThickness="1.5" StrokeDashArray="4,3" />
@@ -173,7 +179,8 @@
     </DockPanel>
 
     <!-- La fiche : il ou elle se présente -->
-    <Border Grid.Column="1" CornerRadius="22" VerticalAlignment="Top" ClipToBounds="True"
+    <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+    <Border CornerRadius="22" VerticalAlignment="Top" ClipToBounds="True"
             Background="{StaticResource Graphite}" BorderBrush="#1F2226" BorderThickness="1"
             BoxShadow="0 24 70 0 #73000000" IsVisible="{Binding Selected, Converter={x:Static ObjectConverters.IsNotNull}}">
       <StackPanel>
@@ -190,12 +197,17 @@
               </LinearGradientBrush>
             </Border.Background>
           </Border>
-          <Border Classes="cloud" Margin="18" MaxWidth="220" HorizontalAlignment="Left" VerticalAlignment="Top" Padding="13,10"
-                  CornerRadius="14,14,14,4" Background="{StaticResource Parchemin}" BoxShadow="0 10 30 0 #59000000">
-            <TextBlock Text="{Binding Selected.Hello}" Foreground="#16181B" FontSize="12.5" LineHeight="18" TextWrapping="Wrap" MaxLines="5"
-                       TextTrimming="CharacterEllipsis" />
-          </Border>
         </Panel>
+        <!-- La bulle descend sur le buste ; sa pointe remonte vers la bouche. -->
+        <Grid Classes="cloud" Margin="22,-40,22,16"
+              IsVisible="{Binding Selected.Hello, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+          <Path Data="M30 0 L0 72 L20 72 Z" Fill="{StaticResource Parchemin}"
+                Width="30" Height="72" Stretch="Fill" HorizontalAlignment="Center" VerticalAlignment="Top"
+                Margin="28,-70,0,0" IsHitTestVisible="False" />
+          <Border Padding="13,10" CornerRadius="14" Background="{StaticResource Parchemin}">
+            <TextBlock Text="{Binding Selected.Hello}" Foreground="#16181B" FontSize="12.5" LineHeight="18" TextWrapping="Wrap" />
+          </Border>
+        </Grid>
         <StackPanel Spacing="18" Margin="22,4,22,22">
           <StackPanel Spacing="4">
             <TextBlock Text="{Binding Selected.Name}" FontSize="22" FontWeight="SemiBold" LetterSpacing="-0.44" />
@@ -255,5 +267,6 @@
         </StackPanel>
       </StackPanel>
     </Border>
+    </ScrollViewer>
   </Grid>
 </UserControl>

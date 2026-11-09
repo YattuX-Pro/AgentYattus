@@ -1,22 +1,11 @@
-<app-page-header title="Équipes" description="Le chef d’équipe, votre portrait, l’équipe de départ des nouveaux projets, et le rythme de la scène du bureau.">
+<app-page-header title="Équipes" description="Votre portrait, l’équipe de départ des nouveaux projets et son chef d’équipe, et le rythme de la scène du bureau.">
   <button hlmBtn variant="outline" (click)="load()" [disabled]="busy()"><ng-icon name="lucideRotateCcw" /> Annuler</button>
   <button hlmBtn (click)="save()" [disabled]="busy() || !form()"><ng-icon name="lucideSave" /> Enregistrer</button>
 </app-page-header>
 
 @if (form(); as f) {
   <div class="grid grid-cols-1 gap-3 xl:grid-cols-2">
-    <section class="bg-card rounded-xl border">
-      <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Chef d’équipe</h2><span class="text-muted-foreground text-xs">annonce le début et la fin des missions</span></div>
-      <div class="flex flex-col gap-3 p-3.5">
-        <app-portrait-picker label="Portrait du chef d’équipe" [portraits]="portraits()" [value]="f.leaderPortraitId" (changed)="set('leaderPortraitId', $event.id); f.leaderName || set('leaderName', $event.suggestedName)" />
-        <label class="flex items-center justify-between gap-3">
-          <span class="font-medium">Prénom</span>
-          <input hlmInput class="w-56" maxlength="24" placeholder="ex. Léon" [value]="f.leaderName" (input)="set('leaderName', $any($event.target).value)" />
-        </label>
-      </div>
-    </section>
-
-    <section class="bg-card rounded-xl border">
+    <section class="bg-card rounded-xl border xl:col-span-2">
       <div class="flex min-h-11 items-center justify-between border-b px-3.5"><h2 class="font-semibold">Vous</h2><span class="text-muted-foreground text-xs">dans le bureau vitré</span></div>
       <div class="p-3.5">
         <app-portrait-picker label="Votre portrait" [portraits]="portraits()" [value]="f.managerPortraitId" (changed)="set('managerPortraitId', $event.id)" />
@@ -39,6 +28,10 @@
             </div>
             <app-portrait-picker [label]="'Portrait : ' + r.name" [portraits]="portraits()" [value]="s?.portraitId ?? null" (changed)="setSeat(r.key, { portraitId: $event.id }, $event.suggestedName)" />
             <input hlmInput maxlength="24" placeholder="Prénom du collègue" [attr.aria-label]="'Prénom : ' + r.name" [value]="s?.name ?? ''" [disabled]="!s" (input)="setSeat(r.key, { name: $any($event.target).value })" />
+            <div class="flex items-center justify-between gap-3" [class.opacity-50]="!s">
+              <span><span class="block font-medium">Chef d’équipe</span><span class="text-muted-foreground text-xs">on s’adresse à lui par défaut ; il répond ou confie la demande</span></span>
+              <hlm-switch [checked]="s?.leader ?? false" [disabled]="!s" (checkedChange)="setLeader(r.key, $event)" [attr.aria-label]="'Chef d’équipe : ' + r.name" />
+            </div>
           </div>
         }
       </div>
@@ -102,6 +95,9 @@
                   <div class="relative size-8 shrink-0 overflow-hidden rounded-full"><img [src]="'/api' + p.workUrl" alt="" class="absolute top-[-6%] left-[-50%] h-[200%] w-[200%] max-w-none" /></div>
                 }
                 <span class="font-medium">{{ e.colleague.name }}</span>
+                @if (e.colleague.leader && e.colleague.active) {
+                  <span hlmBadge variant="secondary">chef d’équipe</span>
+                }
               </div>
             </td>
             <td hlmTd>{{ e.projectName }}</td>

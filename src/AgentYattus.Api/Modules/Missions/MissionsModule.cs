@@ -22,12 +22,14 @@ public static class MissionsModule
         services.AddSingleton<MissionQueue>();
         services.AddSingleton<MissionCancellations>();
         services.AddScoped<MissionRunner>();
+        services.AddScoped<IRecruitmentCompletion, RecruitmentCompletion>();
         services.AddHostedService<MissionWorker>();
         return services.AddModuleDb<MissionsDb>(MissionsDb.Schema);
     }
 
     public static IEndpointRouteBuilder MapMissionsEndpoints(this IEndpointRouteBuilder app)
     {
+        ConversationEndpoints.Map(app);
         var missions = app.MapGroup("/missions");
         missions.MapGet("/", ListAsync);
         missions.MapPost("/", CreateAsync);
@@ -50,10 +52,16 @@ public static class MissionsModule
         return app;
     }
 
+    /// <summary>Un agent qu'on peut choisir : un agent encore proposé (le chef d'équipe en est un, leçon 129).</summary>
+    private static async Task<bool> IsProposedAsync(IAgentCatalog agents, string agent, CancellationToken ct) =>
+        (await agents.RoleKeysAsync(ct)).Contains(agent);
+
     private static async Task<Results<Accepted<MissionDto>, ValidationProblem, NotFound, ForbidHttpResult>> CreateAsync(
         CreateMissionRequest request, MissionsDb db, MissionQueue queue, ICurrentUser me, IProjectAccess projects,
         IProjectDirectory directory, IAgentCatalog agents, CancellationToken cancellationToken)
     {
+        if (request.Kind == MissionKind.Recruitment && request.OnBranch)
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["onBranch"] = ["L'entretien RH n'utilise pas de branche ni de fichiers du projet."] });
         if (string.IsNullOrWhiteSpace(request.Goal) || request.Goal.Length > MaxGoalLength)
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
@@ -61,11 +69,23 @@ public static class MissionsModule
             });
         // L'agent choisi (ADR 0013) : pour une Question seulement, et parmi ceux qui sont proposés.
         var agent = string.IsNullOrWhiteSpace(request.Agent) ? null : request.Agent.Trim();
-        if (agent is not null && (request.Kind != MissionKind.Question || !(await agents.RoleKeysAsync(cancellationToken)).Contains(agent)))
+        if (agent is not null && (request.Kind != MissionKind.Question || !await IsProposedAsync(agents, agent, cancellationToken)))
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
                 ["agent"] = ["Un agent se choisit pour une mission Question, parmi ceux proposés."],
             });
+
+        // Les compétences choisies (leçon 132) : cinq au plus, parmi celles que l'auteur peut utiliser (approuvées, de l'instance ou à lui).
+        var skills = (request.Skills ?? []).Select(k => (k ?? "").Trim()).Where(k => k.Length > 0).Distinct().ToList();
+        if (skills.Count > 0)
+        {
+            var usable = await agents.SkillKeysAsync(cancellationToken);
+            if (skills.Count > 5 || skills.Any(k => !usable.Contains(k)))
+                return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+                {
+                    ["skills"] = ["Cinq compétences au plus, parmi les tiennes et celles de l'instance, approuvées."],
+                });
+        }
 
         // Sans projet précisé (le bureau d'aujourd'hui) : le projet personnel de l'auteur.
         var projectId = request.ProjectId ?? await projects.PersonalProjectAsync(cancellationToken);
@@ -88,19 +108,22 @@ public static class MissionsModule
             ProjectId = projectId,
             CreatedBy = me.Id,
             CreatedByName = me.Username,
+            // Développer travaille toujours sur une branche à part (ADR 0016) : les fichiers du projet ne changent pas.
+            OnBranch = request.OnBranch || request.Kind == MissionKind.Develop,
+            Skills = string.Join(',', skills),
         };
         db.Missions.Add(mission);
         await db.SaveChangesAsync(cancellationToken);
         await queue.Writer.WriteAsync(mission.Id, cancellationToken);
 
         var names = await directory.NamesAsync([projectId], cancellationToken);
-        return TypedResults.Accepted($"/missions/{mission.Id}", mission.ToDto(names.GetValueOrDefault(projectId)));
+        return TypedResults.Accepted($"/missions/{mission.Id}", mission.ToDto(names.GetValueOrDefault(projectId), me.Id));
     }
 
     // ponytail: une seule page, les plus récentes d'abord ; ajouter un curseur (?before=) quand 100 ne suffira plus.
     private static async Task<Results<Ok<MissionDto[]>, ValidationProblem>> ListAsync(
-        MissionsDb db, IProjectAccess projects, IProjectDirectory directory, CancellationToken cancellationToken,
-        int limit = DefaultPageSize, Guid? projectId = null)
+        MissionsDb db, IProjectAccess projects, IProjectDirectory directory, ICurrentUser me, CancellationToken cancellationToken,
+        int limit = DefaultPageSize, Guid? projectId = null, Guid? before = null)
     {
         if (limit is < 1 or > MaxPageSize)
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
@@ -115,11 +138,12 @@ public static class MissionsModule
         if (projectId is { } only)
             query = query.Where(m => m.ProjectId == only);
 
+        if (before is { } cursor) query = query.Where(m => m.Id.CompareTo(cursor) < 0);
         // Les identifiants v7 commencent par l'heure de création : trier par Id, c'est trier par date.
         // (SQLite ne sait pas trier sur un DateTimeOffset.)
         var page = await query.OrderByDescending(m => m.Id).Take(limit).ToListAsync(cancellationToken);
         var names = await directory.NamesAsync(page.Where(m => m.ProjectId != null).Select(m => m.ProjectId!.Value), cancellationToken);
-        return TypedResults.Ok(page.Select(m => m.ToDto(m.ProjectId is { } p ? names.GetValueOrDefault(p) : null)).ToArray());
+        return TypedResults.Ok(page.Select(m => m.ToDto(m.ProjectId is { } p ? names.GetValueOrDefault(p) : null, me.Id)).ToArray());
     }
 
     /// <summary>Ce qui est dépensé ce mois civil (temps universel), en micro-dollars.</summary>
@@ -128,8 +152,9 @@ public static class MissionsModule
     {
         var now = DateTimeOffset.UtcNow;
         var start = new DateTimeOffset(now.Year, now.Month, 1, 0, 0, 0, TimeSpan.Zero);
-        var costs = await db.Missions.Where(m => m.CostMicros > 0).Select(m => new { m.CreatedAt, m.CostMicros }).ToListAsync(ct);
-        return costs.Where(c => c.CreatedAt >= start).Sum(c => c.CostMicros);
+        // Ce que l'instance a payé : le coût moins la part réglée par des clés personnelles (leçon 134).
+        var costs = await db.Missions.Where(m => m.CostMicros > 0).Select(m => new { m.CreatedAt, m.CostMicros, m.PersonalCostMicros }).ToListAsync(ct);
+        return costs.Where(c => c.CreatedAt >= start).Sum(c => c.CostMicros - c.PersonalCostMicros);
     }
 
     /// <summary>
@@ -146,7 +171,7 @@ public static class MissionsModule
         var totals = new Dictionary<string, (int Finished, int Completed, long Cost)>();
         foreach (var g in groups)
         {
-            IEnumerable<string> roles = g.Kind == MissionKind.Review ? AgentsModule.RolesFor(MissionKind.Review) : [g.Agent ?? AgentsModule.RolesFor(MissionKind.Question)[0]];
+            IEnumerable<string> roles = g.Kind == MissionKind.Question ? [g.Agent ?? AgentsModule.RolesFor(MissionKind.Question)[0]] : AgentsModule.RolesFor(g.Kind);
             foreach (var role in roles)
             {
                 var (f, c, cost) = totals.GetValueOrDefault(role);
@@ -189,7 +214,7 @@ public static class MissionsModule
     /// Ce que l'utilisateur peut faire sur une mission : rien (null, la mission « n'existe pas » pour lui), lire, ou éditer.
     /// Une mission sans projet (antérieure aux projets) n'est lisible que par un administrateur de l'instance.
     /// </summary>
-    private static async Task<ProjectRole?> AccessAsync(Mission mission, ICurrentUser me, IProjectAccess projects, CancellationToken ct) =>
+    internal static async Task<ProjectRole?> AccessAsync(Mission mission, ICurrentUser me, IProjectAccess projects, CancellationToken ct) =>
         mission.ProjectId is { } projectId
             ? await projects.AccessAsync(projectId, ct)
             : me.IsInstanceAdmin ? ProjectRole.Reader : null;
@@ -245,14 +270,14 @@ public static class MissionsModule
         if (mission.CreatedBy != me.Id)
             return TypedResults.Forbid();
         // Comme pour une relance : l'agent de la mission doit être encore proposé (ni retiré, ni d'un autre).
-        if (mission.Agent is { } agent && !(await agents.RoleKeysAsync(cancellationToken)).Contains(agent))
+        if (mission.Agent is { } agent && !await IsProposedAsync(agents, agent, cancellationToken))
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["agent"] = ["Cet agent n'est plus proposé : lance une nouvelle mission."] });
         var updated = await db.Missions
             .Where(m => m.Id == id && m.Status == MissionStatus.Completed && m.Conversation != null && m.CreatedBy == me.Id)
-            .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, MissionStatus.Pending).SetProperty(m => m.FollowUp, text), cancellationToken);
+            .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, MissionStatus.Pending).SetProperty(m => m.FollowUp, text).SetProperty(m => m.ResultAccepted, false).SetProperty(m => m.ExecutionId, (Guid?)null), cancellationToken);
         if (updated == 0)
             return TypedResults.Conflict("On répond à une mission terminée qui a gardé sa conversation : sinon, lance une nouvelle mission.");
-        db.Turns.Add(new MissionTurn { MissionId = id, FromUser = true, Text = text, At = DateTimeOffset.UtcNow });
+        db.Turns.Add(new MissionTurn { MissionId = id, FromUser = true, AuthorJson = AuthorJson.Write(new MessageAuthorDto("user", me.Username)), Text = text, At = DateTimeOffset.UtcNow });
         await db.SaveChangesAsync(cancellationToken);
         await audit.AppendAsync(id, "reponse", cancellationToken);
         var readers = await directory.ReadersAsync(mission.ProjectId ?? Guid.Empty, cancellationToken);
@@ -270,7 +295,8 @@ public static class MissionsModule
             return TypedResults.NotFound();
         // Les identifiants croissent : leur ordre est celui de la conversation (SQLite ne trie pas les dates avec fuseau).
         return TypedResults.Ok(await db.Turns.AsNoTracking().Where(t => t.MissionId == id).OrderBy(t => t.Id)
-            .Select(t => new MissionTurnDto(t.FromUser, t.Text, t.At)).ToArrayAsync(cancellationToken));
+            .Select(t => new { t.FromUser, t.Text, t.At, t.AuthorJson, t.Id }).ToListAsync(cancellationToken) is var rows
+                ? rows.Select(t => new MissionTurnDto(t.FromUser, t.Text, t.At, AuthorJson.Read(t.AuthorJson), t.Id)).ToArray() : []);
     }
 
     /// <summary>
@@ -337,7 +363,7 @@ public static class MissionsModule
             return TypedResults.Conflict();
 
         // Une relance est un nouveau départ : son agent doit être encore proposé (seule une mission en pause finit avec un agent retiré).
-        if (original.Agent is { } agent && !(await agents.RoleKeysAsync(cancellationToken)).Contains(agent))
+        if (original.Agent is { } agent && !await IsProposedAsync(agents, agent, cancellationToken))
             return TypedResults.ValidationProblem(new Dictionary<string, string[]>
             {
                 ["agent"] = [$"L'agent « {agent} » a été retiré : lancez une nouvelle mission avec un autre agent."],
@@ -349,6 +375,9 @@ public static class MissionsModule
             Goal = original.Goal,
             Kind = original.Kind,
             Agent = original.Agent,
+            // Une relance repart sur une nouvelle branche, avec les compétences d'origine que l'on peut encore utiliser.
+            OnBranch = original.OnBranch,
+            Skills = string.Join(',', original.SkillKeys.Intersect(await agents.SkillKeysAsync(cancellationToken))),
             Status = MissionStatus.Pending,
             CreatedAt = DateTimeOffset.UtcNow,
             ProjectId = projectId,
@@ -360,7 +389,7 @@ public static class MissionsModule
         await db.SaveChangesAsync(cancellationToken);
         await queue.Writer.WriteAsync(retry.Id, cancellationToken);
         var names = await directory.NamesAsync([projectId], cancellationToken);
-        return TypedResults.Accepted($"/missions/{retry.Id}", retry.ToDto(names.GetValueOrDefault(projectId)));
+        return TypedResults.Accepted($"/missions/{retry.Id}", retry.ToDto(names.GetValueOrDefault(projectId), me.Id));
     }
 
     private static async Task<Results<Ok<AuditEntryDto[]>, NotFound>> GetEventsAsync(
@@ -375,6 +404,6 @@ public static class MissionsModule
         if (await db.Missions.FindAsync([id], cancellationToken) is not { } mission || await AccessAsync(mission, me, projects, cancellationToken) is null)
             return TypedResults.NotFound();
         var name = mission.ProjectId is { } p ? (await directory.NamesAsync([p], cancellationToken)).GetValueOrDefault(p) : null;
-        return TypedResults.Ok(mission.ToDto(name));
+        return TypedResults.Ok(mission.ToDto(name, me.Id));
     }
 }

@@ -40,6 +40,9 @@ namespace AgentYattus.Api.Modules.Team.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool>("Leader")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(24)
@@ -49,6 +52,9 @@ namespace AgentYattus.Api.Modules.Team.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("RecruitmentSource")
                         .HasColumnType("uuid");
 
                     b.Property<DateTimeOffset?>("RemovedAt")
@@ -75,6 +81,13 @@ namespace AgentYattus.Api.Modules.Team.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("RecruitmentSource")
+                        .IsUnique();
+
+                    b.HasIndex(new[] { "ProjectId" }, "IX_Colleagues_Leader")
+                        .IsUnique()
+                        .HasFilter("\"Active\" AND \"Leader\"");
+
                     b.HasIndex(new[] { "ProjectId" }, "IX_Colleagues_ProjectId");
 
                     b.HasIndex(new[] { "ProjectId", "Role" }, "IX_Colleagues_Seat")
@@ -100,6 +113,16 @@ namespace AgentYattus.Api.Modules.Team.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<double>("MouthX")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.56000000000000005);
+
+                    b.Property<double>("MouthY")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("double precision")
+                        .HasDefaultValue(0.37);
 
                     b.Property<string>("Slug")
                         .IsRequired()
@@ -170,13 +193,6 @@ namespace AgentYattus.Api.Modules.Team.Migrations
                     b.Property<string>("DefaultTeam")
                         .HasMaxLength(4000)
                         .HasColumnType("character varying(4000)");
-
-                    b.Property<string>("LeaderName")
-                        .HasMaxLength(24)
-                        .HasColumnType("character varying(24)");
-
-                    b.Property<Guid?>("LeaderPortraitId")
-                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("ManagerPortraitId")
                         .HasColumnType("uuid");

@@ -11,7 +11,7 @@ import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { HlmSkeletonImports } from '@spartan-ng/helm/skeleton';
 import { AdminApi, AuditFeedEntry, Budget, LlmStatus, Mission, errorMessage, selectionKey } from '../../core/api';
 import { STATUS, describe } from '../../core/events';
-import { tokens, usd, when } from '../../core/format';
+import { tokens, usd, kindLabel, when } from '../../core/format';
 import { PageHeader } from '../../shell/page-header';
 import { axis, stats } from './stats';
 
@@ -65,6 +65,7 @@ export class Overview {
   protected readonly usd = usd;
   protected readonly tokens = tokens;
   protected readonly when = when;
+  protected readonly kindLabel = kindLabel;
   protected readonly key = selectionKey;
 
   constructor() {
